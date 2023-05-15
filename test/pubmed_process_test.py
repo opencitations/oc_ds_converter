@@ -212,7 +212,7 @@ class PubMedProcess(unittest.TestCase):
             processed_lines += len(v)
         self.assertEqual(processed_lines, 29)
 
-        todel_path = ".".join(self.input_dirt_compr.split(".")[:-1])+"decompr_zip_dir"
+        todel_path = ".".join(self.input_dirt_compr.split(".")[:-1])+"_decompr_zip_dir"
         shutil.rmtree(todel_path)
         shutil.rmtree(self.output_dir)
 

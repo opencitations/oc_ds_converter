@@ -202,10 +202,10 @@ class PubmedProcessing(RaProcessor):
         'American Medical Association (AMA) [crossref:10]'. If the id does not exist, the output
         is only the name. Finally, if there is no publisher, the output is an empty string.
         '''
-        ''' NO INFO IN DUMP: to be updated with API DATA'''
+
         publisher_name = self.publisher_manager.extract_publishers_v(doi)
-        if publisher_name[0] and publisher_name[0] != "unidentified":
-            return publisher_name[0]
+        if publisher_name and publisher_name != "unidentified":
+            return publisher_name
         else:
             return ""
 

@@ -7,10 +7,30 @@ from lxml import etree
 class ExtractPublisherDOI(object):
     def __init__(self, pref_info_dict):
         self.description = "class aimed at extracting publishers' names exploiting the DOI "
+        self.datacite_prefixes = ['10.48550', '10.4230', '10.5281', '10.17863', '10.3929', '10.6084', '10.5451', '10.5445', '10.17615', '10.17877', '10.5167', '10.13140', '10.18154', '10.48350', '10.7892', '10.17605', '10.5283', '10.17169', '10.15488', '10.5169', '10.1184', '10.3204', '10.6073', '10.14288', '10.5061', '10.25384']
         if pref_info_dict:
             self._prefix_to_data_dict = pref_info_dict
         else:
             self._prefix_to_data_dict = dict()
+
+    def get_registration_agency(self, prefix):
+        req_url = "https://doi.org/ra/"+prefix
+        try:
+            req = requests.get(url=req_url)
+            req_status_code = req.status_code
+            if req_status_code == 200:
+                req_data = req.json()
+                ra = req_data[0].get("RA")
+                if ra:
+                    norm_ra = ra.lower().strip()
+                    if norm_ra:
+                        return norm_ra
+                    else:
+                        return ""
+        except requests.ConnectionError:
+            print("failed to connect to crossref for", prefix)
+            quit()
+        return ""
 
     def get_last_map_ver(self):
         return self._prefix_to_data_dict
@@ -139,11 +159,26 @@ class ExtractPublisherDOI(object):
     This very last option is not included for the version for not validated citations. 
     """
 
-    def extract_publishers_v(self,doi):
-        prefix = re.findall("(^10.\d{4,9})", doi.split('/')[0])[0]
+    def extract_publishers_v(self,doi_or_pref, enable_extraagencies=True, get_all_prefix_data=False, skip_update=False):
+        if "/" in doi_or_pref:
+            prefix = re.findall("(^10.\d{4,9})", doi_or_pref.split('/')[0])[0]
+        else:
+            prefix = re.findall("(^10.\d{4,9})", doi_or_pref)[0]
+        if not skip_update:
+            self._prefix_to_data_dict = self.add_prefix_pub_data(prefix)
 
-        prefix_to_data_dict = self.add_prefix_pub_data(prefix)
-
-        if prefix_to_data_dict[prefix]["from"] == "not found":
-            self.search_for_publisher_in_other_agencies(doi)
-        return prefix_to_data_dict[prefix]["name"], prefix_to_data_dict
+        # set enable_extraagencies = False if you just want to use data already in the mapping and Crossref data
+        if not enable_extraagencies:
+            # set get_all_prefix_data = True if you want to retrieve all the info about the prefix and not only
+            # the name of the publisher
+            if get_all_prefix_data:
+                return self._prefix_to_data_dict[prefix], self._prefix_to_data_dict
+            else:
+                return self._prefix_to_data_dict[prefix]["name"]
+        else:
+            if self._prefix_to_data_dict[prefix]["from"] == "not found":
+                self.search_for_publisher_in_other_agencies(doi_or_pref)
+            if get_all_prefix_data:
+                return self._prefix_to_data_dict[prefix], self._prefix_to_data_dict
+            else:
+                return self._prefix_to_data_dict[prefix]["name"]

@@ -92,7 +92,7 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
                 result.append(cur_file)
     elif i_dir_or_compr.endswith("zip"):
         with zipfile.ZipFile(i_dir_or_compr, 'r') as zip_ref:
-            dest_dir = i_dir_or_compr.replace('.zip', '') + "decompr_zip_dir"
+            dest_dir = i_dir_or_compr.replace('.zip', '') + "_decompr_zip_dir"
             if not exists(dest_dir):
                 makedirs(dest_dir)
             zip_ref.extractall(dest_dir)
