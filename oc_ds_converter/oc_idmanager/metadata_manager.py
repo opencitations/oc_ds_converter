@@ -1,5 +1,5 @@
 #!python
-# Copyright 2022, Arianna Moretti <arianna.moretti4@unibo.it>, Arcangelo Massari <arcangelo.massari@unibo.it>
+# Copyright 2022-2023 Arianna Moretti <arianna.moretti4@unibo.it>, Arcangelo Massari <arcangelo.massari@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
 # with or without fee is hereby granted, provided that the above copyright notice
@@ -12,7 +12,6 @@
 # DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
-
 
 import importlib
 from urllib.parse import quote

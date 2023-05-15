@@ -3,7 +3,7 @@ import re
 import warnings
 
 from bs4 import BeautifulSoup
-from oc_idmanager.doi import DOIManager
+from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.lib.master_of_regex import *
 
 from oc_ds_converter.preprocessing.datacite import DatacitePreProcessing

@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import List, Tuple
 
 from bs4 import BeautifulSoup
-from oc_idmanager import DOIManager, ORCIDManager
+from oc_ds_converter.oc_idmanager import DOIManager, ORCIDManager
 from oc_ds_converter.lib.csvmanager import CSVManager
 
 from oc_ds_converter.ra_processor import RaProcessor

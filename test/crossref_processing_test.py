@@ -7,11 +7,10 @@ from shutil import rmtree
 from subprocess import Popen
 from sys import executable
 
+from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.file_manager import get_csv_data
 from oc_ds_converter.lib.jsonmanager import *
-
-from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.run.crossref_process import preprocess
 
 BASE = os.path.join('test', 'crossref_processing')

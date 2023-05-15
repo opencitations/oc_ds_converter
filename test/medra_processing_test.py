@@ -16,7 +16,7 @@
 
 import unittest
 
-from oc_idmanager import DOIManager
+from oc_ds_converter.oc_idmanager import DOIManager
 from oc_ds_converter.lib.file_manager import call_api
 
 from oc_ds_converter.medra.medra_processing import MedraProcessing

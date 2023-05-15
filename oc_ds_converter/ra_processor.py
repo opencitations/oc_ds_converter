@@ -21,7 +21,8 @@ from csv import DictReader
 from typing import Dict, List, Tuple
 from zipfile import ZipFile
 
-from oc_idmanager import ISBNManager, ISSNManager, ORCIDManager
+from oc_ds_converter.oc_idmanager import ISBNManager, ISSNManager, ORCIDManager
+
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.master_of_regex import orcid_pattern

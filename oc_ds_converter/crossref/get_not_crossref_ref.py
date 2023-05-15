@@ -22,7 +22,6 @@ from multiprocessing import cpu_count
 from sys import platform
 from typing import List, Tuple
 
-from oc_idmanager import DOIManager
 from pebble import ProcessFuture, ProcessPool
 from tqdm import tqdm
 
@@ -31,6 +30,7 @@ from oc_ds_converter.lib.file_manager import (call_api, chunks, get_csv_data,
                                               pathoo, write_csv)
 from oc_ds_converter.lib.jsonmanager import get_all_files, load_json
 from oc_ds_converter.metadata_manager import MetadataManager
+from oc_ds_converter.oc_idmanager import DOIManager
 
 
 def extract_dois_from_dump(crossref_json_dir:str, output_dir:str, max_workers:int) -> None:

@@ -9,9 +9,9 @@ from typing import Dict, List, Tuple
 
 import fakeredis
 from bs4 import BeautifulSoup
-from oc_idmanager.doi import DOIManager
-from oc_idmanager.orcid import ORCIDManager
-from oc_idmanager.pmid import PMIDManager
+from oc_ds_converter.oc_idmanager.doi import DOIManager
+from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
+from oc_ds_converter.oc_idmanager.pmid import PMIDManager
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.master_of_regex import *
 

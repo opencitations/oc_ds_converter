@@ -21,7 +21,7 @@ import re
 import warnings
 
 from bs4 import BeautifulSoup
-from oc_idmanager import DOIManager
+from oc_ds_converter.oc_idmanager import DOIManager
 
 from oc_ds_converter.lib.master_of_regex import *
 from oc_ds_converter.ra_processor import RaProcessor

@@ -18,8 +18,8 @@ from datetime import datetime
 from urllib.parse import quote, unquote
 
 from bs4 import BeautifulSoup
-from oc_idmanager.issn import ISSNManager
-from oc_idmanager.pmid import PMIDManager
+from oc_ds_converter.oc_idmanager.issn import ISSNManager
+from oc_ds_converter.oc_idmanager.pmid import PMIDManager
 from requests import get
 
 
