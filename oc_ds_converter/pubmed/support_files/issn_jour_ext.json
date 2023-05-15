@@ -1,0 +1,21 @@
+{
+    "Biochem Med": {
+        "extended": "Biochemical medicine",
+        "issn": [
+            "issn:0006-2944"
+        ]
+    },
+    "Biochem Biophys Res Commun": {
+        "extended": "Biochemical and biophysical research communications",
+        "issn": [
+            "issn:0006-291X",
+            "issn:1090-2104"
+        ]
+    },
+    "Biochim Biophys Acta": {
+        "extended": "Biochimica et biophysica acta",
+        "issn": [
+            "issn:0006-3002"
+        ]
+    }
+}

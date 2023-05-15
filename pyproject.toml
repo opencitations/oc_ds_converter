@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "oc-ds-converter"
+version = "0.1.0"
+description = "A library for converting metadata provided by various data sources, e.g. Crossref, DataCite, JaLC, and mEDRA, into the format used by OpenCitations Meta."
+authors = ["arcangelo7 <arcangelomas@gmail.com>"]
+license = "ISC"
+readme = "README.md"
+packages = [{include = "oc_ds_converter"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+oc-meta = "^1.2.4"
+beautifulsoup4 = "^4.12.1"
+oc-idmanager = "^0.2.6"
+requests = "^2.28.2"
+tqdm = "^4.65.0"
+PyYAML = "^6.0"
+redis = "^4.5.5"
+fakeredis = "^2.12.1"
+ndjson = "^0.3.1"
+
+[tool.poetry.group.dev.dependencies]
+wget = "^3.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
