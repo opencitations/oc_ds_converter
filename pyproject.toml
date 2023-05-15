@@ -20,6 +20,8 @@ ndjson = "^0.3.1"
 
 [tool.poetry.group.dev.dependencies]
 wget = "^3.2"
+coverage = "^7.2.5"
+coverage-badge = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core"]
