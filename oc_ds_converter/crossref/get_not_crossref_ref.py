@@ -27,11 +27,10 @@ from pebble import ProcessFuture, ProcessPool
 from tqdm import tqdm
 
 from oc_ds_converter.lib.csvmanager import CSVManager
-from oc_ds_converter.lib.file_manager import (call_api, get_csv_data, pathoo,
-                                              write_csv)
+from oc_ds_converter.lib.file_manager import (call_api, chunks, get_csv_data,
+                                              pathoo, write_csv)
 from oc_ds_converter.lib.jsonmanager import get_all_files, load_json
-from oc_ds_converter.plugins.metadata_manager import MetadataManager
-from oc_ds_converter.run.meta_process import chunks
+from oc_ds_converter.metadata_manager import MetadataManager
 
 
 def extract_dois_from_dump(crossref_json_dir:str, output_dir:str, max_workers:int) -> None:

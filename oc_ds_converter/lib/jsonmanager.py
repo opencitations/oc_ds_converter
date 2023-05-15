@@ -28,7 +28,7 @@ from typing import Tuple
 
 import zstandard as zstd
 
-from oc_meta.lib.file_manager import init_cache
+from oc_ds_converter.lib.file_manager import init_cache
 
 
 def get_all_files(is_dir_or_targz_file:str, cache_filepath:str|None=None) -> Tuple[list, tarfile.TarFile|None]:

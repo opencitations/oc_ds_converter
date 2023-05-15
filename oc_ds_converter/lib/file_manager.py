@@ -33,7 +33,7 @@ from bs4 import BeautifulSoup
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 
-from oc_meta.lib.cleaner import Cleaner
+from oc_ds_converter.lib.cleaner import Cleaner
 
 
 def get_csv_data(filepath:str) -> List[Dict[str, str]]:
@@ -219,3 +219,8 @@ def rm_tmp_csv_files(base_dir:str) -> None:
                     os.remove(os.path.join(base_dir, filename))
                 elif other_date < date:
                     os.remove(os.path.join(base_dir, other_filename))
+
+def chunks(lst:list, n:int) -> List[list]:
+    '''Yield successive n-sized chunks from lst.'''
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]

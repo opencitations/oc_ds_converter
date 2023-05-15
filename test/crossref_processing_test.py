@@ -45,7 +45,7 @@ class TestCrossrefProcessing(unittest.TestCase):
 
     def test_get_ref_dois_not_in_crossref(self):
         output_path = os.path.join(BASE, 'not_crossref_ref')
-        p = Popen([executable, '-m', 'oc_meta.plugins.crossref.get_not_crossref_ref', '-c', GZIP_INPUT, '-o', output_path, '-w', WANTED_DOIS_FOLDER])
+        p = Popen([executable, '-m', 'oc_ds_converter.crossref.get_not_crossref_ref', '-c', GZIP_INPUT, '-o', output_path, '-w', WANTED_DOIS_FOLDER])
         p.wait()
         output = {doi['id'] for doi in get_csv_data(os.path.join(output_path, 'dois_not_in_crossref', '1-3.csv'))}
         expected_output = {'10.1001/jama.299.12.1471', '10.1177/003335490812300219', '10.2105/ajph.2006.101626'}
