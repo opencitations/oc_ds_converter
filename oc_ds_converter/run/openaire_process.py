@@ -85,9 +85,12 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                             if source_ids and target_ids:
 
                                 citation = dict()
+                                any_citing = ""
+                                any_referenced = ""
                                 
                                 if not all(elem in processed_ids for elem in source_ids):
-                                    source_tab_data, any_citing = openaire_csv.csv_creator(source_entity)
+                                    source_tab_data = openaire_csv.csv_creator(source_entity)
+                                    any_citing = source_tab_data["id"].split(" ")[0]
                                     citation["citing"] = any_citing
                                     if source_tab_data:
                                         data.append(source_tab_data)
@@ -95,10 +98,11 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                     processed_ids.update(new_ids_s)
                                 else:
                                     pass
-                                    # FAI IN MODO CHE VENGA RECUPERATO UN ID ANCHE PER LE ENTITà GIà PROCESSATE
+                                    # RECUPERA UN ID ANCHE PER LE ENTITà GIA' PROCESSATE
                                 
                                 if not all(elem in processed_ids for elem in target_ids):
-                                    target_tab_data, any_referenced = openaire_csv.csv_creator(target_entity)
+                                    target_tab_data = openaire_csv.csv_creator(target_entity)
+                                    any_referenced = target_tab_data["id"].split(" ")[0]
                                     citation["referenced"] = any_referenced
                                     if target_tab_data:
                                         data.append(target_tab_data)
@@ -107,7 +111,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                     if any_citing and any_referenced:
                                         index_citations_to_csv.append(citation)
                                 else:
-                                    pass # FAI IN MODO CHE VENGA RECUPERATO UN ID ANCHE PER LE ENTITà GIà PROCESSATE
+                                    pass # RECUPERA UN ID ANCHE PER LE ENTITà GIA' PROCESSATE
 
 
             if data:
