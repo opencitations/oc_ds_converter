@@ -378,7 +378,7 @@ class OpenaireProcessing(RaProcessor):
                 for id_dict in id_dict_list:
                     if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
                         norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=False)
-                        if self.BR_redis.get("doi" + norm_id):
+                        if self.BR_redis.get("doi:" + norm_id):
                             result_id_dict_list.append(id_dict)
                             return result_id_dict_list
                         # if the id is not in redis db, validate it before appending
