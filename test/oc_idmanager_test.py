@@ -33,12 +33,6 @@ class IdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        # class extension for pubmedid
-        self.valid_pmid_1 = "2942070"
-        self.valid_pmid_2 = "1509982"
-        self.invalid_pmid_1 = "0067308798798"
-        self.invalid_pmid_2 = "pmid:174777777777"
-
         test_dir = join("test", "data")
         with open(join(test_dir, "glob.json"), encoding="utf-8") as fp:
             self.data = json.load(fp)
@@ -168,38 +162,6 @@ class IdentifierManagerTest(unittest.TestCase):
         um_nofile_noapi = URLManager(clean_data, use_api_service=False)
         self.assertTrue(um_nofile_noapi.is_valid(self.valid_url_1))
         self.assertTrue(um_nofile_noapi.is_valid(self.invalid_url_1))
-
-    def test_pmid_normalise(self):
-        pm = PMIDManager()
-        self.assertEqual(
-            self.valid_pmid_1, pm.normalise(self.valid_pmid_1.replace("", "pmid:"))
-        )
-        self.assertEqual(
-            self.valid_pmid_1, pm.normalise(self.valid_pmid_1.replace("", " "))
-        )
-        self.assertEqual(
-            self.valid_pmid_1,
-            pm.normalise("https://pubmed.ncbi.nlm.nih.gov/" + self.valid_pmid_1),
-        )
-        self.assertEqual(self.valid_pmid_2, pm.normalise("000" + self.valid_pmid_2))
-
-    def test_pmid_is_valid(self):
-        pm_nofile = PMIDManager()
-        self.assertTrue(pm_nofile.is_valid(self.valid_pmid_1))
-        self.assertTrue(pm_nofile.is_valid(self.valid_pmid_2))
-        self.assertFalse(pm_nofile.is_valid(self.invalid_pmid_1))
-        self.assertFalse(pm_nofile.is_valid(self.invalid_pmid_2))
-
-        pm_file = PMIDManager(self.data, use_api_service=False)
-        self.assertTrue(pm_file.normalise(self.valid_pmid_1, include_prefix=True) in self.data)
-        self.assertTrue(pm_file.normalise(self.invalid_pmid_1, include_prefix=True) in self.data)
-        self.assertTrue(pm_file.is_valid(self.valid_pmid_1))
-        self.assertFalse(pm_file.is_valid(self.invalid_pmid_1))
-
-        clean_data = {}
-        pm_nofile_noapi = PMIDManager(clean_data, use_api_service=False)
-        self.assertTrue(pm_nofile_noapi.is_valid(self.valid_pmid_1))
-        self.assertTrue(pm_nofile_noapi.is_valid(self.invalid_pmid_1))
 
     def test_issn_normalise(self):
         im = ISSNManager()

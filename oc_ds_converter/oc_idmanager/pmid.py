@@ -27,17 +27,26 @@ from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
+
 
 class PMIDManager(IdentifierManager):
     """This class implements an identifier manager for pmid identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True,  storage_manager: StorageManager=None):
         """PMID manager constructor."""
         super(PMIDManager, self).__init__()
         self._api = "https://pubmed.ncbi.nlm.nih.gov/"
         self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
         self._p = "pmid:"
-        self._data = data
         self._im = ISSNManager()
         #regex
         self._doi_regex = r"(?<=^AID\s-\s).*\[doi\]\s*\n"
@@ -54,24 +63,33 @@ class PMIDManager(IdentifierManager):
         self._publisher_regex = r"(?<=^PB\s{2}-\s)(.+?)*(\n\s{6}(.+?)*)*(?=(?:\n[A-Z]{2,4}\s{,2}-\s*|$))"
         self._editor_regex = r"((?<=^FED\s-\s)|(?<=^ED\s{2}-\s))(.+?)*(\n\s{6}(.+?)*)*(?=(?:\n[A-Z]{2,4}\s{,2}-\s*|$))"
 
+    def validated_as_id(self, id_string):
+        arxiv_vaidation_value = self.storage_manager.get_value(id_string)
+        if isinstance(arxiv_vaidation_value, bool):
+            return arxiv_vaidation_value
+        else:
+            return None
+
     def is_valid(self, pmid, get_extra_info=False):
         pmid = self.normalise(pmid, include_prefix=True)
 
-        if pmid is None:
+        if not pmid:
             return False
         else:
-            if pmid not in self._data or self._data[pmid] is None:
+            pmid_vaidation_value = self.storage_manager.get_value(pmid)
+            if isinstance(pmid_vaidation_value, bool):
+                return pmid_vaidation_value
+            else:
                 if get_extra_info:
                     info = self.exists(pmid, get_extra_info=True)
-                    self._data[pmid] = info[1]
+                    self.storage_manager.set_full_value(pmid,info[1])
                     return (info[0] and self.syntax_ok(pmid)), info[1]
-                self._data[pmid] = dict()
-                self._data[pmid]["valid"] = True if (self.exists(pmid) and self.syntax_ok(pmid)) else False
-                return self._data[pmid].get("valid")
+                validity_check = self.exists(pmid) and self.syntax_ok(pmid)
+                self.storage_manager.set_value(pmid, validity_check)
 
-            if get_extra_info:
-                return self._data[pmid].get("valid"), self._data[pmid]
-            return self._data[pmid].get("valid")
+                return validity_check
+
+
 
     def normalise(self, id_string, include_prefix=False):
         id_string = str(id_string)
@@ -89,8 +107,11 @@ class PMIDManager(IdentifierManager):
 
     def exists(self, pmid_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True
+        pmid = pmid_full
+        pmid_p = "pmid:"+pmid if not pmid.startswith("pmid:") else pmid
         if self._use_api_service:
             pmid = self.normalise(pmid_full)
+            pmid_p = self.normalise(pmid_full, include_prefix=True)
             if pmid is not None:
                 tentative = 3
                 while tentative:
@@ -110,11 +131,13 @@ class PMIDManager(IdentifierManager):
                                 m_pmid = match_p.group()
                                 if m_pmid:
                                     if get_extra_info:
-                                        return True, self.extra_info(txt_obj)
+                                        result = self.extra_info(txt_obj)
+                                        result["id"] = pmid_p
+                                        return True, result
                                     return True
                         elif r.status_code == 404:
                             if get_extra_info:
-                                return False, {"valid": False}
+                                return False, {"id":pmid_p, "valid": False}
                             return False
 
                     except ReadTimeout:
@@ -126,10 +149,10 @@ class PMIDManager(IdentifierManager):
                 valid_bool = False
             else:
                 if get_extra_info:
-                    return False, {"valid": False}
+                    return False, {"id":pmid_p, "valid": False}
                 return False
         if get_extra_info:
-            return valid_bool, {"valid": valid_bool}
+            return valid_bool, {"id":pmid_p, "valid": valid_bool}
         return valid_bool
 
     def extra_info(self, api_response, choose_api=None, info_dict={}):

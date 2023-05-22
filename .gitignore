@@ -6,4 +6,3 @@ oc_ds_converter/pubmed/support_files/
 test/jalc_process/meta_input_with_citing/
 test/preprocess/
 storage/
-test/jalc_process/*
