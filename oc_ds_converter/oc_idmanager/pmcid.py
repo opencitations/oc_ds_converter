@@ -23,49 +23,65 @@ from urllib.parse import quote, unquote
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
 
 
 class PMCIDManager(IdentifierManager):
     """This class implements an identifier manager for PMCID identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
         """PMCID manager constructor."""
         super(PMCIDManager, self).__init__()
+        self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
         self._api = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
         self._use_api_service = use_api_service
         self._p = "pmcid:"
-        self._data = data
 
         # If there's a need to obtain more metadata from a PMCID, consider using Entrez (aka E-Utilities) API (
         # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/), which of course works with different parameters and
         # returns different responses.
         # The ID Converter API only provides alternative IDs (doi, pmid) for the work associated to the queried pmcid.
 
-    def is_valid(self, pmcid, get_extra_info=False):
+    def validated_as_id(self, id_string):
+        arxiv_vaidation_value = self.storage_manager.get_value(id_string)
+        if isinstance(arxiv_vaidation_value, bool):
+            return arxiv_vaidation_value
+        else:
+            return None
 
+
+    def is_valid(self, pmcid, get_extra_info=False):
         pmcid = self.normalise(pmcid, include_prefix=True)
 
         if pmcid is None:
             return False
         else:
-            if pmcid not in self._data or self._data[pmcid] is None:
+            pmc_vaidation_value = self.storage_manager.get_value(pmcid)
+            if isinstance(pmc_vaidation_value, bool):
+                return pmc_vaidation_value
+            else:
                 if get_extra_info:
                     info = self.exists(pmcid, get_extra_info=True)
-                    self._data[pmcid] = info[1]
+                    self.storage_manager.set_full_value(pmcid,info[1])
                     return (info[0] and self.syntax_ok(pmcid)), info[1]
-                self._data[pmcid] = dict()
-                self._data[pmcid]["valid"] = True if (self.exists(pmcid) and self.syntax_ok(pmcid)) else False
-                return self._data[pmcid].get("valid")
-            if get_extra_info:
-                return self._data[pmcid].get("valid"), self._data[pmcid]
-            return self._data[pmcid].get("valid")
+                validity_check = self.exists(pmcid) and self.syntax_ok(pmcid)
+                self.storage_manager.set_value(pmcid, validity_check)
+
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         try:
             if id_string.startswith(self._p):
-                pmcid_string = id_string[len(self._p):]
+                id_string = id_string[len(self._p):]
             else:
-                pmcid_string = id_string
+                id_string = id_string
 
             pmcid_string = sub(
                 "\0+", "", sub("\s+", "", unquote(id_string[id_string.index("PMC"):]))
@@ -108,9 +124,11 @@ class PMCIDManager(IdentifierManager):
                                 try:
                                     result = True if not json_res['records'][0].get('status') =='error' else False
                                     extra_info_result['valid'] = result
+                                    extra_info_result['id'] = pmcid
                                     return result, extra_info_result
                                 except KeyError:
                                     extra_info_result["valid"] = False
+                                    extra_info_result['id'] = pmcid
                                     return False, extra_info_result
                             try:
                                 return True if not json_res['records'][0].get('status') =='error' else False
@@ -120,7 +138,7 @@ class PMCIDManager(IdentifierManager):
 
                         elif 400 <= r.status_code < 500:
                             if get_extra_info:
-                                return False, {"valid": False}
+                                return False, {"id":pmcid, "valid": False}
                             return False
                     except ReadTimeout:
                         # Do nothing, just try again
@@ -131,7 +149,7 @@ class PMCIDManager(IdentifierManager):
                 valid_bool = False
             else:
                 if get_extra_info:
-                    return False, {"valid": False}
+                    return False, {"id":pmcid, "valid": False}
                 return False
 
         if get_extra_info:

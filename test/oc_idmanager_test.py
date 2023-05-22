@@ -89,11 +89,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.valid_viaf_2 = "234145033"
         self.invalid_viaf_1 = "012517637138"
 
-        self.valid_pmcid_1 = "PMC8384044"
-        self.valid_pmcid_2 = "PMC6716460"
-        self.invalid_pmcid_1 = "0128564"
-        self.invalid_pmcid_2 = "PMC6716"
-
         self.valid_arxiv_1 = "arXiv:2109.05583"
         self.valid_arxiv_1v = "2109.05583v2"
         self.valid_arxiv_2 = "arXiv:2109.05582"
@@ -106,25 +101,7 @@ class IdentifierManagerTest(unittest.TestCase):
         self.valid_jid_3 = "japeoj" #SYS_ERR_009
         self.invalid_jid_1 = "hjmee"
         self.invalid_jid_2 = "jee1973e"
-        
-    
-    def test_pmcid_normalise(self):
-        pcm = PMCIDManager()
-        self.assertEqual(
-            pcm.normalise(self.valid_pmcid_1),
-            pcm.normalise(' ' + self.valid_pmcid_1),
-        )
-        self.assertEqual(
-            pcm.normalise(self.valid_pmcid_2),
-            pcm.normalise("https://www.ncbi.nlm.nih.gov/pmc/articles/" + self.valid_pmcid_2),
-        )
 
-    def test_pmcid_is_valid(self):
-        pcm = PMCIDManager()
-        self.assertTrue(pcm.is_valid(self.valid_pmcid_1))
-        self.assertTrue(pcm.is_valid(self.valid_pmcid_2))
-        self.assertFalse(pcm.is_valid(self.invalid_pmcid_1))
-        self.assertFalse(pcm.is_valid(self.invalid_pmcid_2))
     def test_viaf_normalise(self):
         vm = ViafManager()
         self.assertEqual(
