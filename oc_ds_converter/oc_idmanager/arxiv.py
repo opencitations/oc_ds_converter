@@ -24,17 +24,24 @@ from oc_ds_converter.oc_idmanager import *
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 class ArXivManager(IdentifierManager):
     """This class implements an identifier manager for arxiv identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
         """arxiv manager constructor."""
         super(ArXivManager,self).__init__()
         self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
         self._p = "arxiv:"
-        self._data = data
         self._api = f'https://export.arxiv.org/api/query?search_query=all:'
         self._api_v = f'https://arxiv.org/abs/'
         self._headers = {
@@ -42,6 +49,13 @@ class ArXivManager(IdentifierManager):
                           "(http://opencitations.net; mailto:contact@opencitations.net)"
         }
 
+
+    def validated_as_id(self, id_string):
+        arxiv_vaidation_value = self.storage_manager.get_value(id_string)
+        if isinstance(arxiv_vaidation_value, bool):
+            return arxiv_vaidation_value
+        else:
+            return None
 
     def is_valid(self, id_string, get_extra_info=False):
         """Check if an arxiv is valid.
@@ -57,18 +71,18 @@ class ArXivManager(IdentifierManager):
         if not arxiv:
             return False
         else:
-            if arxiv not in self._data or self._data[arxiv] is None:
+            arxiv_vaidation_value = self.storage_manager.get_value(arxiv)
+            if isinstance(arxiv_vaidation_value, bool):
+                return arxiv_vaidation_value
+            else:
                 if get_extra_info:
                     info = self.exists(arxiv, get_extra_info=True)
-                    self._data[arxiv] = info[1]
+                    self.storage_manager.set_full_value(arxiv,info[1])
                     return (info[0] and self.syntax_ok(arxiv)), info[1]
-                self._data[arxiv] = dict()
-                self._data[arxiv]["valid"] = True if (self.exists(arxiv) and self.syntax_ok(arxiv)) else False
-                return self._data[arxiv].get("valid")
+                validity_check = self.exists(arxiv) and self.syntax_ok(arxiv)
+                self.storage_manager.set_value(arxiv, validity_check)
 
-            if get_extra_info:
-                return self._data[arxiv].get("valid"), self._data[arxiv]
-            return self._data[arxiv].get("valid")
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         """It returns the arxiv normalized.
@@ -102,7 +116,9 @@ class ArXivManager(IdentifierManager):
             try:
                 id_string = unquote(id_string)
                 arxiv_string = match("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?$", id_string).group()
+
                 return "%s%s" % (self._p if include_prefix else "", arxiv_string)
+
 
             except:
                 # Any error in processing the arxiv will return None

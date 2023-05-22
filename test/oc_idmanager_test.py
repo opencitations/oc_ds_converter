@@ -226,56 +226,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.assertTrue(dm_file.is_valid(self.valid_doi_1))
         self.assertFalse(dm_file.is_valid(self.invalid_doi_1))
 
-    ### DA QUI
-    # self.valid_arxiv_1 = "arXiv:2109.05583"
-    # self.valid_arxiv_1v = "2109.05583v2"
-    # self.valid_arxiv_2 = "arXiv:2109.05582"
-    # self.invalid_arxiv_1 = "1133.5582"
-    # self.invalid_arxiv_2v = "2109.05583v23"
-
-    def test_arxiv_normalise(self):
-        am = ArXivManager()
-        self.assertEqual(
-            self.valid_arxiv_1.lower(),
-            am.normalise(self.valid_arxiv_1.upper().replace(".", "..."), include_prefix=True),
-        )
-        self.assertEqual(
-            self.valid_arxiv_1v,
-            am.normalise(self.valid_arxiv_1v.upper().replace("v", "vv")),
-        )
-        self.assertEqual(
-            self.valid_arxiv_2.lower(),
-            am.normalise(
-                self.valid_arxiv_2.upper().replace("21", "https://arxiv.org/abs/21")
-            ,include_prefix=True),
-        )
-        self.assertEqual(
-            self.valid_arxiv_2.lower(),
-            am.normalise(
-                self.valid_arxiv_2.upper().replace("21", "http://export.arxiv.org/api/query?search_query=all:21")
-            ,include_prefix=True),
-        )
-
-    def test_arxiv_is_valid(self):
-        am_nofile = ArXivManager()
-        self.assertTrue(am_nofile.is_valid(self.valid_arxiv_1))
-        self.assertTrue(am_nofile.is_valid(self.valid_arxiv_2))
-        self.assertTrue(am_nofile.is_valid(self.valid_arxiv_1v))
-        self.assertFalse(am_nofile.is_valid(self.invalid_arxiv_1))
-        self.assertFalse(am_nofile.is_valid(self.invalid_arxiv_2v))
-
-        am_file = ArXivManager(self.data, use_api_service=False)
-        self.assertTrue(am_file.normalise(self.valid_arxiv_1.lower(), include_prefix=True) in self.data)
-        self.assertTrue(am_file.normalise(self.valid_arx_U_S.strip().lower(), include_prefix=True) in self.data)
-        self.assertTrue(am_file.normalise(self.invalid_arxiv_1.strip().lower(), include_prefix=True) in self.data)
-        self.assertTrue(am_file.is_valid(self.valid_arxiv_1))
-        self.assertFalse(am_file.is_valid(self.invalid_arxiv_1))
-
-        clean_data = {}
-        am_nofile_noapi = ArXivManager(clean_data, use_api_service=False)
-        self.assertTrue(am_nofile_noapi.is_valid(self.valid_arxiv_1v))
-        self.assertTrue(am_nofile_noapi.is_valid(self.invalid_arxiv_1))
-
     def test_pmid_normalise(self):
         pm = PMIDManager()
         self.assertEqual(

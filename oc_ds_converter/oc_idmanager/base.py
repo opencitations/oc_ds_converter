@@ -46,6 +46,9 @@ class IdentifierManager(metaclass=ABCMeta):
         """
         return True
 
+    def validated_as_id(self, id_string):
+        return None
+
     @abstractmethod
     def normalise(self, id_string, include_prefix=False):
         """Returns the id normalized.

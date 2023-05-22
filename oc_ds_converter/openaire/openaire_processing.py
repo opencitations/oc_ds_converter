@@ -10,7 +10,7 @@ from oc_idmanager.doi import DOIManager
 from oc_idmanager.pmid import PMIDManager
 from oc_idmanager.pmcid import PMCIDManager
 from oc_idmanager.orcid import ORCIDManager
-from oc_idmanager.arxiv import ArXivManager
+from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
 
 from datetime import datetime
 from argparse import ArgumentParser
@@ -31,13 +31,16 @@ from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.master_of_regex import *
 from oc_ds_converter.pubmed.get_publishers import ExtractPublisherDOI
 from oc_ds_converter.ra_processor import RaProcessor
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class OpenaireProcessing(RaProcessor):
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_openaire: str = None, testing:bool = True):
-        super(OpenaireProcessing, self).__init__(orcid_index, doi_csv)
+    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_openaire: str = None, testing:bool = True, storage_manager:StorageManager=None):
+        super(OpenaireProcessing, self).__init__(orcid_index, doi_csv, storage_manager)
         self.types_dict = {
             "Article": "journal article",
             "Part of book or chapter of book": "book chapter",
@@ -83,7 +86,7 @@ class OpenaireProcessing(RaProcessor):
         self.pmid_m = PMIDManager()
         self.pmc_m = PMCIDManager()
         self.orcid_m = ORCIDManager()
-        self.arxiv_m = ArXivManager()
+        self.arxiv_m = ArXivManager(storage_manager=storage_manager) # Modality to be extended to all the id managers
         self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmc": self.pmc_m, "arxiv":self.arxiv_m}
         self._doi_prefixes_publishers_dict = {
         "10.48550":{"publisher":"arxiv", "priority":1},
@@ -132,13 +135,43 @@ class OpenaireProcessing(RaProcessor):
             with open(self.publishers_filepath, "w", encoding="utf8") as fdp:
                 json.dump({}, fdp, ensure_ascii=False, indent=4)
 
-    def get_id_manager(self, schema, id_man_dict):
+
+    def validated_as(self, id_dict):
+        schema = id_dict["schema"]
+        id = id_dict["identifier"]
+        id_m = self.get_id_manager(schema, self._id_man_dict)
+        return id_m.validated_as_id(id)
+
+
+    def get_id_manager(self, schema_or_id, id_man_dict):
         """Given as input the string of a schema (e.g.:'pmid') and a dictionary mapping strings of
         the schemas to their id managers, the method returns the correct id manager. Note that each
         instance of the Preprocessing class needs its own instances of the id managers, in order to
         avoid conflicts while validating data"""
+        if ":" in schema_or_id:
+            split_id_prefix = schema_or_id.split(schema_or_id)
+            schema = split_id_prefix[0]
+        else:
+            schema = schema_or_id
         id_man = id_man_dict.get(schema)
         return id_man
+
+    def normalise_any_id(self, id_with_prefix):
+        id_man = self.get_id_manager(id_with_prefix, self._id_man_dict)
+        id_no_pref = ":".join(id_with_prefix.split(":")[1:])
+        norm_id_w_pref = id_man.normalise(id_no_pref, include_prefix=True)
+        return norm_id_w_pref
+
+    def get_norm_ids(self, entity):
+        norm_ids = []
+        for e in entity:
+            e_schema = e.get("schema").strip().lower()
+            if e_schema in self._id_man_dict:
+                e_id = self._id_man_dict[e_schema].normalise(e["identifier"], include_prefix=True)
+                if e_id:
+                    norm_ids.append({"schema": e_schema, "identifier": e_id})
+        return norm_ids
+
 
     def dict_to_cache(self, dict_to_be_saved, path):
         with open(path, "w", encoding="utf-8") as fd:

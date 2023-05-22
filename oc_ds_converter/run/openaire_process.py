@@ -19,11 +19,36 @@ from tqdm import tqdm
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import *
 from oc_ds_converter.openaire.openaire_processing import *
+from oc_idmanager.doi import DOIManager
+from oc_idmanager.pmid import PMIDManager
+from oc_idmanager.pmcid import PMCIDManager
+from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+import sqlite3
 
 
-def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False) -> None:
-    processed_ids = set()
-    accepted_ids_br = {"doi", "pmid", "pmc", "arxiv"}
+def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager:StorageManager=None, storage_path:str = None) -> None:
+
+    storage_manager = storage_manager if storage_manager else SqliteStorageManager()
+
+    if not storage_path or not os.path.exists(storage_path):
+        new_path_dir = os.path.join(os.getcwd(), "storage")
+        if not os.path.exists(new_path_dir):
+            os.makedirs(new_path_dir)
+        if storage_manager == SqliteStorageManager():
+            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
+        else:
+            storage_manager = InMemoryStorageManager(os.path.join(new_path_dir, "id_valid_dict.json"))
+
+    else:
+        if storage_manager == SqliteStorageManager():
+            storage_manager = SqliteStorageManager(storage_path)
+        else:
+            storage_manager = InMemoryStorageManager(storage_path)
+
+
     req_type = ".gz"
     preprocessed_citations_dir = csv_dir + "_citations"
     if not os.path.exists(preprocessed_citations_dir):
@@ -39,9 +64,11 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                 what.append('wanted DOIs CSV')
             log = '[INFO: openaire_process] Processing: ' + '; '.join(what)
             print(log)
-    openaire_csv = OpenaireProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath, publishers_filepath_openaire=publishers_filepath)
+
+    openaire_csv = OpenaireProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath, publishers_filepath_openaire=publishers_filepath, storage_manager=storage_manager)
     if verbose:
         print(f'[INFO: openaire_process] Getting all files from {openaire_json_dir}')
+
 
 
     for tar in tqdm(os.listdir(openaire_json_dir)):
@@ -66,53 +93,80 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                     d = json.loads(entity.decode('utf-8'))
                     if d.get("relationship"):
                         if d.get("relationship").get("name") == "Cites":
-                            source_ids = []
-                            target_ids = []
+                            skip_source_process = False
+                            skip_target_process = False
+
+                            norm_source_ids = []
+                            norm_target_ids = []
+
+                            any_source_id = ""
+                            any_target_id = ""
+
+                            valid_citation_ids_s = []
+                            valid_citation_ids_t = []
 
                             source_entity = d.get("source")
-                            # normalizza
                             if source_entity:
-                                source_ids = [x.get("schema").strip().lower()+":"+x.get("identifier").strip().lower() for x in source_entity.get("identifier") if x.get("schema").strip().lower() in accepted_ids_br ]
+                                norm_source_ids = openaire_csv.get_norm_ids(source_entity)
+                                new_ids_s = False
+                                valid_citation_ids_s = []
+                                if norm_source_ids:
+                                    for nsi in norm_source_ids:
+                                        stored_validity = openaire_csv.validated_as(nsi)
+                                        if not isinstance(stored_validity, bool):
+                                            new_ids_s = True
+                                        elif stored_validity is True:
+                                            valid_citation_ids_s.append(nsi["identifier"])
+
+                                skip_source_process = True if not new_ids_s else False
+                                any_source_id = valid_citation_ids_s[0] if valid_citation_ids_s else ""
+
+
 
                             target_entity = d.get("target")
-                            # normalizza
-
                             if target_entity:
-                                target_ids = [x.get("schema").strip().lower()+":"+x.get("identifier").strip().lower() for x in source_entity.get("identifier") if
-                                              x.get("schema").strip().lower() in accepted_ids_br]
+                                norm_target_ids = openaire_csv.get_norm_ids(target_entity)
+                                new_ids_t = False
+                                valid_citation_ids_t = []
+                                if norm_target_ids:
+                                    for nti in norm_target_ids:
+                                        stored_validity_t = openaire_csv.validated_as(nti)
+                                        if not isinstance(stored_validity_t, bool):
+                                            new_ids_t = True
+                                        elif stored_validity_t is True:
+                                            valid_citation_ids_t.append(nti["identifier"])
+
+                                skip_target_process = True if not new_ids_t else False
+                                any_target_id = valid_citation_ids_t[0] if valid_citation_ids_t else ""
+
 
                             # check that there is a citation we can handle (i.e.: expressed with ids we actually manage)
-                            if source_ids and target_ids:
+                            if norm_source_ids and norm_target_ids:
 
-                                citation = dict()
-                                any_citing = ""
-                                any_referenced = ""
-                                
-                                if not all(elem in processed_ids for elem in source_ids):
-                                    source_tab_data = openaire_csv.csv_creator(source_entity)
-                                    any_citing = source_tab_data["id"].split(" ")[0]
-                                    citation["citing"] = any_citing
+
+                                if not skip_source_process:
+                                    source_tab_data = openaire_csv.csv_creator(source_entity) #valid_citation_ids_s --> evitare rivalidazione ?
                                     if source_tab_data:
+                                        all_citing = source_tab_data["id"].split(" ") # VERIFICARE PER SINGOLO ID
+                                        if not any_source_id:
+                                            any_source_id = all_citing[0]
                                         data.append(source_tab_data)
-                                    new_ids_s = {x for x in source_ids if x not in processed_ids}
-                                    processed_ids.update(new_ids_s)
-                                else:
-                                    pass
-                                    # RECUPERA UN ID ANCHE PER LE ENTITà GIA' PROCESSATE
-                                
-                                if not all(elem in processed_ids for elem in target_ids):
-                                    target_tab_data = openaire_csv.csv_creator(target_entity)
-                                    any_referenced = target_tab_data["id"].split(" ")[0]
-                                    citation["referenced"] = any_referenced
-                                    if target_tab_data:
-                                        data.append(target_tab_data)
-                                    new_ids_t = {x for x in target_ids if x not in processed_ids}
-                                    processed_ids.update(new_ids_t)
-                                    if any_citing and any_referenced:
-                                        index_citations_to_csv.append(citation)
-                                else:
-                                    pass # RECUPERA UN ID ANCHE PER LE ENTITà GIA' PROCESSATE
 
+                                if not skip_target_process:
+                                    target_tab_data = openaire_csv.csv_creator(target_entity) # valid_citation_ids_t  --> evitare rivalidazione ?
+                                    if target_tab_data:
+                                        all_cited = target_tab_data["id"].split(" ") # VERIFICARE PER SINGOLO ID
+                                        if not any_target_id:
+                                            any_target_id = all_cited[0]
+
+                                        data.append(target_tab_data)
+
+
+                            if any_source_id and any_target_id:
+                                citation = dict()
+                                citation["citing"] = any_source_id
+                                citation["cited"] = any_target_id
+                                index_citations_to_csv.append(citation)
 
             if data:
                 with open(filepath, 'w', newline='', encoding='utf-8') as output_file:

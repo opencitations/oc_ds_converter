@@ -5,3 +5,4 @@ oc_ds_converter/pubmed/support_files/
 .idea
 test/jalc_process/meta_input_with_citing/
 test/preprocess/
+storage/
