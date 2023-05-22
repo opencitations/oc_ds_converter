@@ -30,7 +30,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteSt
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 
 
-class IdentifierManagerTest(unittest.TestCase):
+class ArxivIdentifierManagerTest(unittest.TestCase):
     """This class aim at testing identifiers manager."""
 
     def setUp(self):
@@ -103,14 +103,11 @@ class IdentifierManagerTest(unittest.TestCase):
 
 
 
-    def test_arxiv_sqlite_file_noapi(self):
+    def test_arxiv_sqlite_nofile_api(self):
         # No support files (it generates it)
         # Default storage manager : SqliteStorageManager
         # uses API
         sql_am_nofile = ArXivManager(storage_manager=SqliteStorageManager())
-        # No support files (it generates it)
-        # Default storage manager : in Memory + generates file on method call (not automatically)
-        # uses API
         self.assertTrue(sql_am_nofile.is_valid(self.valid_arxiv_1))
         self.assertTrue(sql_am_nofile.is_valid(self.valid_arxiv_2))
         self.assertTrue(sql_am_nofile.is_valid(self.valid_arxiv_1v))

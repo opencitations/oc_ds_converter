@@ -28,14 +28,22 @@ from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.oc_idmanager.support import call_api
 
 from oc_ds_converter.metadata_manager import MetadataManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 class DOIManager(IdentifierManager):
     """This class implements an identifier manager for doi identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
         """DOI manager constructor."""
         super(DOIManager,self).__init__()
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
         self._api = "https://doi.org/api/handles/"
         self._api_airiti = ""
         self._api_cnki = ""
@@ -50,27 +58,33 @@ class DOIManager(IdentifierManager):
         self._api_unknown = "https://doi.org/ra/"
         self._use_api_service = use_api_service
         self._p = "doi:"
-        self._data = data
         self._issnm = ISSNManager()
         self._isbnm = ISBNManager()
         self._om = ORCIDManager()
+
+    def validated_as_id(self, id_string):
+        doi_vaidation_value = self.storage_manager.get_value(id_string)
+        if isinstance(doi_vaidation_value, bool):
+            return doi_vaidation_value
+        else:
+            return None
 
     def is_valid(self, id_string, get_extra_info=False):
         doi = self.normalise(id_string, include_prefix=True)
         if doi is None:
             return False
         else:
-            if doi not in self._data or self._data[doi] is None:
+            doi_vaidation_value = self.storage_manager.get_value(doi)
+            if isinstance(doi_vaidation_value, bool):
+                return doi_vaidation_value
+            else:
                 if get_extra_info:
                     info = self.exists(doi, get_extra_info=True)
-                    self._data[doi] = info[1]
+                    self.storage_manager.set_full_value(doi,info[1])
                     return (info[0] and self.syntax_ok(doi)), info[1]
-                self._data[doi] = dict()
-                self._data[doi]["valid"] = True if self.exists(doi) and self.syntax_ok(doi) else False
-                return self.exists(doi) and self.syntax_ok(doi)
-            if get_extra_info:
-                return self._data[doi].get("valid"), self._data[doi]
-            return self._data[doi].get("valid")
+                validity_check = self.exists(doi) and self.syntax_ok(doi)
+                self.storage_manager.set_value(doi, validity_check)
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         try:
@@ -92,9 +106,10 @@ class DOIManager(IdentifierManager):
 
     def exists(self, doi_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True
+        doi = doi_full
         if self._use_api_service:
             doi = self.normalise(doi_full)
-            if doi is not None:
+            if doi:
                 json_res = call_api(url=self._api + quote(doi), headers=self._headers)
                 if json_res:
                     valid_bool = json_res.get("responseCode") == 1
@@ -113,6 +128,7 @@ class DOIManager(IdentifierManager):
                                 return valid_bool, {'id': doi, 'valid': valid_bool, 'ra': 'unknown'}
                     return valid_bool
                 valid_bool = False
-        if get_extra_info:
-            return valid_bool, {'id': doi, 'valid': valid_bool, 'ra': 'unknown'}
-        return valid_bool
+            else:
+                return (False, {'id': None, 'valid': False, 'ra': 'unknown'}) if get_extra_info else False
+        return (valid_bool, {'id': doi, 'valid': valid_bool, 'ra': 'unknown'}) if get_extra_info else valid_bool
+

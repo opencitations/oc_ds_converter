@@ -59,7 +59,7 @@ class InMemoryStorageManager(StorageManager):
         :raises ValueError: if ``value`` is neither 0 nor 1 (0 is False, 1 is True).
         :return: None
         """
-        id_name = urllib.parse.quote((str(id)), safe=":")
+        id_name = urllib.parse.quote((str(id)), safe=":/()")
         if not isinstance(value, dict):
             raise ValueError("value must be dict")
         if id_name in self.id_value_dict:
@@ -79,7 +79,7 @@ class InMemoryStorageManager(StorageManager):
         :raises ValueError: if ``value`` is neither 0 nor 1 (0 is False, 1 is True).
         :return: None
         """
-        id_name = urllib.parse.quote((str(id)), safe=':')
+        id_name = urllib.parse.quote((str(id)), safe=":/()")
 
         if not isinstance(value, bool):
             raise ValueError("value must be boolean")
@@ -97,7 +97,7 @@ class InMemoryStorageManager(StorageManager):
         :return: The requested id value.
         """
 
-        id_name = urllib.parse.quote(str(id), safe=":")
+        id_name = urllib.parse.quote(str(id), safe=":/()")
         id_in_dict = self.id_value_dict.get(id_name)
         if id_in_dict:
             return id_in_dict["valid"]

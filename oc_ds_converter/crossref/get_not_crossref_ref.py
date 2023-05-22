@@ -43,7 +43,7 @@ def extract_dois_from_dump(crossref_json_dir:str, output_dir:str, max_workers:in
             os.path.join(output_dir, 'reference',
                 os.path.basename(file).replace('.json', '').replace('.gz', '') + '.csv'))
         ]
-    doi_manager = DOIManager(data=dict(), use_api_service=False)
+    doi_manager = DOIManager(use_api_service=False)
     print('[INFO] Extracting DOIs from the Crossref dump')
     pbar = tqdm(total=len(all_files))
     #if platform.startswith('linux') or platform == 'darwin':

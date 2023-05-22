@@ -66,8 +66,8 @@ class ArXivManager(IdentifierManager):
         Returns:
             bool: true if the arxiv is valid, false otherwise.
         """
-        arxiv = self.normalise(id_string, include_prefix=True)
 
+        arxiv = self.normalise(id_string, include_prefix=True)
         if not arxiv:
             return False
         else:
@@ -153,6 +153,7 @@ class ArXivManager(IdentifierManager):
                     api = self._api_v
                 else:
                     api = self._api
+
 
                 tentative = 3
                 while tentative:

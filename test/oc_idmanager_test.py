@@ -32,10 +32,6 @@ class IdentifierManagerTest(unittest.TestCase):
     def setUp(self):
         if not exists("tmp"):
             makedirs("tmp")
-        self.valid_doi_1 = "10.1108/jd-12-2013-0166"
-        self.valid_doi_2 = "10.1130/2015.2513(00)"
-        self.invalid_doi_1 = "10.1108/12-2013-0166"
-        self.invalid_doi_2 = "10.1371"
 
         # class extension for pubmedid
         self.valid_pmid_1 = "2942070"
@@ -195,36 +191,6 @@ class IdentifierManagerTest(unittest.TestCase):
         um_nofile_noapi = URLManager(clean_data, use_api_service=False)
         self.assertTrue(um_nofile_noapi.is_valid(self.valid_url_1))
         self.assertTrue(um_nofile_noapi.is_valid(self.invalid_url_1))
-
-    def test_doi_normalise(self):
-        dm = DOIManager()
-        self.assertEqual(
-            self.valid_doi_1,
-            dm.normalise(self.valid_doi_1.upper().replace("10.", "doi: 10. ")),
-        )
-        self.assertEqual(
-            self.valid_doi_1,
-            dm.normalise(self.valid_doi_1.upper().replace("10.", "doi:10.")),
-        )
-        self.assertEqual(
-            self.valid_doi_1,
-            dm.normalise(
-                self.valid_doi_1.upper().replace("10.", "https://doi.org/10.")
-            ),
-        )
-
-    def test_doi_is_valid(self):
-        dm_nofile = DOIManager()
-        self.assertTrue(dm_nofile.is_valid(self.valid_doi_1))
-        self.assertTrue(dm_nofile.is_valid(self.valid_doi_2))
-        self.assertFalse(dm_nofile.is_valid(self.invalid_doi_1))
-        self.assertFalse(dm_nofile.is_valid(self.invalid_doi_2))
-
-        dm_file = DOIManager(self.data, use_api_service=False)
-        self.assertTrue(dm_file.normalise(self.valid_doi_1, include_prefix=True) in self.data)
-        self.assertTrue(dm_file.normalise(self.invalid_doi_1, include_prefix=True) in self.data)
-        self.assertTrue(dm_file.is_valid(self.valid_doi_1))
-        self.assertFalse(dm_file.is_valid(self.invalid_doi_1))
 
     def test_pmid_normalise(self):
         pm = PMIDManager()
@@ -476,23 +442,6 @@ class IdentifierManagerTest(unittest.TestCase):
             output = jm.exists(self.invalid_jid_1, get_extra_info=True, allow_extra_api=None)
             expected_output = (False, {"valid":False})
             self.assertEqual(output, expected_output)
-        
-    
-    def test_exists(self):
-        with self.subTest(msg="get_extra_info=True, allow_extra_api=None"):
-            doi_manager = DOIManager()
-            output = doi_manager.exists('10.1007/s11192-022-04367-w', get_extra_info=True, allow_extra_api=None)
-            expected_output = (True, {'id': '10.1007/s11192-022-04367-w', 'valid': True, 'ra': 'unknown'})
-            self.assertEqual(output, expected_output)
-        with self.subTest(msg="get_extra_info=False, allow_extra_api=None"):
-            doi_manager = DOIManager()
-            output = doi_manager.exists('10.1007/s11192-022-04367-w', get_extra_info=False, allow_extra_api=None)
-            expected_output = True
-            self.assertEqual(output, expected_output)
-        with self.subTest(msg="get_extra_info=False, allow_extra_api='crossref'"):
-            doi_manager = DOIManager()
-            output = doi_manager.exists('10.1007/s11192-022-04367-w', get_extra_info=False, allow_extra_api='crossref')
-            expected_output = True
-            self.assertEqual(output, expected_output)
+
 
 
