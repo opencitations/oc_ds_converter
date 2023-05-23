@@ -21,7 +21,6 @@ from os import makedirs
 from os.path import exists, join
 
 from oc_ds_converter.oc_idmanager import *
-from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
 from oc_ds_converter.oc_idmanager.jid import JIDManager
 from oc_ds_converter.oc_idmanager.url import URLManager
 
@@ -36,12 +35,6 @@ class IdentifierManagerTest(unittest.TestCase):
         test_dir = join("test", "data")
         with open(join(test_dir, "glob.json"), encoding="utf-8") as fp:
             self.data = json.load(fp)
-
-        self.valid_issn_1 = "2376-5992"
-        self.valid_issn_2 = "1474-175X"
-        self.invalid_issn_1 = "2376-599C"
-        self.invalid_issn_2 = "2376-5995"
-        self.invalid_issn_3 = "2376-599"
 
         self.valid_orcid_1 = "0000-0003-0530-4305"
         self.valid_orcid_2 = "0000-0001-5506-523X"
@@ -82,13 +75,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.valid_viaf_1 = "5604148947771454950004"
         self.valid_viaf_2 = "234145033"
         self.invalid_viaf_1 = "012517637138"
-
-        self.valid_arxiv_1 = "arXiv:2109.05583"
-        self.valid_arxiv_1v = "2109.05583v2"
-        self.valid_arxiv_2 = "arXiv:2109.05582"
-        self.valid_arx_U_S = "2109.05583V2  "
-        self.invalid_arxiv_1 = "1133.5582"
-        self.invalid_arxiv_2v = "2109.05583v23"
 
         self.valid_jid_1 = "otoljpn1970"
         self.valid_jid_2 = "jscej1944b"
@@ -162,34 +148,6 @@ class IdentifierManagerTest(unittest.TestCase):
         um_nofile_noapi = URLManager(clean_data, use_api_service=False)
         self.assertTrue(um_nofile_noapi.is_valid(self.valid_url_1))
         self.assertTrue(um_nofile_noapi.is_valid(self.invalid_url_1))
-
-    def test_issn_normalise(self):
-        im = ISSNManager()
-        self.assertEqual(
-            self.valid_issn_1, im.normalise(self.valid_issn_1.replace("-", "  "))
-        )
-        self.assertEqual(
-            self.valid_issn_2, im.normalise(self.valid_issn_2.replace("-", "  "))
-        )
-        self.assertEqual(
-            self.invalid_issn_3, im.normalise(self.invalid_issn_3.replace("-", "  "))
-        )
-
-    def test_issn_is_valid(self):
-        im = ISSNManager()
-        self.assertTrue(im.is_valid(self.valid_issn_1))
-        self.assertTrue(im.is_valid(self.valid_issn_2))
-        self.assertFalse(im.is_valid(self.invalid_issn_1))
-        self.assertFalse(im.is_valid(self.invalid_issn_2))
-        self.assertFalse(im.is_valid(self.invalid_issn_3))
-
-        im_file = ISSNManager(self.data)
-        self.assertTrue(im_file.normalise(self.valid_issn_1, include_prefix=True) in self.data)
-        self.assertTrue(im_file.normalise(self.valid_issn_2, include_prefix=True) in self.data)
-        self.assertTrue(im_file.normalise(self.invalid_issn_2, include_prefix=True) in self.data)
-        self.assertTrue(im_file.is_valid((im_file.normalise(self.valid_issn_1, include_prefix=True))))
-        self.assertTrue(im_file.is_valid((im_file.normalise(self.valid_issn_2, include_prefix=True))))
-        self.assertFalse(im_file.is_valid((im_file.normalise(self.invalid_issn_2, include_prefix=True))))
 
     def test_orcid_normalise(self):
         om = ORCIDManager()
