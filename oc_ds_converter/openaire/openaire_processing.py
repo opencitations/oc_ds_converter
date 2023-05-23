@@ -6,11 +6,14 @@ import os
 from tqdm import tqdm
 import os.path
 from os.path import exists
-from oc_idmanager.doi import DOIManager
-from oc_idmanager.pmid import PMIDManager
-from oc_idmanager.pmcid import PMCIDManager
+# from oc_idmanager.doi import DOIManager
+# from oc_idmanager.pmid import PMIDManager
+# from oc_idmanager.pmcid import PMCIDManager
 from oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
+from oc_ds_converter.oc_idmanager.doi import DOIManager
+from oc_ds_converter.oc_idmanager.pmid import PMIDManager
+from oc_ds_converter.oc_idmanager.pmcid import PMCIDManager
 
 from datetime import datetime
 from argparse import ArgumentParser
@@ -82,12 +85,15 @@ class OpenaireProcessing(RaProcessor):
             "Bioentity": "other",
             "Sound": "other",
         }
-        self.doi_m = DOIManager()
-        self.pmid_m = PMIDManager()
-        self.pmc_m = PMCIDManager()
+        self.doi_m = DOIManager(storage_manager=storage_manager)
+        self.pmid_m = PMIDManager(storage_manager=storage_manager)
+        self.pmc_m = PMCIDManager(storage_manager=storage_manager)
+        self.arxiv_m = ArXivManager(storage_manager=storage_manager)
+
         self.orcid_m = ORCIDManager()
-        self.arxiv_m = ArXivManager(storage_manager=storage_manager) # Modality to be extended to all the id managers
+
         self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmc": self.pmc_m, "arxiv":self.arxiv_m}
+
         self._doi_prefixes_publishers_dict = {
         "10.48550":{"publisher":"arxiv", "priority":1},
         "10.6084":{"publisher":"figshare","priority":1},

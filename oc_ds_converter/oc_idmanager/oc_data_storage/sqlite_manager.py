@@ -50,7 +50,7 @@ class SqliteStorageManager(StorageManager):
             id TEXT PRIMARY KEY, 
             value INTEGER)""")
 
-    def set_full_value(self, id: str, value: dict) -> None:
+    def set_full_value(self, id_name: str, value: dict) -> None:
         """
         It allows to set the counter value of provenance entities.
 
@@ -61,7 +61,7 @@ class SqliteStorageManager(StorageManager):
         :raises ValueError: if ``value`` is neither 0 nor 1 (0 is False, 1 is True).
         :return: None
         """
-        id_name = urllib.parse.quote((str(id)), safe=":/()")
+        id_name = str(id)
         if not isinstance(value, dict):
             raise ValueError("value must be dict")
         if not isinstance(self.get_value(id_name), bool):
@@ -78,7 +78,7 @@ class SqliteStorageManager(StorageManager):
         :raises ValueError: if ``value`` is neither 0 nor 1 (0 is False, 1 is True).
         :return: None
         """
-        id_name = urllib.parse.quote((str(id)), safe=":/()")
+        id_name = str(id)
         if not isinstance(value, bool):
             raise ValueError("value must be int boolean")
         validity = 1 if value else 0
@@ -94,7 +94,7 @@ class SqliteStorageManager(StorageManager):
         :type id: str
         :return: The requested id value (True if valid, False if invalid, None if not found).
         """
-        id_name = urllib.parse.quote(str(id), safe=":/()")
+        id_name = str(id)
         result = self.cur.execute(f"SELECT value FROM info WHERE id='{id_name}'")
         rows = result.fetchall()
         if len(rows) == 1:
