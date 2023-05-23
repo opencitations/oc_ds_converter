@@ -184,7 +184,6 @@ class OpenaireProcessing(RaProcessor):
             json.dump(dict_to_be_saved, fd, ensure_ascii=False, indent=4)
 
     def csv_creator(self, item: dict) -> dict:
-        any_id = ""
         row = dict()
         
         doi = ""
@@ -206,20 +205,15 @@ class OpenaireProcessing(RaProcessor):
         row['type'] = map_type
 
         # row['id']
-        att_identifier_list = attributes.get("identifier")
-        proc_ids_list, norm_doi = self.to_validated_id_list(att_identifier_list)
+        att_identifier_dict_of_lists = attributes.get("identifier")
+        valid_ids_list = self.to_validated_id_list(att_identifier_dict_of_lists)
 
         # Keep a doi for retrieving information related to its prefix (i.e.: publisher, RA..) only in the cases
         # where there is only one doi to refer to or where all the dois have the same prefix.
-
-        if len(norm_doi) == 1:
-            doi = norm_doi[0]
-        elif len(norm_doi) >= 1:
-            pref_fist_doi = norm_doi[0].split('/')[0]
-            if all(id.split('/')[0] == pref_fist_doi for id in norm_doi):
-                doi = norm_doi[0]
-        any_id = proc_ids_list[0] if proc_ids_list else ""
-        row['id'] = ' '.join(proc_ids_list)
+        if valid_ids_list:
+            row['id'] = ' '.join(valid_ids_list)
+        else:
+            return {}
 
         # row['title'] √
         pub_title = ""
@@ -429,62 +423,58 @@ class OpenaireProcessing(RaProcessor):
 
 
 
-    def to_validated_id_list(self, id_dict_list):
+    def to_validated_id_list(self, id_dict_of_list):
         """this method takes in input a list of id dictionaries and returns a list valid and existent ids with prefixes.
         For each id, a first validation try is made by checking its presence in META db. If the id is not in META db yet,
-        a second attempt is made by using the specific id-schema API"""        
-        valid_id_set = set()
+        a second attempt is made by using the specific id-schema API"""
+        valid_id_set = set([x["identifier"] for x in id_dict_of_list["valid"]])
+        to_be_processed_input = [x["identifier"] for x in id_dict_of_list["to_be_val"]]
         to_be_processed_id_dict_list = []
-        first_selection_list = [x for x in id_dict_list if x.get("schema").strip().lower() in self._id_man_dict]
         # If there is only an id, check whether it is either an arxiv id or an arxiv doi. In this cases, if there is a
         # versioned arxiv id, it is kept as such. Otherwise both the arxiv doi and the not versioned arxiv id are replaced
         # with the v1 version of the arxiv id. If it is not possible to retrieve an arxiv id from the only id which is
         # either declared as an arxiv id or starts with the arxiv doi prefix, return None and interrupt the process
-
-        if len(first_selection_list) == 1:
-            single_id_dict_list = self.manage_single_id(first_selection_list)
+        # INTERROMPERE IL PROCESSO SE NESSUN ID RISULTA VALIDO  !!!!!
+        if len(valid_id_set) == 0 and len(to_be_processed_input)==1 :
+            single_id_dict_list = self.manage_single_id(to_be_processed_input)
             if single_id_dict_list:
                 to_be_processed_id_dict_list = single_id_dict_list
             else:
                 return
-        elif len(first_selection_list) > 1:
-            second_selection_list = [x for x in first_selection_list if x.get("schema").strip().lower() == "pmid" or (x.get("schema").strip().lower()=="doi" and x.get("identifier").split('/')[0] not in self._doi_prefixes_publishers_dict)]
+        elif len(valid_id_set) == 0 and len(to_be_processed_input)> 1:
+            second_selection_list = [x for x in to_be_processed_input if x.get("schema") == "pmid" or (x.get("schema") =="doi" and x.get("identifier").split('/')[0] not in self._doi_prefixes_publishers_dict)]
             if second_selection_list:
                 to_be_processed_id_dict_list = second_selection_list
             else:
-                third_selection = [x for x in first_selection_list if x.get("schema").strip().lower() == "pmc"]
+                third_selection = [x for x in to_be_processed_input if x.get("schema") == "pmc"]
                 if third_selection:
                     to_be_processed_id_dict_list = third_selection
                 else:
-                    fourth_selection = [x for x in first_selection_list if x.get("schema").strip().lower() == "arxiv"]
+                    fourth_selection = [x for x in to_be_processed_input if x.get("schema") == "arxiv"]
                     if fourth_selection:
                         to_be_processed_id_dict_list = fourth_selection
                     else:
-                        fifth_selection =  [x for x in first_selection_list if x.get("schema").strip().lower() == "doi" and x.get("identifier").split('/')[0] in self._doi_prefixes_publishers_dict]
+                        fifth_selection =  [x for x in to_be_processed_input if x.get("schema") == "doi" and x.get("identifier").split('/')[0] in self._doi_prefixes_publishers_dict]
                         if fifth_selection:
                             to_be_processed_id_dict_list = self.manage_doi_prefixes_priorities(fifth_selection)
 
         else:
             return None
 
-        valid_processed_ids = 0
         if to_be_processed_id_dict_list:
             for ent in to_be_processed_id_dict_list:
                 schema = ent.get("schema")
-                if isinstance(schema, str):
-                    schema = schema.strip().lower()
-                id = ent.get("identifier")
+                norm_id = ent.get("identifier")
                 id_man = self.get_id_manager(schema, self._id_man_dict)
-                if id_man:
-                    norm_id = id_man.normalise(id, include_prefix=True)
-                    # check if the id is in redis db
-                    if norm_id:
-                        if schema == "pmid" or (schema=="doi" and norm_id.split('/') not in self._doi_prefixes_publishers_dict):
-                            if self.BR_redis.get(norm_id):
-                                valid_id_set.add(norm_id)
-                            # if the id is not in redis db, validate it before appending
-                            elif id_man.is_valid(norm_id):
-                                valid_id_set.add(norm_id)
+                if schema == "pmid" or (schema=="doi" and norm_id.split('/') not in self._doi_prefixes_publishers_dict):
+                    if self.BR_redis.get(norm_id):
+                        id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
+                        # preso in considerazione negli step successivi
+                        valid_id_set.add(norm_id)
+                    # if the id is not in redis db, validate it before appending
+                    elif id_man.is_valid(norm_id):#In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
+                        # preso in considerazione negli step successivi
+                        valid_id_set.add(norm_id)
 
         valid_id_list = list(valid_id_set)
         return valid_id_list

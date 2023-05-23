@@ -93,8 +93,6 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                     d = json.loads(entity.decode('utf-8'))
                     if d.get("relationship"):
                         if d.get("relationship").get("name") == "Cites":
-                            skip_source_process = False
-                            skip_target_process = False
 
                             norm_source_ids = []
                             norm_target_ids = []
@@ -102,70 +100,84 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                             any_source_id = ""
                             any_target_id = ""
 
-                            valid_citation_ids_s = []
-                            valid_citation_ids_t = []
-
                             source_entity = d.get("source")
                             if source_entity:
                                 norm_source_ids = openaire_csv.get_norm_ids(source_entity)
-                                new_ids_s = False
-                                valid_citation_ids_s = []
                                 if norm_source_ids:
-                                    for nsi in norm_source_ids:
+                                    for e, nsi in enumerate(norm_source_ids):
                                         stored_validity = openaire_csv.validated_as(nsi)
-                                        if not isinstance(stored_validity, bool):
-                                            new_ids_s = True
-                                        elif stored_validity is True:
-                                            valid_citation_ids_s.append(nsi["identifier"])
-
-                                skip_source_process = True if not new_ids_s else False
-                                any_source_id = valid_citation_ids_s[0] if valid_citation_ids_s else ""
-
+                                        norm_source_ids[e]["valid"] = stored_validity
 
 
                             target_entity = d.get("target")
                             if target_entity:
                                 norm_target_ids = openaire_csv.get_norm_ids(target_entity)
-                                new_ids_t = False
-                                valid_citation_ids_t = []
                                 if norm_target_ids:
-                                    for nti in norm_target_ids:
+                                    for i, nti in enumerate(norm_target_ids):
                                         stored_validity_t = openaire_csv.validated_as(nti)
-                                        if not isinstance(stored_validity_t, bool):
-                                            new_ids_t = True
-                                        elif stored_validity_t is True:
-                                            valid_citation_ids_t.append(nti["identifier"])
-
-                                skip_target_process = True if not new_ids_t else False
-                                any_target_id = valid_citation_ids_t[0] if valid_citation_ids_t else ""
-
+                                        norm_target_ids[i]["valid"] = stored_validity_t
 
                             # check that there is a citation we can handle (i.e.: expressed with ids we actually manage)
                             if norm_source_ids and norm_target_ids:
 
+                                source_entity_upd_ids = {k:v for k,v in source_entity.items() if k != "identifier"}
+                                source_valid_ids = [x for x in norm_source_ids if x["valid"] is True]
+                                source_invalid_ids = [x for x in norm_source_ids if x["valid"] is False]
+                                source_to_be_val_ids = [x for x in norm_source_ids if x["valid"] is None]
+                                source_identifier = {}
+                                source_identifier["valid"] = source_valid_ids
+                                source_identifier["not_valid"] = source_invalid_ids
+                                source_identifier["to_be_val"] = source_to_be_val_ids
+                                source_entity_upd_ids["identifier"] = source_identifier
 
-                                if not skip_source_process:
-                                    source_tab_data = openaire_csv.csv_creator(source_entity) #valid_citation_ids_s --> evitare rivalidazione ?
+                                target_entity_upd_ids = {k:v for k,v in target_entity.items() if k != "identifier"}
+                                target_valid_ids = [x for x in norm_target_ids if x["valid"] is True]
+                                target_invalid_ids = [x for x in norm_target_ids if x["valid"] is False]
+                                target_to_be_val_ids = [x for x in norm_target_ids if x["valid"] is None]
+                                target_identifier = {}
+                                target_identifier["valid"] = target_valid_ids
+                                target_identifier["not_valid"] = target_invalid_ids
+                                target_identifier["to_be_val"] = target_to_be_val_ids
+                                target_entity_upd_ids["identifier"] = target_identifier
+
+                                # creation of a new row in meta table because there are new ids to be validated.
+                                # "any_source_id" will be chosen among the valid source entity ids, if any
+                                if source_identifier["to_be_val"]:
+                                    source_tab_data = openaire_csv.csv_creator(source_entity_upd_ids) #valid_citation_ids_s --> evitare rivalidazione ?
                                     if source_tab_data:
-                                        all_citing = source_tab_data["id"].split(" ") # VERIFICARE PER SINGOLO ID
-                                        if not any_source_id:
-                                            any_source_id = all_citing[0]
-                                        data.append(source_tab_data)
+                                        processed_source_ids = source_tab_data["id"].spit(" ")
+                                        all_citing_valid = processed_source_ids
+                                        if all_citing_valid: # It meanst that there is at least one valid id for the citing entity
+                                            any_source_id = all_citing_valid[0]
+                                            data.append(source_tab_data) # Otherwise the row should not be included in meta tables
 
-                                if not skip_target_process:
-                                    target_tab_data = openaire_csv.csv_creator(target_entity) # valid_citation_ids_t  --> evitare rivalidazione ?
+                                # skip creation of a new row in meta table because there is no new id to be validated
+                                # "any_source_id" will be chosen among the valid source entity ids, if any
+                                elif source_identifier["valid"]:
+                                    all_citing_valid = source_identifier["valid"]
+                                    any_source_id = all_citing_valid[0]["identifier"]
+
+                                # creation of a new row in meta table because there are new ids to be validated.
+                                # "any_target_id" will be chosen among the valid target entity ids, if any
+                                if target_identifier["to_be_val"]:
+                                    target_tab_data = openaire_csv.csv_creator(target_entity_upd_ids) # valid_citation_ids_t  --> evitare rivalidazione ?
                                     if target_tab_data:
-                                        all_cited = target_tab_data["id"].split(" ") # VERIFICARE PER SINGOLO ID
-                                        if not any_target_id:
-                                            any_target_id = all_cited[0]
-
-                                        data.append(target_tab_data)
+                                        processed_target_ids = target_tab_data["id"].spit(" ")
+                                        all_cited_valid = processed_target_ids
+                                        if all_cited_valid:
+                                            any_target_id = all_cited_valid[0]
+                                            data.append(target_tab_data)
+                                # skip creation of a new row in meta table because there is no new id to be validated
+                                # "any_target_id" will be chosen among the valid source entity ids, if any
+                                elif target_identifier["valid"]:
+                                    all_cited_valid = source_identifier["valid"]
+                                    any_target_id = all_cited_valid[0]["identifier"]
 
 
                             if any_source_id and any_target_id:
                                 citation = dict()
                                 citation["citing"] = any_source_id
-                                citation["cited"] = any_target_id
+                                citation["referenced"] = any_target_id
                                 index_citations_to_csv.append(citation)
 
             if data:
