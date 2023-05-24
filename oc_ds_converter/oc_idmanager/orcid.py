@@ -29,7 +29,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMem
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-
+# POSSIBLE EXTENSION: adding a new parameter in order to directly use the input orcid - doi map in the orcid manager
 class ORCIDManager(IdentifierManager):
     """This class implements an identifier manager for orcid identifier."""
 
@@ -209,5 +209,5 @@ class ORCIDManager(IdentifierManager):
     def timestamp_to_date(self, timestamp_value):
         timestamp = timestamp_value / 1000
         date = datetime.datetime.fromtimestamp(timestamp)
-        date_string = date.strftime("%Y-%m-%d %H:%M:%S")
+        date_string = date.strftime("%Y-%m-%d")
         return date_string
