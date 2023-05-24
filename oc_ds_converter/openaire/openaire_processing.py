@@ -43,7 +43,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class OpenaireProcessing(RaProcessor):
     def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_openaire: str = None, testing:bool = True, storage_manager:StorageManager=None):
-        super(OpenaireProcessing, self).__init__(orcid_index, doi_csv, storage_manager)
+        super(OpenaireProcessing, self).__init__(orcid_index, doi_csv)
+        if storage_manager is None:
+            self.storage_manager = SqliteStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
         self.types_dict = {
             "Article": "journal article",
             "Part of book or chapter of book": "book chapter",
@@ -85,10 +90,10 @@ class OpenaireProcessing(RaProcessor):
             "Bioentity": "other",
             "Sound": "other",
         }
-        self.doi_m = DOIManager(storage_manager=storage_manager)
-        self.pmid_m = PMIDManager(storage_manager=storage_manager)
-        self.pmc_m = PMCIDManager(storage_manager=storage_manager)
-        self.arxiv_m = ArXivManager(storage_manager=storage_manager)
+        self.doi_m = DOIManager(storage_manager=self.storage_manager)
+        self.pmid_m = PMIDManager(storage_manager=self.storage_manager)
+        self.pmc_m = PMCIDManager(storage_manager=self.storage_manager)
+        self.arxiv_m = ArXivManager(storage_manager=self.storage_manager)
 
         self.orcid_m = ORCIDManager()
 
