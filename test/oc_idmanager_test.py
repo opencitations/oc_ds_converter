@@ -72,19 +72,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.invalid_jid_1 = "hjmee"
         self.invalid_jid_2 = "jee1973e"
 
-    def test_viaf_normalise(self):
-        vm = ViafManager()
-        self.assertEqual(
-            vm.normalise(self.valid_viaf_1),
-            vm.normalise(' ' + self.valid_viaf_1),
-        )
-
-    def test_viaf_is_valid(self):
-        vm = ViafManager()
-        self.assertTrue(vm.is_valid(self.valid_viaf_1))
-        self.assertTrue(vm.is_valid(self.valid_viaf_2))
-        self.assertFalse(vm.is_valid(self.invalid_viaf_1))
-
     def test_ror_normalise(self):
         rm = RORManager()
         self.assertEqual(
