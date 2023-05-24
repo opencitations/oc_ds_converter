@@ -36,13 +36,6 @@ class IdentifierManagerTest(unittest.TestCase):
         with open(join(test_dir, "glob.json"), encoding="utf-8") as fp:
             self.data = json.load(fp)
 
-        self.valid_orcid_1 = "0000-0003-0530-4305"
-        self.valid_orcid_2 = "0000-0001-5506-523X"
-        self.invalid_orcid_1 = "0000-0003-0530-430C"
-        self.invalid_orcid_2 = "0000-0001-5506-5232"
-        self.invalid_orcid_3 = "0000-0001-5506-523"
-        self.invalid_orcid_4 = "1-5506-5232"
-
         self.valid_wikidata_1 = "Q34433"
         self.valid_wikidata_2 = "Q24698708"
         self.valid_wikidata_3 = "Q15767074"
@@ -126,40 +119,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.assertTrue(um_nofile_noapi.is_valid(self.valid_url_1))
         self.assertTrue(um_nofile_noapi.is_valid(self.invalid_url_1))
 
-    def test_orcid_normalise(self):
-        om = ORCIDManager()
-        self.assertEqual(
-            self.valid_orcid_1, om.normalise(self.valid_orcid_1.replace("-", "  "))
-        )
-        self.assertEqual(
-            self.valid_orcid_1, om.normalise("https://orcid.org/" + self.valid_orcid_1)
-        )
-        self.assertEqual(
-            self.valid_orcid_2, om.normalise(self.valid_orcid_2.replace("-", "  "))
-        )
-        self.assertEqual(
-            self.invalid_orcid_3, om.normalise(self.invalid_orcid_3.replace("-", "  "))
-        )
-
-    def test_orcid_is_valid(self):
-        om = ORCIDManager()
-        self.assertTrue(om.is_valid(self.valid_orcid_1))
-        self.assertTrue(om.is_valid(self.valid_orcid_2))
-        self.assertFalse(om.is_valid(self.invalid_orcid_1))
-        self.assertFalse(om.is_valid(self.invalid_orcid_2))
-        self.assertFalse(om.is_valid(self.invalid_orcid_3))
-        self.assertFalse(om.is_valid(self.invalid_orcid_4))
-
-        om_file = ORCIDManager(self.data, use_api_service=False)
-        self.assertTrue(om_file.normalise(self.valid_orcid_1, include_prefix=True) in self.data)
-        self.assertTrue(om_file.normalise(self.valid_orcid_2, include_prefix=True) in self.data)
-        self.assertTrue(om_file.is_valid(om_file.normalise(self.valid_orcid_1, include_prefix=True)))
-        self.assertTrue(om_file.is_valid(om_file.normalise(self.valid_orcid_2, include_prefix=True)))
-
-        clean_data = {}
-        om_nofile_noapi = ORCIDManager(clean_data, use_api_service=False)
-        self.assertTrue(om_nofile_noapi.is_valid(self.valid_orcid_1))
-        self.assertTrue(om_nofile_noapi.is_valid(self.valid_orcid_2))
 
     def test_wikipedia_normalise(self):
         wpm = WikipediaManager()

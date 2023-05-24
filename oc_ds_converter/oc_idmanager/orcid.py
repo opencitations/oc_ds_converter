@@ -13,54 +13,67 @@
 # DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
-
-
+import json
 import re
 from json import loads
 from re import match, sub
 from time import sleep
 from urllib.parse import quote
+import datetime
 
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
 
 
 class ORCIDManager(IdentifierManager):
     """This class implements an identifier manager for orcid identifier."""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
         """Orcid Manager constructor."""
         super(ORCIDManager, self).__init__()
         self._api = "https://pub.orcid.org/v3.0/"
         self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
         self._p = "orcid:"
-        self._data = data
+
+    def validated_as_id(self, id_string):
+        arxiv_vaidation_value = self.storage_manager.get_value(id_string)
+        if isinstance(arxiv_vaidation_value, bool):
+            return arxiv_vaidation_value
+        else:
+            return None
 
     def is_valid(self, id_string, get_extra_info=False):
         orcid = self.normalise(id_string, include_prefix=True)
         if orcid is None:
+            if get_extra_info:
+
+                return False, {"id":orcid, "valid": False}
             return False
         else:
-            if orcid not in self._data or self._data[orcid] is None:
+            orcid_vaidation_value = self.storage_manager.get_value(orcid)
+            if isinstance(orcid_vaidation_value, bool):
+                if get_extra_info:
+                    return orcid_vaidation_value, {"id": orcid, "valid": orcid_vaidation_value}
+                return orcid_vaidation_value
+            else:
                 if get_extra_info:
                     info = self.exists(orcid, get_extra_info=True)
-                    self._data[orcid] = info[1]
+                    self.storage_manager.set_full_value(orcid,info[1])
                     return (info[0] and self.check_digit(orcid) and self.syntax_ok(orcid)), info[1]
-                self._data[orcid] = dict()
-                self._data[orcid]["valid"] = True if (
-                    self.syntax_ok(orcid)
-                    and self.check_digit(orcid)
-                    and self.exists(orcid)
-                ) else False
-                return (
-                    self.syntax_ok(orcid)
-                    and self.check_digit(orcid)
-                    and self.exists(orcid)
-                )
-            if get_extra_info:
-                return self._data[orcid].get("valid"), self._data[orcid]
-            return self._data[orcid].get("valid")
+                validity_check = self.exists(orcid) and self.syntax_ok(orcid) and self.check_digit(orcid)
+                self.storage_manager.set_value(orcid, validity_check)
+                return validity_check
+
 
     def normalise(self, id_string, include_prefix=False):
         try:
@@ -94,10 +107,12 @@ class ORCIDManager(IdentifierManager):
 
 
     def exists(self, orcid, get_extra_info=False, allow_extra_api=None):
+        info_dict = {"id": orcid}
         valid_bool = True
         if self._use_api_service:
             self._headers["Accept"] = "application/json"
             orcid = self.normalise(orcid)
+            info_dict = {"id":orcid}
             if orcid is not None:
                 tentative = 3
                 while tentative:
@@ -109,7 +124,8 @@ class ORCIDManager(IdentifierManager):
                             json_res = loads(r.text)
                             valid_bool = json_res.get("orcid-identifier").get("path") == orcid
                             if get_extra_info:
-                                return valid_bool, self.extra_info(json_res)
+                                info_dict.update(self.extra_info(json_res))
+                                return valid_bool, info_dict
                             return valid_bool
                     except ReadTimeout:
                         # Do nothing, just try again
@@ -120,14 +136,78 @@ class ORCIDManager(IdentifierManager):
                 valid_bool = False
             else:
                 if get_extra_info:
-                    return False, {"valid": False}
+                    info_dict["valid"] = False
+                    return False, info_dict
                 return False
         if get_extra_info:
-            return valid_bool, {"valid": valid_bool}
+            info_dict["valid"] = valid_bool
+            return valid_bool, info_dict
         return valid_bool
 
     def extra_info(self, api_response, choose_api=None, info_dict={}):
-        print("api response", api_response)
+        family_name = ""
+        given_name = ""
+        email = ""
+        external_identifiers = {}
+        submission_date = ""
+        update_date = ""
+        try:
+            person = api_response["person"]
+            try:
+                name = person["name"]
+                try:
+                    family_name = name['family-name']['value']
+                except:
+                    pass
+                try:
+                    given_name = name['given-names']['value']
+                except:
+                    pass
+            except:
+                given_name = ""
+                family_name = ""
+            try:
+                email = str(person["emails"]["email"]) if person["emails"]["email"] else ""
+            except:
+                pass
+            try:
+                external_identifiers = {}
+                for y in person["external-identifiers"]:
+                    k_vs = {x.get("external-id-type"): x.get("external-id-value") for x in y["external-identifier"]}
+                    external_identifiers.update(k_vs)
+            except:
+                external_identifiers = {}
+
+        except:
+            pass
+
+        try:
+            history = api_response.get("history")
+            try:
+                submission_date = self.timestamp_to_date(history["submission-date"]["value"])
+            except:
+                submission_date = ""
+            try:
+                update_date = self.timestamp_to_date(history["last-modified-date"]["value"])
+            except:
+                pass
+
+        except:
+            history = ""
+
         result = {}
         result["valid"] = True
+        result["family_name"] = family_name
+        result["given_name"] = given_name
+        result["email"] = email
+        result["external_identifiers"] = external_identifiers
+        result["submission_date"] = submission_date
+        result["update_date"] = update_date
+
         return result
+
+    def timestamp_to_date(self, timestamp_value):
+        timestamp = timestamp_value / 1000
+        date = datetime.datetime.fromtimestamp(timestamp)
+        date_string = date.strftime("%Y-%m-%d %H:%M:%S")
+        return date_string

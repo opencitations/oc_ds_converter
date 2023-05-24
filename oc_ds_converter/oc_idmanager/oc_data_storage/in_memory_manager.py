@@ -38,6 +38,7 @@ class InMemoryStorageManager(StorageManager):
             self.storage_filepath = json_file_path
             o_jfp = open(self.storage_filepath, "r")
             self.id_value_dict = json.load(o_jfp)
+            o_jfp.close()
         else:
             new_path_dir = os.path.join(os.getcwd(), "storage")
             if not os.path.exists(new_path_dir):
@@ -47,6 +48,7 @@ class InMemoryStorageManager(StorageManager):
             self.storage_filepath = filepath
             file = open(self.storage_filepath, "w", encoding='utf8')
             json.dump(self.id_value_dict, file)
+            file.close()
 
     def set_full_value(self, id: str, value: dict) -> None:
         """

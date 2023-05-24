@@ -73,6 +73,8 @@ class ArXivManager(IdentifierManager):
         else:
             arxiv_vaidation_value = self.storage_manager.get_value(arxiv)
             if isinstance(arxiv_vaidation_value, bool):
+                if get_extra_info:
+                    return arxiv_vaidation_value, {"id":arxiv, "valid":arxiv_vaidation_value}
                 return arxiv_vaidation_value
             else:
                 if get_extra_info:

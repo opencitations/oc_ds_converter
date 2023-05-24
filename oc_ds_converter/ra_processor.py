@@ -85,7 +85,7 @@ class RaProcessor(object):
                 else:
                     orcid = str(agent['ORCID'])
             if orcid:
-                orcid_manager = ORCIDManager(data=dict(), use_api_service=False)
+                orcid_manager = ORCIDManager(use_api_service=False)
                 orcid = orcid_manager.normalise(orcid, include_prefix=False)
                 orcid = orcid if orcid_manager.check_digit(orcid) else None
             elif dict_orcid and f_name:
