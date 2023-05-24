@@ -127,7 +127,11 @@
 
     "pmcid:PMC100007468": {"id": "PMC100007468","valid": false},
 
-    "pmcid:PMC8384044": {"id":"PMC8384044","valid": true}
+    "pmcid:PMC8384044": {"id":"PMC8384044","valid": true},
+
+    "viaf:5604148947771454950004": {"id": "viaf:5604148947771454950004","valid": true},
+
+    "viaf:5604148947771454953333": {"id":"viaf:5604148947771454953333","valid": false}
 
 
 

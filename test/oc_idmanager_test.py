@@ -72,10 +72,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.invalid_ror_1 = "la673822"
         self.invalid_ror_2 = ".org/560jc3p57"
 
-        self.valid_viaf_1 = "5604148947771454950004"
-        self.valid_viaf_2 = "234145033"
-        self.invalid_viaf_1 = "012517637138"
-
         self.valid_jid_1 = "otoljpn1970"
         self.valid_jid_2 = "jscej1944b"
         self.valid_jid_3 = "japeoj" #SYS_ERR_009

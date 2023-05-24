@@ -24,35 +24,52 @@ from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
 
 class ViafManager(IdentifierManager):
     """This class implements an identifier manager for VIAF identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
         """VIAF manager constructor."""
         super(ViafManager, self).__init__()
+        self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
         self._api = "http://www.viaf.org/viaf/"
         self._use_api_service = use_api_service
         self._p = "viaf:"
-        self._data = data
+
+
+    def validated_as_id(self, id_string):
+        arxiv_vaidation_value = self.storage_manager.get_value(id_string)
+        if isinstance(arxiv_vaidation_value, bool):
+            return arxiv_vaidation_value
+        else:
+            return None
 
     def is_valid(self, viaf_id, get_extra_info=False):
-        viaf_id = self.normalise(viaf_id, include_prefix=True)
-
-        if viaf_id is None or not self.syntax_ok(viaf_id):
+        viaf = self.normalise(viaf_id, include_prefix=True)
+        if not viaf:
             return False
         else:
-            if viaf_id not in self._data or self._data[viaf_id] is None:
+            arxiv_vaidation_value = self.storage_manager.get_value(viaf)
+            if isinstance(arxiv_vaidation_value, bool):
+                return arxiv_vaidation_value
+            else:
                 if get_extra_info:
-                    info = self.exists(viaf_id, get_extra_info=True)
-                    self._data[viaf_id] = info[1]
-                    return (info[0] and self.syntax_ok(viaf_id)), info[1]
-                self._data[viaf_id] = dict()
-                self._data[viaf_id]["valid"] = True if (self.exists(viaf_id) and self.syntax_ok(viaf_id)) else False
-                return self._data[viaf_id].get("valid")
-            if get_extra_info:
-                return self._data[viaf_id].get("valid"), self._data[viaf_id]
-            return self._data[viaf_id].get("valid")
+                    info = self.exists(viaf, get_extra_info=True)
+                    self.storage_manager.set_full_value(viaf,info[1])
+                    return (info[0] and self.syntax_ok(viaf)), info[1]
+                validity_check = self.exists(viaf) and self.syntax_ok(viaf)
+                self.storage_manager.set_value(viaf, validity_check)
+
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         try:
@@ -78,8 +95,11 @@ class ViafManager(IdentifierManager):
 
     def exists(self, viaf_id_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True
+        viaf_id = viaf_id_full
+        extra_info_result = {"id": viaf_id}
         if self._use_api_service:
             viaf_id = self.normalise(viaf_id_full)
+            extra_info_result = {"id": viaf_id}
             if viaf_id is not None:
                 tentative = 3
                 while tentative:
@@ -90,7 +110,6 @@ class ViafManager(IdentifierManager):
                             r.encoding = "utf-8"
                             json_res = loads(r.text)
                             if get_extra_info:
-                                extra_info_result = {}
                                 try:
                                     result = True if json_res['viafID'] == str(viaf_id) else False
                                     extra_info_result["valid"] = result
@@ -104,7 +123,8 @@ class ViafManager(IdentifierManager):
                                 return False
                         elif 400 <= r.status_code < 500:
                             if get_extra_info:
-                                return False, {"valid": False}
+                                extra_info_result["valid"] = False
+                                return False, extra_info_result
                             return False
                     except ReadTimeout:
                         # Do nothing, just try again
@@ -115,11 +135,12 @@ class ViafManager(IdentifierManager):
                 valid_bool = False
             else:
                 if get_extra_info:
-                    return False, {"valid": False}
+                    extra_info_result["valid"] = False
+                    return False, extra_info_result
                 return False
 
         if get_extra_info:
-            return valid_bool, {"valid": valid_bool}
+            return valid_bool, extra_info_result
         return valid_bool
 
     def extra_info(self, api_response, choose_api=None, info_dict={}):
