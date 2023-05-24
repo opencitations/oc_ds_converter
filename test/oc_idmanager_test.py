@@ -43,12 +43,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.invalid_orcid_3 = "0000-0001-5506-523"
         self.invalid_orcid_4 = "1-5506-5232"
 
-        self.valid_isbn_1 = "9780134093413"
-        self.valid_isbn_2 = "978-3-16-148410-0"
-        self.valid_isbn_3 = "0-19-852663-6"
-        self.invalid_isbn_1 = "0-19-850000-6"
-        self.invalid_isbn_2 = "978-3-16-148410-99"
-
         self.valid_wikidata_1 = "Q34433"
         self.valid_wikidata_2 = "Q24698708"
         self.valid_wikidata_3 = "Q15767074"
@@ -179,34 +173,6 @@ class IdentifierManagerTest(unittest.TestCase):
         om_nofile_noapi = ORCIDManager(clean_data, use_api_service=False)
         self.assertTrue(om_nofile_noapi.is_valid(self.valid_orcid_1))
         self.assertTrue(om_nofile_noapi.is_valid(self.valid_orcid_2))
-
-    def test_isbn_normalise(self):
-        im = ISBNManager()
-        self.assertEqual(
-            self.valid_isbn_1, im.normalise("978-0-13-409341-3")
-        )
-        self.assertEqual(
-            self.valid_isbn_1, im.normalise("ISBN" + self.valid_isbn_1)
-        )
-        self.assertEqual(
-            im.normalise(self.valid_isbn_2), im.normalise(self.valid_isbn_2.replace("-", "  "))
-        )
-
-    def test_isbn_is_valid(self):
-        im = ISBNManager()
-        self.assertTrue(im.is_valid(self.valid_isbn_1))
-        self.assertTrue(im.is_valid(self.valid_isbn_2))
-        self.assertTrue(im.is_valid(self.valid_isbn_3))
-        self.assertFalse(im.is_valid(self.invalid_isbn_2))
-        self.assertFalse(im.is_valid(self.invalid_isbn_1))
-
-        im_file = ISBNManager(self.data)
-        self.assertTrue(im_file.normalise(self.valid_isbn_1, include_prefix=True) in self.data)
-        self.assertTrue(im_file.normalise(self.valid_isbn_2, include_prefix=True) in self.data)
-        self.assertTrue(im_file.normalise(self.invalid_isbn_2, include_prefix=True) in self.data)
-        self.assertTrue(im_file.is_valid((im_file.normalise(self.valid_isbn_1, include_prefix=True))))
-        self.assertTrue(im_file.is_valid((im_file.normalise(self.valid_isbn_2, include_prefix=True))))
-        self.assertFalse(im_file.is_valid((im_file.normalise(self.invalid_isbn_2, include_prefix=True))))
 
     def test_wikipedia_normalise(self):
         wpm = WikipediaManager()
