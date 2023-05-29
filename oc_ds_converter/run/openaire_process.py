@@ -1,16 +1,5 @@
-import gzip
-import json
-from os import makedirs
-import os
-from tqdm import tqdm
 import os.path
-from os.path import exists
-from datetime import datetime
-from argparse import ArgumentParser
-import csv
-import os
 import sys
-from argparse import ArgumentParser
 from tarfile import TarInfo
 
 import yaml
@@ -19,14 +8,9 @@ from tqdm import tqdm
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import *
 from oc_ds_converter.openaire.openaire_processing import *
-from oc_idmanager.doi import DOIManager
-from oc_idmanager.pmid import PMIDManager
-from oc_idmanager.pmcid import PMCIDManager
-from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-import sqlite3
 
 
 def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager:StorageManager=None, storage_path:str = None) -> None:

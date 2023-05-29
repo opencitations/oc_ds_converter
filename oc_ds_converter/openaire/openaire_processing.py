@@ -4,10 +4,6 @@ import json
 from os import makedirs
 import os
 import os.path
-from os.path import exists
-# from oc_idmanager.doi import DOIManager
-# from oc_idmanager.pmid import PMIDManager
-# from oc_idmanager.pmcid import PMCIDManager
 from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
 from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.pmid import PMIDManager

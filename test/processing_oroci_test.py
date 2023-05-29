@@ -1,24 +1,9 @@
-import os
-import unittest
-from pprint import pprint
-
-from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.jsonmanager import *
-
+import os
 from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-
 
 # TEST OpenaireProcessing METHODS
 import unittest
-from oc_idmanager.orcid import ORCIDManager
-from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
-from oc_ds_converter.oc_idmanager.doi import DOIManager
-from oc_ds_converter.oc_idmanager.pmid import PMIDManager
-from oc_ds_converter.oc_idmanager.pmcid import PMCIDManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 #
