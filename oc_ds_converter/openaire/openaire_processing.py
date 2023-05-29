@@ -19,6 +19,7 @@ import pathlib
 import re
 import warnings
 from os.path import exists
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import fakeredis
@@ -185,6 +186,10 @@ class OpenaireProcessing(RaProcessor):
         return norm_ids
 
     def dict_to_cache(self, dict_to_be_saved, path):
+        path = Path(path)
+        parent_dir_path = path.parent.absolute()
+        if not os.path.exists(parent_dir_path):
+            Path(parent_dir_path).mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as fd:
             json.dump(dict_to_be_saved, fd, ensure_ascii=False, indent=4)
 

@@ -245,6 +245,8 @@ class TestOpenaireProcessing(unittest.TestCase):
     def test_dict_to_cache(self):
         op = OpenaireProcessing()
         sample_dict = {"dict_type": "sample"}
+        if os.path.exists(MEMO_JSON_PATH):
+            os.remove(MEMO_JSON_PATH)
         self.assertFalse(os.path.exists(MEMO_JSON_PATH))
         op.dict_to_cache(sample_dict,MEMO_JSON_PATH)
         self.assertTrue(os.path.exists(MEMO_JSON_PATH))
