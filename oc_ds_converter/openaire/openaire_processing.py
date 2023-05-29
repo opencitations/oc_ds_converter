@@ -3,17 +3,16 @@ import csv
 import json
 from os import makedirs
 import os
-from tqdm import tqdm
 import os.path
 from os.path import exists
 # from oc_idmanager.doi import DOIManager
 # from oc_idmanager.pmid import PMIDManager
 # from oc_idmanager.pmcid import PMCIDManager
-from oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
 from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.pmid import PMIDManager
 from oc_ds_converter.oc_idmanager.pmcid import PMCIDManager
+from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 
 from datetime import datetime
 from argparse import ArgumentParser
@@ -95,9 +94,9 @@ class OpenaireProcessing(RaProcessor):
         self.pmc_m = PMCIDManager(storage_manager=self.storage_manager)
         self.arxiv_m = ArXivManager(storage_manager=self.storage_manager)
 
-        self.orcid_m = ORCIDManager()
+        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager)
 
-        self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmc": self.pmc_m, "arxiv":self.arxiv_m}
+        self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmcid": self.pmc_m, "arxiv":self.arxiv_m}
 
         self._doi_prefixes_publishers_dict = {
         "10.48550":{"publisher":"arxiv", "priority":1},
@@ -120,22 +119,26 @@ class OpenaireProcessing(RaProcessor):
 
 
         if not publishers_filepath_openaire:
+
             if not exists(os.path.join(pathlib.Path(__file__).parent.resolve(), "support_files")):
                 os.makedirs(os.path.join(pathlib.Path(__file__).parent.resolve(), "support_files"))
             self.publishers_filepath = os.path.join(pathlib.Path(__file__).parent.resolve(), "support_files",
-                                                  "prefix_publishers.csv")
+                                                  "prefix_publishers.json")
         else:
             self.publishers_filepath = publishers_filepath_openaire
 
         if os.path.exists(self.publishers_filepath):
             pfp = dict()
-            csv_headers = (
-                "id", "name", "prefix"
-            )
-            with open(self.publishers_filepath, encoding="utf8") as f:
-                csv_reader = csv.DictReader(f, csv_headers)
-                for row in csv_reader:
-                    pfp[row["prefix"]] = {"name": row["name"], "crossref_member": row["id"]}
+            csv_headers = ("id", "name", "prefix")
+            if self.publishers_filepath.endswith(".csv"):
+                with open(self.publishers_filepath, encoding="utf8") as f:
+                    csv_reader = csv.DictReader(f, csv_headers)
+                    for row in csv_reader:
+                        pfp[row["prefix"]] = {"name": row["name"], "crossref_member": row["id"]}
+                self.publishers_filepath = self.publishers_filepath.replace(".csv", ".json")
+            elif self.publishers_filepath.endswith(".json"):
+                with open(self.publishers_filepath, encoding="utf8") as f:
+                    pfp = json.load(f)
 
             if pfp:
                 self.publisher_manager = ExtractPublisherDOI(pfp)
@@ -160,7 +163,7 @@ class OpenaireProcessing(RaProcessor):
         instance of the Preprocessing class needs its own instances of the id managers, in order to
         avoid conflicts while validating data"""
         if ":" in schema_or_id:
-            split_id_prefix = schema_or_id.split(schema_or_id)
+            split_id_prefix = schema_or_id.split(":")
             schema = split_id_prefix[0]
         else:
             schema = schema_or_id
@@ -180,9 +183,10 @@ class OpenaireProcessing(RaProcessor):
             if e_schema in self._id_man_dict:
                 e_id = self._id_man_dict[e_schema].normalise(e["identifier"], include_prefix=True)
                 if e_id:
-                    norm_ids.append({"schema": e_schema, "identifier": e_id})
+                    dict_to_append = {"schema": e_schema, "identifier": e_id}
+                    if dict_to_append not in norm_ids:
+                        norm_ids.append(dict_to_append)
         return norm_ids
-
 
     def dict_to_cache(self, dict_to_be_saved, path):
         with open(path, "w", encoding="utf-8") as fd:
@@ -216,9 +220,14 @@ class OpenaireProcessing(RaProcessor):
         # Keep a doi for retrieving information related to its prefix (i.e.: publisher, RA..) only in the cases
         # where there is only one doi to refer to or where all the dois have the same prefix.
         if valid_ids_list:
+            for id in valid_ids_list:
+                if id.startswith("doi:"):
+                    doi = id[len("doi:"):]
+                    break
             row['id'] = ' '.join(valid_ids_list)
         else:
             return {}
+
 
         # row['title'] √
         pub_title = ""
@@ -260,7 +269,6 @@ class OpenaireProcessing(RaProcessor):
         publ = ""
         if att_publ:
             publ = att_publ[0]
-
         publishers = self.get_publisher_name(doi, publ)
                     
         row['publisher'] = publishers
@@ -307,7 +315,7 @@ class OpenaireProcessing(RaProcessor):
 
 
         if retr_prefix_data:
-            prefix_data = self.publisher_manager.extract_publishers_v(doi, enable_extraagencies=False,get_all_prefix_data=False, skip_update=True)
+            prefix_data = self.publisher_manager.extract_publishers_v(doi, enable_extraagencies=False,get_all_prefix_data=True, skip_update=True)
             cr_m = ""
             retrieved_publisher_name = ""
             if prefix_data:
@@ -337,7 +345,8 @@ class OpenaireProcessing(RaProcessor):
             schema = schema.strip().lower()
             if schema == "doi":
                 id = ent.get("identifier")
-                pref = re.findall("(^10.\d{4,9})", id.split('/')[0])[0]
+                splitted_pref = id.split('/')[0]
+                pref = re.findall("(10.\d{4,9})", splitted_pref)[0]
                 if pref == "10.48550":
                     arxiv_id = self.normalise_arxiv_id(id)
                     if not arxiv_id:
@@ -433,7 +442,7 @@ class OpenaireProcessing(RaProcessor):
         For each id, a first validation try is made by checking its presence in META db. If the id is not in META db yet,
         a second attempt is made by using the specific id-schema API"""
         valid_id_set = set([x["identifier"] for x in id_dict_of_list["valid"]])
-        to_be_processed_input = [x["identifier"] for x in id_dict_of_list["to_be_val"]]
+        to_be_processed_input = id_dict_of_list["to_be_val"]
         to_be_processed_id_dict_list = []
         # If there is only an id, check whether it is either an arxiv id or an arxiv doi. In this cases, if there is a
         # versioned arxiv id, it is kept as such. Otherwise both the arxiv doi and the not versioned arxiv id are replaced
@@ -471,7 +480,7 @@ class OpenaireProcessing(RaProcessor):
                 schema = ent.get("schema")
                 norm_id = ent.get("identifier")
                 id_man = self.get_id_manager(schema, self._id_man_dict)
-                if schema == "pmid" or (schema=="doi" and norm_id.split('/') not in self._doi_prefixes_publishers_dict):
+                if schema == "pmid" or (schema =="doi" and norm_id.split('/')[0] not in self._doi_prefixes_publishers_dict):
                     if self.BR_redis.get(norm_id):
                         id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
                         # preso in considerazione negli step successivi

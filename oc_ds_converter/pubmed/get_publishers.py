@@ -161,9 +161,9 @@ class ExtractPublisherDOI(object):
 
     def extract_publishers_v(self,doi_or_pref, enable_extraagencies=True, get_all_prefix_data=False, skip_update=False):
         if "/" in doi_or_pref:
-            prefix = re.findall("(^10.\d{4,9})", doi_or_pref.split('/')[0])[0]
+            prefix = re.findall("(10.\d{4,9})", doi_or_pref.split('/')[0])[0]
         else:
-            prefix = re.findall("(^10.\d{4,9})", doi_or_pref)[0]
+            prefix = re.findall("(10.\d{4,9})", doi_or_pref)[0]
         if not skip_update:
             self._prefix_to_data_dict = self.add_prefix_pub_data(prefix)
 
@@ -172,13 +172,15 @@ class ExtractPublisherDOI(object):
             # set get_all_prefix_data = True if you want to retrieve all the info about the prefix and not only
             # the name of the publisher
             if get_all_prefix_data:
-                return self._prefix_to_data_dict[prefix], self._prefix_to_data_dict
+                #return self._prefix_to_data_dict[prefix], self._prefix_to_data_dict
+                return self._prefix_to_data_dict[prefix]
             else:
                 return self._prefix_to_data_dict[prefix]["name"]
         else:
             if self._prefix_to_data_dict[prefix]["from"] == "not found":
                 self.search_for_publisher_in_other_agencies(doi_or_pref)
             if get_all_prefix_data:
-                return self._prefix_to_data_dict[prefix], self._prefix_to_data_dict
+                return self._prefix_to_data_dict[prefix]
+                #return self._prefix_to_data_dict[prefix], self._prefix_to_data_dict
             else:
                 return self._prefix_to_data_dict[prefix]["name"]

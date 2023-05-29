@@ -33,6 +33,9 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
 
     storage_manager = storage_manager if storage_manager else SqliteStorageManager()
 
+    if not os.path.exists(csv_dir):
+        os.makedirs(csv_dir)
+
     if not storage_path or not os.path.exists(storage_path):
         new_path_dir = os.path.join(os.getcwd(), "storage")
         if not os.path.exists(new_path_dir):
@@ -69,15 +72,15 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     if verbose:
         print(f'[INFO: openaire_process] Getting all files from {openaire_json_dir}')
 
-
-
-    for tar in tqdm(os.listdir(openaire_json_dir)):
+    all_input_tar = os.listdir(openaire_json_dir)
+    pbar_tar = tqdm(all_input_tar)
+    for tar in pbar_tar:
+        pbar_tar.set_description("Processing %s" % tar)
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
 
-        if verbose:
-            pbar = tqdm(total=len(all_files))
-
-        for filename in all_files:
+        pbar_all_files = tqdm(all_files)
+        for filename in pbar_all_files:
+            pbar_all_files.set_description(f'Processing File: {filename.split("/")[-1]} in tar {tar}')
             index_citations_to_csv = []
             f = gzip.open(filename, 'rb')
             source_data = f.readlines()
@@ -102,7 +105,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
 
                             source_entity = d.get("source")
                             if source_entity:
-                                norm_source_ids = openaire_csv.get_norm_ids(source_entity)
+                                norm_source_ids = openaire_csv.get_norm_ids(source_entity['identifier'])
                                 if norm_source_ids:
                                     for e, nsi in enumerate(norm_source_ids):
                                         stored_validity = openaire_csv.validated_as(nsi)
@@ -111,7 +114,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
 
                             target_entity = d.get("target")
                             if target_entity:
-                                norm_target_ids = openaire_csv.get_norm_ids(target_entity)
+                                norm_target_ids = openaire_csv.get_norm_ids(target_entity['identifier'])
                                 if norm_target_ids:
                                     for i, nti in enumerate(norm_target_ids):
                                         stored_validity_t = openaire_csv.validated_as(nti)
@@ -145,7 +148,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                 if source_identifier["to_be_val"]:
                                     source_tab_data = openaire_csv.csv_creator(source_entity_upd_ids) #valid_citation_ids_s --> evitare rivalidazione ?
                                     if source_tab_data:
-                                        processed_source_ids = source_tab_data["id"].spit(" ")
+                                        processed_source_ids = source_tab_data["id"].split(" ")
                                         all_citing_valid = processed_source_ids
                                         if all_citing_valid: # It meanst that there is at least one valid id for the citing entity
                                             any_source_id = all_citing_valid[0]
@@ -162,7 +165,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                 if target_identifier["to_be_val"]:
                                     target_tab_data = openaire_csv.csv_creator(target_entity_upd_ids) # valid_citation_ids_t  --> evitare rivalidazione ?
                                     if target_tab_data:
-                                        processed_target_ids = target_tab_data["id"].spit(" ")
+                                        processed_target_ids = target_tab_data["id"].split(" ")
                                         all_cited_valid = processed_target_ids
                                         if all_cited_valid:
                                             any_target_id = all_cited_valid[0]
@@ -170,7 +173,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                 # skip creation of a new row in meta table because there is no new id to be validated
                                 # "any_target_id" will be chosen among the valid source entity ids, if any
                                 elif target_identifier["valid"]:
-                                    all_cited_valid = source_identifier["valid"]
+                                    all_cited_valid = target_identifier["valid"]
                                     any_target_id = all_cited_valid[0]["identifier"]
 
 
@@ -179,6 +182,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                 citation["citing"] = any_source_id
                                 citation["referenced"] = any_target_id
                                 index_citations_to_csv.append(citation)
+
 
             if data:
                 with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
@@ -195,9 +199,6 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
             if cache:
                 with open(cache, 'a', encoding='utf-8') as aux_file:
                     aux_file.write(os.path.basename(filename) + '\n')
-
-            pbar.update() if verbose else None
-        pbar.close() if verbose else None
 
     if cache:
         if os.path.exists(cache):
