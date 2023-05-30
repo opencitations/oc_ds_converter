@@ -73,6 +73,7 @@ class ArXivManager(IdentifierManager):
         else:
             arxiv_vaidation_value = self.storage_manager.get_value(arxiv)
             if isinstance(arxiv_vaidation_value, bool):
+
                 if get_extra_info:
                     return arxiv_vaidation_value, {"id":arxiv, "valid":arxiv_vaidation_value}
                 return arxiv_vaidation_value
@@ -117,14 +118,17 @@ class ArXivManager(IdentifierManager):
 
             try:
                 id_string = unquote(id_string)
-                arxiv_string = match("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?$", id_string).group()
+                arxiv_string = search("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)", id_string).group(0)
 
                 return "%s%s" % (self._p if include_prefix else "", arxiv_string)
-
-
             except:
-                # Any error in processing the arxiv will return None
-                return None
+                try:
+                    id_string = unquote(id_string)
+                    arxiv_string = search("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?", id_string).group(0)
+                    return "%s%s" % (self._p if include_prefix else "", arxiv_string+"v1")
+                except:
+                    return None
+
         else:
             return None
 
@@ -151,9 +155,14 @@ class ArXivManager(IdentifierManager):
                 if arxiv_string_match:
                     version = arxiv_string_match[1]
 
-                if version:
+                if version and version != "v1":
                     api = self._api_v
                 else:
+                    if version == "v1":
+                        # v1 always exists, and the base API is more efficient,
+                        # so we just check the existence of the base ARXIV id
+                        arxiv_full_norm = arxiv_full_norm[:-2]
+
                     api = self._api
 
 
@@ -167,7 +176,7 @@ class ArXivManager(IdentifierManager):
                             timeout=30,
                         )
                         if r.status_code == 200:
-                            if not version:
+                            if not version or version =="v1":
                                 #data = r.decode('utf-8').text
                                 xml_re = r.text
                                 obj = xmltodict.parse(f'{xml_re}')
@@ -177,6 +186,7 @@ class ArXivManager(IdentifierManager):
                                     results_n = int(results.get("#text"))
                                 except:
                                     results_n = 0
+
                                 if results_n >0:
                                     if get_extra_info:
                                         return True, self.extra_info(obj)

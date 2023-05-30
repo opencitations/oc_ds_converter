@@ -121,11 +121,11 @@
 
     "jid:gee1973e": {"valid":false},
 
-    "arxiv:2109.05583": {"valid":true},
+    "arxiv:2109.05583v1": {"valid":true},
 
     "arxiv:2109.05583v2": {"valid": true},
 
-    "arxiv:1133.5582": {"valid": false},
+    "arxiv:1133.5582v1": {"valid": false},
 
     "pmcid:PMC100007468": {"id": "PMC100007468","valid": false},
 

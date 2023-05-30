@@ -197,7 +197,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         self.assertEqual(pmid_id, op.normalise_any_id(pmid_id+"abc"))
         self.assertEqual(doi_id, op.normalise_any_id("doi:" + doi_id.split(":")[1].upper()))
-        self.assertEqual(arxiv_id, op.normalise_any_id(arxiv_id.replace(".", "....")))
+        self.assertEqual(arxiv_id + "v1", op.normalise_any_id(arxiv_id.replace(".", "....")))
         self.assertEqual(pmc_id, op.normalise_any_id(pmc_id+"     "))
 
         self.delete_storege(storage_type="sqlite")
@@ -220,7 +220,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         norm_ids = op.get_norm_ids(list_of_ids_to_norm_with_duplicates)
         exp_norm_ids = [{'identifier': 'doi:10.1103/physrevd.84.084046', 'schema': 'doi'},
                         {'identifier': 'doi:10.48550/arxiv.1107.5979', 'schema': 'doi'},
-                        {'identifier': 'arxiv:1107.5979', 'schema': 'arxiv'}]
+                        {'identifier': 'arxiv:1107.5979v1', 'schema': 'arxiv'}]
 
         list_of_ids_w_not_managed_schema = [
             {'identifier': '11245/1.357137', 'schema': 'handle', 'url': 'https://hdl.handle.net/11245/1.357137'},
@@ -444,6 +444,40 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(doi_pub_output4, "")
         self.assertEqual(doi_pub_output4_1, "")
         self.assertEqual(doi_pub_output4_2, "")
+
+        self.delete_storege(storage_type="sqlite")
+
+    def test_manage_arxiv_single_id(self):
+        '''Check the correct management of entities with only one ID, in particular in
+        case it is an arxiv. In this case, if it is an arxiv DOI, we return the normalised
+        version of the correspondent arxiv. Both in case of an arxiv id and of an arxiv doi,
+        we return the versioned arxiv id where the version is available (never in ARXIV doi).
+        If no version is provided, we normalise the arxiv id as arxiv id version 1.
+        In all the other id cases (pmid, pmc, handle (which is discarded in a later step) '''
+        sample_doi_any = [{'schema': 'doi', 'identifier': 'doi:10.1000/FAKE_ID', 'valid': None}]
+        sample_doi_arxiv = [{'schema': 'doi', 'identifier': 'doi:10.48550/arXiv.1509.08217', 'valid': None}]
+        sample_arxiv_no_ver = [{'schema': 'arxiv', 'identifier': 'arxiv:1509.08217', 'valid': None}]
+        sample_arxiv_ver = [{'schema': 'arxiv', 'identifier': 'arxiv:1509...08217v3', 'valid': None}]
+
+        op = OpenaireProcessing()
+
+        # CASE 1: the unique input id dict in list is a not-arxiv doi : the input list is returned
+        out_sample_doi_any = op.manage_arxiv_single_id(sample_doi_any)
+        self.assertEqual(out_sample_doi_any, [{'schema': 'doi', 'identifier': 'doi:10.1000/FAKE_ID', 'valid': None}])
+
+        # CASE 2: the unique input id dict in list is an arxiv doi: the doi is replaced with its correspondent arxiv v1
+        out_sample_doi_arxiv = op.manage_arxiv_single_id(sample_doi_arxiv)
+        self.assertEqual(out_sample_doi_arxiv, [{'schema': 'arxiv', 'identifier': 'arxiv:1509.08217v1'}])
+
+        # CASE 3: the unique input id dict in list is an arxiv id without version:
+        # the arxiv id is replaced with its v1
+        out_sample_arxiv_no_ver = op.manage_arxiv_single_id(sample_arxiv_no_ver)
+        self.assertEqual(out_sample_arxiv_no_ver, [{'schema': 'arxiv', 'identifier': 'arxiv:1509.08217v1'}])
+
+        # CASE 4: the unique input id dict in list is an arxiv id with version: the id is just normalised
+        out_sample_arxiv_ver = op.manage_arxiv_single_id(sample_arxiv_ver)
+        self.assertEqual(out_sample_arxiv_ver, [{'schema': 'arxiv', 'identifier': 'arxiv:1509.08217v3'}])
+
 
         self.delete_storege(storage_type="sqlite")
 

@@ -322,9 +322,7 @@ class OpenaireProcessing(RaProcessor):
 
         return publisher
 
-
-
-    def manage_single_id(self, id_dict_list):
+    def manage_arxiv_single_id(self, id_dict_list):
         result_dict_list = []
         arxiv_id = ""
         is_arxiv = False
@@ -337,14 +335,14 @@ class OpenaireProcessing(RaProcessor):
                 splitted_pref = id.split('/')[0]
                 pref = re.findall("(10.\d{4,9})", splitted_pref)[0]
                 if pref == "10.48550":
-                    arxiv_id = self.normalise_arxiv_id(id)
+                    arxiv_id = self._id_man_dict["arxiv"].normalise(id, include_prefix=True)
                     if not arxiv_id:
                         return None
                     else:
                         is_arxiv = True
             elif schema == "arxiv":
                 id = ent.get("identifier")
-                arxiv_id = self.normalise_arxiv_id(id)
+                arxiv_id = self._id_man_dict["arxiv"].normalise(id, include_prefix=True)
                 if not arxiv_id:
                     return None
                 else:
@@ -354,7 +352,8 @@ class OpenaireProcessing(RaProcessor):
         if is_arxiv:
             result_dict_list = [{"schema": "arxiv", "identifier": arxiv_id}]
 
-
+        if not result_dict_list:
+            return id_dict_list
         return result_dict_list
 
     def manage_doi_prefixes_priorities(self, id_dict_list):
@@ -380,7 +379,7 @@ class OpenaireProcessing(RaProcessor):
                 for id_dict in arxiv_or_figshare_dois:
                     if id_dict.get("identifier").split("/")[0] == "10.48550":
                         # in order to avoid multiple ids of the same schema for the same entity without a reasonable expl.
-                        return self.manage_single_id([id_dict])
+                        return self.manage_arxiv_single_id([id_dict])
                 for id_dict in arxiv_or_figshare_dois:
                     if id_dict.get("identifier").split("/")[0] == "10.6084":
                         version = "v1"
@@ -424,8 +423,6 @@ class OpenaireProcessing(RaProcessor):
 
         return result_id_dict_list
 
-
-
     def to_validated_id_list(self, id_dict_of_list):
         """this method takes in input a list of id dictionaries and returns a list valid and existent ids with prefixes.
         For each id, a first validation try is made by checking its presence in META db. If the id is not in META db yet,
@@ -438,7 +435,7 @@ class OpenaireProcessing(RaProcessor):
         # with the v1 version of the arxiv id. If it is not possible to retrieve an arxiv id from the only id which is
         # either declared as an arxiv id or starts with the arxiv doi prefix, return None and interrupt the process
         if len(valid_id_set) == 0 and len(to_be_processed_input)==1 :
-            single_id_dict_list = self.manage_single_id(to_be_processed_input)
+            single_id_dict_list = self.manage_arxiv_single_id(to_be_processed_input)
             if single_id_dict_list:
                 to_be_processed_id_dict_list = single_id_dict_list
             else:
@@ -523,22 +520,6 @@ class OpenaireProcessing(RaProcessor):
                             elif self.orcid_m.is_valid(norm_orcid):
                                 orcid = norm_orcid
         return orcid
-
-
-    def normalise_arxiv_id(self, id):
-        search_id_w = search("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?", id)
-        if search_id_w:
-            id_w_ver = search_id_w.group(0)
-            if id_w_ver:
-                return id_w_ver
-        version = "v1"
-        search_id = search("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})", id)
-        if search_id:
-            id_no_ver = search_id.group(0)
-            if id_no_ver:
-                id_w_ver = id_no_ver + version
-                return id_w_ver
-        return None
 
 
 
