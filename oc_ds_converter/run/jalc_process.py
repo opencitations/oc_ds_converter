@@ -37,7 +37,6 @@ def preprocess(jalc_json_dir:str, citing_entities_filepath:str, publishers_filep
     if verbose:
         pbar = tqdm(total=len(all_files))
     for filename in all_files:
-        print(filename)
         source_data = load_ndjson(filename)
         filename = filename.name if isinstance(filename, TarInfo) else filename
         filename_without_ext = filename.replace('.ndjson', '').replace('.tar', '').replace('.gz', '')

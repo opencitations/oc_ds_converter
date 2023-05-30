@@ -196,7 +196,7 @@ class OpenaireProcessing(RaProcessor):
     def csv_creator(self, item: dict) -> dict:
         row = dict()
         
-        doi = ""
+        doi = []
         
         keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
                 'publisher', 'editor']
@@ -223,8 +223,7 @@ class OpenaireProcessing(RaProcessor):
         if valid_ids_list:
             for id in valid_ids_list:
                 if id.startswith("doi:"):
-                    doi = id[len("doi:"):]
-                    break
+                    doi.append(id[len("doi:"):])
             row['id'] = ' '.join(valid_ids_list)
         else:
             return {}
@@ -246,7 +245,13 @@ class OpenaireProcessing(RaProcessor):
 
         # row['author'] √
         agents_list = self.add_authors_to_agent_list(attributes, [])
-        authors_strings_list, editors_string_list = self.get_agents_strings_list(doi, agents_list)
+        # EVITARE API !!!!!!!
+        pref_dois = [x for x in doi if x.split("/")[0] not in self._doi_prefixes_publishers_dict]
+        if doi:
+            best_doi = pref_dois[0] if pref_dois else doi[0]
+        else:
+            best_doi = ""
+        authors_strings_list, editors_string_list = self.get_agents_strings_list(best_doi, agents_list)
         row['author'] = '; '.join(authors_strings_list)
 
         # row['pub_date'] √
@@ -284,57 +289,40 @@ class OpenaireProcessing(RaProcessor):
             print(row)
             raise(TypeError)
 
-    def get_publisher_name(self, doi: str, item: dict) -> str:
+    def get_publisher_name(self, doi_list: list, item: dict) -> str:
         '''
         This function aims to return a publisher's name and id. If a mapping was provided,
         it is used to find the publisher's standardized name from its id or DOI prefix.
 
         :params doi: the item's DOI
-        :type doi: str
+        :type doi_list: list
         :params item: the item's dictionary
         :type item: dict
         :returns: str -- The output is a string in the format 'NAME [SCHEMA:ID]', for example, 'American Medical Association (AMA) [crossref:10]'. If the id does not exist, the output is only the name. Finally, if there is no publisher, the output is an empty string.
         '''
-        if not doi and not item:
+        if not item or not isinstance(item, dict):
+            return ""
+        elif "name" not in item:
             return ""
 
-        data = {
-            "publisher": item.get('name') if item else "",
-            "member": None,
-            "prefix": doi.split('/')[0] if doi else ""
-        }
+        publisher = item.get("name") if item.get("name") else ""
 
-        publisher = data['publisher']
-        member = data['member']
-        prefix = data['prefix']
+        if publisher and doi_list:
+            for doi in doi_list:
+                prefix = doi.split('/')[0] if doi else ""
+                if prefix:
+                    if prefix in self.publisher_manager._prefix_to_data_dict:
+                        prefix_data = self.publisher_manager.extract_publishers_v(doi, enable_extraagencies=False,get_all_prefix_data=True, skip_update=True)
+                        if prefix_data:
+                            member = prefix_data.get("crossref_member") if prefix_data.get("crossref_member") not in {"not found", None} else ""
+                            retrieved_publisher_name = prefix_data.get("name") if prefix_data.get("name") not in {"unidentified", None} else ""
+                            if isinstance(retrieved_publisher_name, str):
+                                if publisher.lower().strip() == retrieved_publisher_name.lower().strip():
+                                    return f'{publisher} [crossref:{member}]' if member else publisher
 
-        retr_prefix_data = False
-
-        if prefix:
-            if prefix in self.publisher_manager._prefix_to_data_dict:
-                retr_prefix_data = True
-
-
-        if retr_prefix_data:
-            prefix_data = self.publisher_manager.extract_publishers_v(doi, enable_extraagencies=False,get_all_prefix_data=True, skip_update=True)
-            cr_m = ""
-            retrieved_publisher_name = ""
-            if prefix_data:
-                cr_m = prefix_data.get("crossref_member") if prefix_data.get("crossref_member") != "not found" else ""
-                retrieved_publisher_name = prefix_data.get("name") if prefix_data.get("name") != "unidentified" else ""
-
-            if retrieved_publisher_name:
-                if publisher:
-                    if publisher.lower().strip() == retrieved_publisher_name.lower().strip() and cr_m:
-                        member = cr_m
-                else:
-                    publisher = retrieved_publisher_name if retrieved_publisher_name else ""
-                    member = cr_m if cr_m else ""
-
-        name_and_id = f'{publisher} [crossref:{member}]' if member else publisher
+        return publisher
 
 
-        return name_and_id
 
     def manage_single_id(self, id_dict_list):
         result_dict_list = []
@@ -449,7 +437,6 @@ class OpenaireProcessing(RaProcessor):
         # versioned arxiv id, it is kept as such. Otherwise both the arxiv doi and the not versioned arxiv id are replaced
         # with the v1 version of the arxiv id. If it is not possible to retrieve an arxiv id from the only id which is
         # either declared as an arxiv id or starts with the arxiv doi prefix, return None and interrupt the process
-        # INTERROMPERE IL PROCESSO SE NESSUN ID RISULTA VALIDO  !!!!!
         if len(valid_id_set) == 0 and len(to_be_processed_input)==1 :
             single_id_dict_list = self.manage_single_id(to_be_processed_input)
             if single_id_dict_list:

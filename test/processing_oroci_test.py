@@ -333,9 +333,9 @@ class TestOpenaireProcessing(unittest.TestCase):
         doi_pub_2_input = {'name': 'Oxford University Press (OUP)'}
         doi2 = "10.2527/1995.7392834x"
 
-        no_doi_pub_output = op.get_publisher_name("", no_doi_pub_input)
-        doi_pub_output_1 = op.get_publisher_name(doi1, doi_pub_1_input)
-        doi_pub_output_2 = op.get_publisher_name(doi2, doi_pub_2_input)
+        no_doi_pub_output = op.get_publisher_name([""], no_doi_pub_input)
+        doi_pub_output_1 = op.get_publisher_name([doi1], doi_pub_1_input)
+        doi_pub_output_2 = op.get_publisher_name([doi2], doi_pub_2_input)
 
         self.assertEqual(doi_pub_output_1, "Frontiers Media SA")
         self.assertEqual(no_doi_pub_output, "Blackwell Publishing Ltd")
@@ -354,8 +354,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         - it is present in the mapping,
          -the name of the publisher provided by the datasource corresponds to the from the datasource dump
         '''
-        # MODIFICARE IL FUNZIONAMENTO PER DOI MULTIPLI (per evitare che il doi selezionato non sia quello a cui è associato il publisher in crossref.
-        # Usare una lista
+
         op = OpenaireProcessing(publishers_filepath_openaire="test/openaire_processing/support_material/publishers.json")
 
         no_doi_pub_input = {'name': 'Blackwell Publishing Ltd'}
@@ -366,9 +365,9 @@ class TestOpenaireProcessing(unittest.TestCase):
         doi_pub_2_input = {'name': 'Oxford University Press (OUP)'}
         doi2 = "10.2527/1995.7392834x"
 
-        no_doi_pub_output = op.get_publisher_name("", no_doi_pub_input)
-        doi_pub_output_1 = op.get_publisher_name(doi1, doi_pub_1_input)
-        doi_pub_output_2 = op.get_publisher_name(doi2, doi_pub_2_input)
+        no_doi_pub_output = op.get_publisher_name([""], no_doi_pub_input)
+        doi_pub_output_1 = op.get_publisher_name([doi1], doi_pub_1_input)
+        doi_pub_output_2 = op.get_publisher_name([doi2], doi_pub_2_input)
 
         self.assertEqual(doi_pub_output_1, "Frontiers Media SA")
         self.assertEqual(no_doi_pub_output, "Blackwell Publishing Ltd")
@@ -376,9 +375,77 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         self.delete_storege(storage_type="sqlite")
 
-        pass
 
+    def test_get_publisher_name_publishers_mapping_multi_dois(self):
+        '''
+        Check that, given a doi and a dictionary representing a  publisher's data, the string of the publisher's
+        normalised name (and possibly its crossref ID) is returned.
 
+        Mapping Provided: Publisher name retrieved + crossref member returned,
+        only if :
+        - the doi prefix is a crossref doi prefix,
+        - it is present in the mapping,
+         -the name of the publisher provided by the datasource corresponds to the from the datasource dump
+        '''
+
+        op = OpenaireProcessing(publishers_filepath_openaire="test/openaire_processing/support_material/publishers.json")
+
+        # CASE 1: The Publisher Name provided by OPENAIRE corresponds to the Publisher Name mapped to one of the
+        # entity's dois prefixes in the prefix-to-publisher-data mapping in input
+        # EXPECTED OUTPUT: The publisher name is retrieved with its crossref member
+
+        ent_1_doi_1 = "10.1152/sample_doi" #this prefix is in the mapping and corresponds to American Physiological Society
+        ent_1_doi_2 = "10.1153/sample_doi"
+        pub_input_1 = {'name': 'American Physiological Society'}
+
+        no_doi_pub_output = op.get_publisher_name([ent_1_doi_1, ent_1_doi_2], pub_input_1)
+
+        self.assertEqual(no_doi_pub_output, "American Physiological Society [crossref:24]")
+
+        # CASE 2: The Publisher Name provided by OPENAIRE does not correspond to the Publisher Name mapped to one of the
+        # entity's dois prefixes in the prefix-to-publisher-data mapping in input
+        # EXPECTED OUTPUT: The publisher name provided by Openaire is retrieved without any crossref member
+
+        ent_2_doi_1 = "10.1152/sample_doi" #this prefix is in the mapping and corresponds to American Physiological Society
+        ent_2_doi_2 = "10.1153/sample_doi"
+        pub_input_2 = {'name': 'Sample Publisher Name'}
+
+        no_doi_pub_output2 = op.get_publisher_name([ent_2_doi_1, ent_2_doi_2], pub_input_2)
+        self.assertEqual(no_doi_pub_output2, "Sample Publisher Name")
+
+        # CASE 3: The Publisher Name provided by OPENAIRE corresponds to the Publisher Name mapped to one of the
+        # entity's dois prefixes in the prefix-to-publisher-data mapping in input BUT it is not the first doi of the list
+        # EXPECTED OUTPUT: The publisher name is retrieved with its crossref member
+
+        ent_3_doi_1 = "10.1152/sample_doi" #this prefix is in the mapping and corresponds to American Physiological Society
+        ent_3_doi_2 = "10.1153/sample_doi"
+        pub_input_3 = {'name': 'American Physiological Society'}
+
+        doi_pub_output3 = op.get_publisher_name([ent_3_doi_2, ent_3_doi_1], pub_input_3)
+
+        self.assertEqual(doi_pub_output3, "American Physiological Society [crossref:24]")
+
+        self.delete_storege(storage_type="sqlite")
+
+        # CASE 4: OPENAIRE does not provide a publisher name but one of the entity's DOI prefixes is in the
+        # prefix-to-publisher-data mapping in input
+        # EXPECTED OUTPUT: empty string
+
+        ent_4_doi_1 = "10.1152/sample_doi" #this prefix is in the mapping and corresponds to American Physiological Society
+        ent_4_doi_2 = "10.1153/sample_doi"
+        pub_input_4 = {'name': ''}
+        pub_input_4_1 = {}
+        pub_input_4_2 = ''
+
+        doi_pub_output4 = op.get_publisher_name([ent_4_doi_1, ent_4_doi_2], pub_input_4)
+        doi_pub_output4_1 = op.get_publisher_name([ent_4_doi_1, ent_4_doi_2], pub_input_4_1)
+        doi_pub_output4_2= op.get_publisher_name([ent_4_doi_1, ent_4_doi_2], pub_input_4_2)
+
+        self.assertEqual(doi_pub_output4, "")
+        self.assertEqual(doi_pub_output4_1, "")
+        self.assertEqual(doi_pub_output4_2, "")
+
+        self.delete_storege(storage_type="sqlite")
 
 
 
