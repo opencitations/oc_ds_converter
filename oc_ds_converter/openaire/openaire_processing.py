@@ -97,13 +97,21 @@ class OpenaireProcessing(RaProcessor):
 
         self._doi_prefixes_publishers_dict = {
         "10.48550":{"publisher":"arxiv", "priority":1},
+        "doi:10.48550":{"publisher":"arxiv", "priority":1},
         "10.6084":{"publisher":"figshare","priority":1},
+        "doi:10.6084":{"publisher":"figshare","priority":1},
         "10.1184":{"publisher": "Carnegie Mellon University", "priority":2},
+        "doi:10.1184":{"publisher": "Carnegie Mellon University", "priority":2},
         "10.25384":{"publisher":"sage", "priority":2},
+        "doi:10.25384":{"publisher":"sage", "priority":2},
         "10.5281":{"publisher":"zenodo", "priority":3},
+        "doi:10.5281":{"publisher":"zenodo", "priority":3},
         "10.5061":{"publisher":"dryad", "priority":4},
+        "doi:10.5061":{"publisher":"dryad", "priority":4},
         "10.17605":{"publisher":"psyarxiv", "priority":5},
+        "doi:10.17605":{"publisher":"psyarxiv", "priority":5},
         "10.31234": {"publisher":"psyarxiv", "priority":6},
+        "doi:10.31234": {"publisher":"psyarxiv", "priority":6},
         }
 
         if testing:
@@ -335,7 +343,11 @@ class OpenaireProcessing(RaProcessor):
                 splitted_pref = id.split('/')[0]
                 pref = re.findall("(10.\d{4,9})", splitted_pref)[0]
                 if pref == "10.48550":
-                    arxiv_id = self._id_man_dict["arxiv"].normalise(id, include_prefix=True)
+                    if id.startswith("doi:"):
+                        id = id[len("doi:"):]
+                    id_no_pref = id.replace(pref,"")
+
+                    arxiv_id = self._id_man_dict["arxiv"].normalise(id_no_pref, include_prefix=True)
                     if not arxiv_id:
                         return None
                     else:
@@ -362,36 +374,48 @@ class OpenaireProcessing(RaProcessor):
         arxiv_or_figshare_dois = [x for x in id_dict_list if x.get("identifier").split("/")[0] in priority_prefixes]
         if len(arxiv_or_figshare_dois) == 1:
             id_dict = arxiv_or_figshare_dois[0]
+            is_arxiv = self._doi_prefixes_publishers_dict[id_dict.get("identifier").split("/")[0]].get("publisher") == "arxiv"
             has_version = search("v\d+", id_dict.get("identifier"))
-            if has_version:
+            if has_version: # It is necessarily a figshare doi (ARXIV have version only in arxiv id and not in arxiv dois)
+                #√
                 return arxiv_or_figshare_dois
             else:
-                upd_id = id_dict.get("identifier") + "v1"
-                upd_dict = {k:v for k,v in id_dict if k!= "identifier"}
-                upd_dict["identifier"] = upd_id
-                result_id_dict_list.append(upd_dict)
-                return result_id_dict_list
+                if not is_arxiv:
+                    upd_id = id_dict.get("identifier") + "v1"
+                    upd_dict = {k:v for k,v in id_dict.items() if k!= "identifier"}
+                    upd_dict["identifier"] = upd_id
+                    result_id_dict_list.append(upd_dict)
+                    # √
+                    return result_id_dict_list
+                else:
+                    # √
+                    return self.manage_arxiv_single_id([id_dict])
+
         elif len(arxiv_or_figshare_dois) > 1:
             versioned_arxiv_or_figshare_dois = [x for x in arxiv_or_figshare_dois if search("v\d+", x.get("identifier"))]
             if versioned_arxiv_or_figshare_dois:
+                # √
                 return versioned_arxiv_or_figshare_dois
             else:
                 for id_dict in arxiv_or_figshare_dois:
-                    if id_dict.get("identifier").split("/")[0] == "10.48550":
+                    if self._doi_prefixes_publishers_dict[id_dict.get("identifier").split("/")[0]].get("publisher") == "arxiv":
                         # in order to avoid multiple ids of the same schema for the same entity without a reasonable expl.
+                        # √
                         return self.manage_arxiv_single_id([id_dict])
+
                 for id_dict in arxiv_or_figshare_dois:
-                    if id_dict.get("identifier").split("/")[0] == "10.6084":
+                    if self._doi_prefixes_publishers_dict[id_dict.get("identifier").split("/")[0]].get("publisher") == "figshare":
                         version = "v1"
                         upd_dict = {k:v for k,v in id_dict.items() if k != "identifier"}
                         upd_id = id_dict.get("identifier") + version
                         upd_dict["identifier"] = upd_id
                         result_id_dict_list.append(upd_dict)
+                        # √
                         return result_id_dict_list
         else:
-            zenodo_ids_list = [x for x in id_dict_list if x.get("identifier").split("/")[0] == "10.5281"]
+            zenodo_ids_list = [x for x in id_dict_list if self._doi_prefixes_publishers_dict[x.get("identifier").split("/")[0]].get("publisher") == "zenodo"]
             if len(zenodo_ids_list) >= 2:
-                list_of_id_n_str = [x.replace("", "10.5281/zenodo.") for x in id_dict_list if x.get("identifier").split("/")[0] == "10.5281"]
+                list_of_id_n_str = [x["identifier"].replace("doi:", "").replace("10.5281/zenodo.", "") for x in zenodo_ids_list]
                 list_of_id_n_int = []
                 for n in list_of_id_n_str:
                     try:
@@ -402,24 +426,51 @@ class OpenaireProcessing(RaProcessor):
                 if list_of_id_n_int:
                     last_assigned_id = str(max(list_of_id_n_int))
                     for id_dict in zenodo_ids_list:
-                        if id_dict.get("identifier").endswith(last_assigned_id):
+                        if id_dict.get("identifier").replace("doi:", "").replace("10.5281/zenodo.", "") == last_assigned_id:
                             result_id_dict_list.append(id_dict)
+                            # √
                             return result_id_dict_list
             else:
                 prefix_set = {x.get("identifier").split("/")[0] for x in id_dict_list}
                 priorities = [self._doi_prefixes_publishers_dict[p]["priority"] for p in prefix_set]
-                max_priority = max(priorities)
+                max_priority = min(priorities)
+
                 prefixes_w_max_priority = {k for k,v in self._doi_prefixes_publishers_dict.items() if v["priority"] == max_priority}
+
                 for id_dict in id_dict_list:
                     if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
-                        norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=False)
-                        if self.BR_redis.get("doi:" + norm_id):
+                        norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
+
+                        if self.BR_redis.get(norm_id):
                             result_id_dict_list.append(id_dict)
                             return result_id_dict_list
                         # if the id is not in redis db, validate it before appending
                         elif self.doi_m.is_valid(norm_id):
                             result_id_dict_list.append(id_dict)
                             return result_id_dict_list
+
+                if not result_id_dict_list:
+
+                    while id_dict_list and max_priority < 7:
+
+                        id_dict_list = [x for x in id_dict_list if x["identifier"].split("/")[0] not in prefixes_w_max_priority]
+                        max_priority += 1
+                        prefixes_w_max_priority = {k for k, v in self._doi_prefixes_publishers_dict.items() if
+                                                   v["priority"] == max_priority}
+
+                        for id_dict in id_dict_list:
+                            if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
+                                norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
+
+                                if self.BR_redis.get(norm_id):
+                                    result_id_dict_list.append(id_dict)
+                                    return result_id_dict_list
+                                # if the id is not in redis db, validate it before appending
+                                elif self.doi_m.is_valid(norm_id):
+                                    result_id_dict_list.append(id_dict)
+                                    return result_id_dict_list
+
+
 
         return result_id_dict_list
 
@@ -520,7 +571,3 @@ class OpenaireProcessing(RaProcessor):
                             elif self.orcid_m.is_valid(norm_orcid):
                                 orcid = norm_orcid
         return orcid
-
-
-
-

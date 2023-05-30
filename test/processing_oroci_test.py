@@ -478,6 +478,92 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_sample_arxiv_ver = op.manage_arxiv_single_id(sample_arxiv_ver)
         self.assertEqual(out_sample_arxiv_ver, [{'schema': 'arxiv', 'identifier': 'arxiv:1509.08217v3'}])
 
+        self.delete_storege(storage_type="sqlite")
+
+    def test_manage_doi_prefixes_priorities(self):
+        op = OpenaireProcessing()
+
+        # CASE1: 1 figshare doi (priority 1) with version --> returned as it is
+        es_1 = [{'schema': 'doi', 'identifier': 'doi:10.6084/1234.1234v3', 'valid': None}]
+        out_1 = op.manage_doi_prefixes_priorities(es_1)
+        self.assertEqual(out_1, es_1)
+
+        # CASE2: 1 figshare doi (priority 1) without version --> returned with version v1
+        es_2 = [{'schema': 'doi', 'identifier': 'doi:10.6084/1234.1234', 'valid': None}]
+        exp_2 = [{'schema': 'doi', 'identifier': 'doi:10.6084/1234.1234v1', 'valid': None}]
+        out_2 = op.manage_doi_prefixes_priorities(es_2)
+        self.assertEqual(exp_2, out_2)
+
+        # CASE3: 1 arxiv doi (always without and version) --> returned as correspondent arxiv id version v1
+        es_3 = [{'schema': 'doi', 'identifier': 'doi:10.48550/1234.1234', 'valid': None}]
+        out_3 = op.manage_doi_prefixes_priorities(es_3)
+        exp_3 = [{'identifier': 'arxiv:1234.1234v1', 'schema': 'arxiv'}]
+        self.assertEqual(exp_3, out_3)
+
+        # CASE4: >1 arxiv doi or figshare and at least one has version --> return the one(s) with version
+        es_4 = [{'schema': 'doi', 'identifier': 'doi:10.48550/1234.1234', 'valid': None}, {'schema': 'doi', 'identifier': 'doi:10.6084/5678v3', 'valid': None}]
+        out_4 = op.manage_doi_prefixes_priorities(es_4)
+        exp_4 = [{'schema': 'doi', 'identifier': 'doi:10.6084/5678v3', 'valid': None}]
+        self.assertEqual(exp_4, out_4)
+
+        # CASE5: >1 arxiv doi or figshare and none has version --> return, as first choice, the arxiv version v1 of the first arxiv doi encountered
+        es_5 = [{'schema': 'doi', 'identifier': 'doi:10.6084/5678', 'valid': None}, {'schema': 'doi', 'identifier': 'doi:10.48550/1234.1234', 'valid': None}]
+        out_5 = op.manage_doi_prefixes_priorities(es_5)
+        exp_5 = [{'identifier': 'arxiv:1234.1234v1', 'schema': 'arxiv'}]
+        self.assertEqual(exp_5, out_5)
+
+        # CASE6: >1 figshare dois and none has version --> return, return version v1 doi of the first figshare doi encountered
+        es_6 = [{'schema': 'doi', 'identifier': 'doi:10.6084/5678', 'valid': None}, {'schema': 'doi', 'identifier': 'doi:10.6084/1234', 'valid': None}]
+        out_6 = op.manage_doi_prefixes_priorities(es_6)
+        exp_6 = [{'identifier': 'doi:10.6084/5678v1', 'schema': 'doi', 'valid': None}]
+        self.assertEqual(exp_6, out_6)
+
+        # CASE7: >1 more than one zenodo doi --> return the one with the highest number: it is the last one assigned and thus it
+        # is a version doi and not the collector doi (which is the first one to be assigned when a publication is uploaded on zenodo).
+        es_7 = [{'schema': 'doi', 'identifier': '10.5281/zenodo.111', 'valid': None}, {'schema': 'doi', 'identifier': '10.5281/zenodo.112', 'valid': None}]
+        es_7_1 = [{'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.111', 'valid': None}, {'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.112', 'valid': None}]
+        out_7 = op.manage_doi_prefixes_priorities(es_7)
+        out_7_1 = op.manage_doi_prefixes_priorities(es_7_1)
+        exp_7 = [{'identifier': '10.5281/zenodo.112', 'schema': 'doi', 'valid': None}]
+        exp_7_1 = [{'identifier': 'doi:10.5281/zenodo.112', 'schema': 'doi', 'valid': None}]
+        self.assertEqual(exp_7, out_7)
+        self.assertEqual(exp_7_1, out_7_1)
+
+        # CASE8: None of the previous cases: return the first VALID DOI with highest priority prefix
+        #No one of the ids is valid, return an empty list
+        es_8 = [
+            {'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.111', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.25384/efg', 'valid': None},
+        ]
+
+        out_8 = op.manage_doi_prefixes_priorities(es_8)
+        exp_8 = []
+        self.assertEqual(exp_8, out_8)
+
+        # CASE8_1:
+        # No valid id among the ones with a max priority prefix -->  return the first valid ID in order of prefix priority
+        es_8_1 = [
+            {'schema': 'doi', 'identifier': '10.5281/zenodo.4725899', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.25384/efg', 'valid': None},
+        ]
+
+        out_8_1 = op.manage_doi_prefixes_priorities(es_8_1)
+        exp_8_1 = [{'schema': 'doi', 'identifier': '10.5281/zenodo.4725899', 'valid': None}]
+        self.assertEqual(exp_8_1, out_8_1)
+
+        # CASE8_2:
+        # more valid ids among the ones with a max priority prefix -->  return the first one encountered
+        es_8_2 = [
+            {'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.4725899', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.1184/R1/12841247.v1', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.25384/sage.c.4112909', 'valid': None},
+        ]
+
+        out_8_2 = op.manage_doi_prefixes_priorities(es_8_2)
+        exp_8_2 = [{'schema': 'doi', 'identifier': 'doi:10.1184/R1/12841247.v1', 'valid': None}]
+        self.assertEqual(exp_8_2, out_8_2)
 
         self.delete_storege(storage_type="sqlite")
 
