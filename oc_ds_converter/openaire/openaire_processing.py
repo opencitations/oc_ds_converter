@@ -93,7 +93,7 @@ class OpenaireProcessing(RaProcessor):
 
         self.orcid_m = ORCIDManager(storage_manager=self.storage_manager)
 
-        self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmcid": self.pmc_m, "arxiv":self.arxiv_m}
+        self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmcid": self.pmc_m,"pmc": self.pmc_m, "arxiv":self.arxiv_m}
 
         self._doi_prefixes_publishers_dict = {
         "10.48550":{"publisher":"arxiv", "priority":1},
@@ -363,9 +363,9 @@ class OpenaireProcessing(RaProcessor):
                 return id_dict_list
         if is_arxiv:
             result_dict_list = [{"schema": "arxiv", "identifier": arxiv_id}]
-
         if not result_dict_list:
             return id_dict_list
+
         return result_dict_list
 
     def manage_doi_prefixes_priorities(self, id_dict_list):
@@ -470,8 +470,6 @@ class OpenaireProcessing(RaProcessor):
                                     result_id_dict_list.append(id_dict)
                                     return result_id_dict_list
 
-
-
         return result_id_dict_list
 
     def to_validated_id_list(self, id_dict_of_list):
@@ -496,7 +494,8 @@ class OpenaireProcessing(RaProcessor):
             if second_selection_list:
                 to_be_processed_id_dict_list = second_selection_list
             else:
-                third_selection = [x for x in to_be_processed_input if x.get("schema") == "pmc"]
+                # TESTATO FINO A QUI
+                third_selection = [x for x in to_be_processed_input if x.get("schema") == "pmc" or x.get("schema") == "pmcid"]
                 if third_selection:
                     to_be_processed_id_dict_list = third_selection
                 else:
@@ -516,7 +515,8 @@ class OpenaireProcessing(RaProcessor):
                 schema = ent.get("schema")
                 norm_id = ent.get("identifier")
                 id_man = self.get_id_manager(schema, self._id_man_dict)
-                if schema == "pmid" or (schema =="doi" and norm_id.split('/')[0] not in self._doi_prefixes_publishers_dict):
+                if schema in {"pmid", "pmcid", "pmc", "arxiv"} or (schema =="doi" and norm_id.split('/')[0] not in self._doi_prefixes_publishers_dict):
+
                     if self.BR_redis.get(norm_id):
                         id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
                         # preso in considerazione negli step successivi

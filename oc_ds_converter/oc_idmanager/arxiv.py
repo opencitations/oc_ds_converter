@@ -101,6 +101,7 @@ class ArXivManager(IdentifierManager):
         regexdot = compile(r'\.+')
         reg_api = compile(r'(https?://export\.arxiv\.org/api/query\?search_query=all:)')
         reg_v_api = compile(r'(https?://arxiv\.org/abs/)')
+        reg_v_extrachar = compile(r'\/?ar[Xx]iv\.?')
 
         if id_string:
             id_string = str(id_string).strip().lower()
@@ -113,6 +114,7 @@ class ArXivManager(IdentifierManager):
             id_string = reg_v_api.sub('', id_string)
             id_string = reg_api.sub('', id_string)
             id_string = regex.sub('', id_string)
+            id_string = reg_v_extrachar.sub('', id_string)
 
             # First parameter is the replacement, second parameter is your input string
 

@@ -34,7 +34,7 @@ class SqliteStorageManager(StorageManager):
         super().__init__(**params)
         sqlite3.threadsafety = 3
         if database and os.path.exists(database):
-            self.con = sqlite3.connect(database)
+            self.con = sqlite3.connect(database=database)
             self.storage_filepath = database
         else:
             new_path_dir = os.path.join(os.getcwd(), "storage")
@@ -42,7 +42,7 @@ class SqliteStorageManager(StorageManager):
                 os.makedirs(new_path_dir)
             new_path_db = os.path.join(new_path_dir, "id_valid_dict.db")
 
-            self.con = sqlite3.connect(new_path_db)
+            self.con = sqlite3.connect(database=new_path_db)
             self.storage_filepath =new_path_db
 
         self.cur = self.con.cursor()

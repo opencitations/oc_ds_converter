@@ -38,6 +38,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         if not specific_path:
             if storage_type == "sqlite":
                 auto_db_created_path = os.path.join(os.getcwd(), "storage", "id_valid_dict.db")
+                auto_db_created_path = auto_db_created_path if os.path.exists(auto_db_created_path) else auto_db_created_path+"?mode=rw"
                 if os.path.exists(auto_db_created_path):
                     os.remove(auto_db_created_path)
             else:
@@ -567,8 +568,127 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         self.delete_storege(storage_type="sqlite")
 
+    def test_to_validated_id_list(self):
+        # NOTE: in tests using the sqlite storage method it must be avoided to delete the storage
+        # while using the same OpenaireProcessing() instance, otherwise the process would try to
+        # store data in a filepath that has just been deleted, with no new connection created after it.
+
+        # 2 OPTIONS: 1) instantiate OpenaireProcessing only once at the beginning and delete the
+        # storage only at the end; 2) create a new OpenaireProcessing instance at every check and
+        # delete the storage each time after the check is done.
+
+        op = OpenaireProcessing()
+        # CASE1_1: No already validated ids + 1 id to be validated, which is valid
+        inp_1 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:20662931', 'valid': None}]}
+        out_1 = op.to_validated_id_list(inp_1)
+        exp_1 = ['pmid:20662931']
+        self.assertEqual(out_1, exp_1)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE1_2: No already validated ids + 1 id to be validated, which is invalid
+        inp_2 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:999920662931', 'valid': None}]}
+        out_2 = op.to_validated_id_list(inp_2)
+        exp_2 = []
+        self.assertEqual(out_2, exp_2)
+        #self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE1_3: No already validated ids + 1 id to be validated, which is a valid arxiv doi
+        inp_3 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'doi', 'identifier': 'doi:10.48550/arXiv.1509.08217', 'valid': None}]}
+        out_3 = op.to_validated_id_list(inp_3)
+        exp_3 = ['arxiv:1509.08217v1']
+        self.assertEqual(out_3, exp_3)
+        self.delete_storege(storage_type="sqlite")
 
 
+        op = OpenaireProcessing()
+        # CASE1_4: No already validated ids + 1 id to be validated, which hasn't a valid schema
+        inp_4 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': "0", 'identifier': 'doi:10.48550/arXiv.1509.08217', 'valid': None}]}
+        out_4 = op.to_validated_id_list(inp_4)
+        exp_4 = []
+        self.assertEqual(out_4, exp_4)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE1_5: No already validated ids + 1 id to be validated, which is not valid
+        inp_5 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': "doi", 'identifier': 'doi:10.0000/fake_id', 'valid': None}]}
+        out_5 = op.to_validated_id_list(inp_5)
+        exp_5 = []
+        self.assertEqual(out_5, exp_5)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE1_9: No already validated ids + 1 id to be validated, which is a valid PMC
+        inp_9 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': "pmcid", 'identifier': 'pmcid:PMC2873764', 'valid': None}]}
+        out_9 = op.to_validated_id_list(inp_9)
+        exp_9 = ['pmcid:PMC2873764']
+        self.assertEqual(out_9, exp_9)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE2_1: No already validated ids + >1 id to be validated, both valid and with accepted schemas
+        inp_6 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:20662931', 'valid': None},
+                                                              {'schema': 'doi', 'identifier': 'doi:10.1007/s12160-011-9282-0', 'valid': None}]}
+        out_6 = op.to_validated_id_list(inp_6)
+        exp_6 = ['pmid:20662931', 'doi:10.1007/s12160-011-9282-0']
+        self.assertCountEqual(out_6, exp_6) #Test that sequence first contains the same elements as second, regardless of their order
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE2_2: No already validated ids + >1 id to be validated, both valid, one of the two is an arxiv id
+        inp_8 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:20662931', 'valid': None},
+                                                              {'schema': 'arxiv', 'identifier': 'arxiv:1107.5979', 'valid': None}]}
+        out_8 = op.to_validated_id_list(inp_8)
+        exp_8 = ['pmid:20662931']
+        self.assertEqual(out_8, exp_8)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE2_3: No already validated ids + >1 id to be validated, both valid, one of the two is an arxiv doi
+        inp_7 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:20662931', 'valid': None}, {'schema': "doi", 'identifier': 'doi:10.48550/arXiv.1509.08217', 'valid': None}]}
+        out_7 = op.to_validated_id_list(inp_7)
+        exp_7 = ['pmid:20662931']
+        self.assertEqual(out_7, exp_7)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE2_4: No already validated ids + >1 id to be validated, both valid, one of the two is a PMC
+        inp_10 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:20662931', 'valid': None},
+                                                              {'schema': "pmcid", 'identifier': 'pmcid:PMC2873764', 'valid': None}]}
+        out_10 = op.to_validated_id_list(inp_10)
+        exp_10 = ['pmid:20662931']
+        self.assertEqual(out_10, exp_10)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE2_5: No already validated ids + >1 id to be validated, 1 valid pmid, 1 valid doi, 1 valid doi with a "critic" prefix
+        # for opencitations entities management
+
+        inp_11 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:20662931', 'valid': None},
+                                                              {'schema': 'doi', 'identifier': 'doi:10.1007/s12160-011-9282-0', 'valid': None},
+                                                               {'schema': 'doi',
+                                                                'identifier': 'doi:10.48550/arXiv.1509.08217',
+                                                                'valid': None}
+                                                               ]}
+        out_11 = op.to_validated_id_list(inp_11)
+        exp_11 = ['pmid:20662931', 'doi:10.1007/s12160-011-9282-0']
+        self.assertCountEqual(out_11, exp_11) #Test that sequence first contains the same elements as second, regardless of their order
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE2_6: No already validated ids + >1 id to be validated, one doi with a "critic" prefix and a PMCID
+        # for opencitations entities management
+
+        inp_12 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmcid', 'identifier': 'pmcid:PMC5555555', 'valid': None},
+                                                               {'schema': 'doi',
+                                                                'identifier': 'doi:10.48550/arXiv.1509.08217',
+                                                                'valid': None}
+                                                        ]}
+        out_12 = op.to_validated_id_list(inp_12)
+        exp_12 = ['pmcid:PMC5555555']
+        self.assertEqual(out_12, exp_12)
+        self.delete_storege(storage_type="sqlite")
 
 
 
