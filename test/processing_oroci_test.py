@@ -690,6 +690,48 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(out_12, exp_12)
         self.delete_storege(storage_type="sqlite")
 
+        op = OpenaireProcessing()
+        # CASE2_7: no already validated ids + >1 id to be validated, one doi with a "critic" prefix for opencitations
+        # ingestion workflow and an ARXIV
+
+        inp_13 =  {'valid': [], 'not_valid': [], 'to_be_val': [
+            {'schema': 'arxiv', 'identifier': 'arxiv:1107.5979v1', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.1184/R1/12841247.v1', 'valid': None}
+                                                        ]}
+        out_13 = op.to_validated_id_list(inp_13)
+        exp_13 = ['arxiv:1107.5979v1']
+        self.assertEqual(out_13, exp_13)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE2_8: no already validated ids and more dois with "critic" prefixes for opencitations
+        # ingestion workflow
+
+        inp_14 =  {'valid': [], 'not_valid': [], 'to_be_val': [
+            {'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.4725899', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.1184/r1/12841247.v1', 'valid': None}
+                                                        ]}
+        out_14 = op.to_validated_id_list(inp_14)
+        exp_14 = ['doi:10.1184/r1/12841247.v1']
+        self.assertEqual(out_14, exp_14)
+        self.delete_storege(storage_type="sqlite")
+
+        op = OpenaireProcessing()
+        # CASE3: an already validated id and more dois with "critic" prefixes for opencitations
+        # ingestion workflow
+
+        inp_15 =  {'valid': [], 'not_valid': [], 'to_be_val': [
+            {'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.4725899', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.1184/r1/12841247.v1', 'valid': None},
+            {'schema': 'doi', 'identifier': 'doi:10.7557/5.5607', 'valid': None},
+            {}
+                                                        ]}
+        out_15 = op.to_validated_id_list(inp_15)
+        exp_15 = ['doi:10.7557/5.5607']
+        self.assertEqual(out_15, exp_15)
+        self.delete_storege(storage_type="sqlite")
+
+
 
 
 if __name__ == '__main__':

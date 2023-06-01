@@ -483,39 +483,41 @@ class OpenaireProcessing(RaProcessor):
         # versioned arxiv id, it is kept as such. Otherwise both the arxiv doi and the not versioned arxiv id are replaced
         # with the v1 version of the arxiv id. If it is not possible to retrieve an arxiv id from the only id which is
         # either declared as an arxiv id or starts with the arxiv doi prefix, return None and interrupt the process
-        if len(valid_id_set) == 0 and len(to_be_processed_input)==1 :
-            single_id_dict_list = self.manage_arxiv_single_id(to_be_processed_input)
-            if single_id_dict_list:
-                to_be_processed_id_dict_list = single_id_dict_list
-            else:
-                return
-        elif len(valid_id_set) == 0 and len(to_be_processed_input)> 1:
-            second_selection_list = [x for x in to_be_processed_input if x.get("schema") == "pmid" or (x.get("schema") =="doi" and x.get("identifier").split('/')[0] not in self._doi_prefixes_publishers_dict)]
-            if second_selection_list:
-                to_be_processed_id_dict_list = second_selection_list
-            else:
-                # TESTATO FINO A QUI
-                third_selection = [x for x in to_be_processed_input if x.get("schema") == "pmc" or x.get("schema") == "pmcid"]
-                if third_selection:
-                    to_be_processed_id_dict_list = third_selection
+        if len(valid_id_set) == 0:
+            if len(to_be_processed_input)==1 :
+                single_id_dict_list = self.manage_arxiv_single_id(to_be_processed_input)
+                if single_id_dict_list:
+                    to_be_processed_id_dict_list = single_id_dict_list
                 else:
-                    fourth_selection = [x for x in to_be_processed_input if x.get("schema") == "arxiv"]
-                    if fourth_selection:
-                        to_be_processed_id_dict_list = fourth_selection
+                    return
+            elif len(to_be_processed_input)> 1:
+                second_selection_list = [x for x in to_be_processed_input if x.get("schema") == "pmid" or (x.get("schema") =="doi" and x.get("identifier").split('/')[0] not in self._doi_prefixes_publishers_dict)]
+                if second_selection_list:
+                    to_be_processed_id_dict_list = second_selection_list
+                else:
+                    third_selection = [x for x in to_be_processed_input if x.get("schema") == "pmc" or x.get("schema") == "pmcid"]
+                    if third_selection:
+                        to_be_processed_id_dict_list = third_selection
                     else:
-                        fifth_selection =  [x for x in to_be_processed_input if x.get("schema") == "doi" and x.get("identifier").split('/')[0] in self._doi_prefixes_publishers_dict]
-                        if fifth_selection:
-                            to_be_processed_id_dict_list = self.manage_doi_prefixes_priorities(fifth_selection)
+                        fourth_selection = [x for x in to_be_processed_input if x.get("schema") == "arxiv"]
+                        if fourth_selection:
+                            to_be_processed_id_dict_list = fourth_selection
+                        else:
+                            fifth_selection = [x for x in to_be_processed_input if x.get("schema") == "doi" and x.get("identifier").split('/')[0] in self._doi_prefixes_publishers_dict]
+                            if fifth_selection:
+                                to_be_processed_id_dict_list = self.manage_doi_prefixes_priorities(fifth_selection)
 
+            else:
+                return None
         else:
-            return None
+            to_be_processed_id_dict_list = [x for x in to_be_processed_input if x.get("schema") == "pmid" or (x.get("schema") == "doi" and x.get("identifier").split('/')[0] not in self._doi_prefixes_publishers_dict)]
 
         if to_be_processed_id_dict_list:
             for ent in to_be_processed_id_dict_list:
                 schema = ent.get("schema")
                 norm_id = ent.get("identifier")
                 id_man = self.get_id_manager(schema, self._id_man_dict)
-                if schema in {"pmid", "pmcid", "pmc", "arxiv"} or (schema =="doi" and norm_id.split('/')[0] not in self._doi_prefixes_publishers_dict):
+                if schema in {"pmid", "pmcid", "pmc", "arxiv", "doi"}:
 
                     if self.BR_redis.get(norm_id):
                         id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
