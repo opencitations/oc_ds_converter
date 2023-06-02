@@ -732,6 +732,67 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.delete_storege(storage_type="sqlite")
 
 
+    def test_add_authors_to_agent_list(self):
+        op = OpenaireProcessing()
+        sample_inp = {'creator': [{'name': 'Carlos Hoyos'}, {'name': 'Yaron Oz'}, {'identifiers': [{'identifier': '0000-0001-6946-5074', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-6946-5074'}], 'name': 'Bom Soo Kim'}]}
+        sample_exp = op.add_authors_to_agent_list(sample_inp, [])
+        sample_out = [{'role': 'author', 'name': 'Carlos Hoyos', 'family': '', 'given': ''}, {'role': 'author', 'name': 'Yaron Oz', 'family': '', 'given': ''}, {'role': 'author', 'name': 'Bom Soo Kim', 'family': '', 'given': '', 'orcid': 'orcid:0000-0001-6946-5074'}]
+        self.assertEqual(sample_out, sample_exp)
+        self.delete_storege(storage_type="sqlite")
+
+    def test_add_authors_to_agent_list_no_creator(self):
+        op = OpenaireProcessing()
+        sample_inp = {'creator': []}
+        sample_exp = op.add_authors_to_agent_list(sample_inp, [])
+        sample_out = []
+        self.assertEqual(sample_out, sample_exp)
+        self.delete_storege(storage_type="sqlite")
+
+    def test_get_agents_strings_list(self):
+        best_doi = "doi:10.1007/jhep03(2014)050"
+        agents_list_2 = [{'role': 'author', 'name': 'Hoyos, Carlos', 'family': '', 'given': ''}, {'role': 'author', 'name': 'Oz, Yaron', 'family': '', 'given': ''}, {'role': 'author', 'name': 'Kim, Bom Soo', 'family': '', 'given': '', 'orcid': 'orcid:0000-0001-6946-5074'}]
+        op = OpenaireProcessing()
+        sample_exp = op.get_agents_strings_list(best_doi, agents_list_2)
+        self.assertEqual(sample_exp, (['Hoyos Carlos', 'Oz Yaron', 'Kim Bom Soo [orcid:0000-0001-6946-5074]'], []))
+        self.delete_storege(storage_type="sqlite")
+
+    def test_find_openaire_orcid(self):
+        op = OpenaireProcessing()
+        inp = [{'identifier': '0000-0001-9759-3938', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-9759-3938'}]
+        out = op.find_openaire_orcid(inp)
+        exp = "orcid:0000-0001-9759-3938"
+        self.assertEqual(out, exp)
+
+        inp_wrong_schema = [{'identifier': '0000-0001-9759-3938', 'schema': 'fake_schema', 'url': 'https://orcid.org/0000-0001-9759-3938'}]
+        out_wrong_schema = op.find_openaire_orcid(inp_wrong_schema)
+        exp_wrong_schema = ""
+        self.assertEqual(out_wrong_schema, exp_wrong_schema)
+
+        inp_invalid_id = [{'identifier': '5500-0001-9759-3938', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-9759-3938'}]
+        out_invalid_id = op.find_openaire_orcid(inp_invalid_id)
+        exp_invalid_id = ""
+        self.assertEqual(out_invalid_id, exp_invalid_id)
+
+        self.delete_storege(storage_type="sqlite")
+
+        # set a valid id as invalid in storage, so to check that the api check is
+        # avoided if the info is already in storage
+        op = OpenaireProcessing()
+        op.storage_manager.set_value("orcid:0000-0001-9759-3938", False)
+
+        inp = [{'identifier': '0000-0001-9759-3938', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-9759-3938'}]
+        out = op.find_openaire_orcid(inp)
+        exp = ""
+        self.assertEqual(out, exp)
+
+        self.delete_storege(storage_type="sqlite")
+        op = OpenaireProcessing()
+        op.storage_manager.set_value("orcid:0000-0001-9759-3938", True)
+        inp = [{'identifier': '0000-0001-9759-3938', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-9759-3938'}]
+        out = op.find_openaire_orcid(inp)
+        exp = "orcid:0000-0001-9759-3938"
+        self.assertEqual(out, exp)
+
 
 
 if __name__ == '__main__':

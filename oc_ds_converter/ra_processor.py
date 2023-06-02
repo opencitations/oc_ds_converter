@@ -47,6 +47,7 @@ class RaProcessor(object):
         agents_list = [
             {k: Cleaner(v).remove_unwanted_characters() if k in {'family', 'given', 'name'} and v is not None 
             else v for k, v in agent_dict.items()} for agent_dict in agents_list]
+
         for agent in agents_list:
             cur_role = agent['role']
             f_name = None
@@ -60,6 +61,7 @@ class RaProcessor(object):
                 agent_string = agent['name']
                 f_name = agent_string.split(",")[0].strip() if "," in agent_string else None
                 g_name = agent_string.split(",")[-1].strip() if "," in agent_string else None
+
                 if f_name and g_name:
                     agent_string = f_name + ', ' + g_name
             if agent_string is None:

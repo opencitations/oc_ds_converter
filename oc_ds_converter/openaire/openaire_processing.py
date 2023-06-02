@@ -253,7 +253,6 @@ class OpenaireProcessing(RaProcessor):
 
         # row['author'] √
         agents_list = self.add_authors_to_agent_list(attributes, [])
-        # EVITARE API !!!!!!!
         pref_dois = [x for x in doi if x.split("/")[0] not in self._doi_prefixes_publishers_dict]
         if doi:
             best_doi = pref_dois[0] if pref_dois else doi[0]
@@ -540,6 +539,7 @@ class OpenaireProcessing(RaProcessor):
 
         :returns: list the agents list updated with the authors dictionaries, in the correct format.
         '''
+
         agent_list = ag_list
         if item.get("creator"):
             for author in item.get("creator"):
@@ -566,7 +566,7 @@ class OpenaireProcessing(RaProcessor):
                 if isinstance(schema, str):
                     if schema.lower().strip() == "orcid":
                         if isinstance(identifier, str):
-                            norm_orcid = self.orcid_m.normalise(identifier, include_prefix =False)
+                            norm_orcid = self.orcid_m.normalise(identifier, include_prefix =True)
                             if self.RA_redis.get(norm_orcid):
                                 orcid = norm_orcid
                             # if the id is not in redis db, validate it before appending
