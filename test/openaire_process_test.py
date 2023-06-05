@@ -28,6 +28,7 @@ class OpenAireProcessTest(unittest.TestCase):
     def setUp(self):
         self.test_dir = join("test", "openaire_process")
         self.sample_1tar = join(self.test_dir, "1_tar_sample")
+        self.sample_dupl = join(self.test_dir, "duplicates_sample")
         self.sample_2tar = join(self.test_dir, "2_tar_sample")
         self.sample_1tar_alt = join(self.test_dir, "1alt_tar_sample")
         self.output_dir = join(self.test_dir, "tmp")
@@ -58,31 +59,32 @@ class OpenAireProcessTest(unittest.TestCase):
         self._id_orcid_data = os.path.join(self.processing_csv_row_base, 'iod')
 
     def test_preprocess_base_decompress_and_read(self):
-        """Test base functionalities of the OROCI processor for producing META csv tables:
+        """Test base functionalities of the OROCI processor for producing META csv tables and INDEX tables:
         1) All the files in the TARs in input are correctly processed
-        2) The number of files in input corresponds to the number of files in output
+        2) The number of files in input corresponds to the number of files in output (both for citation and for meta tables)
         3) The number of bibliographic entities corresponds to the number of citations in input *2 (citing + cited)
-        4) Citations files are correctly created (one for each file in input)
         """
+        for el in os.listdir(self.sample_2tar):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_2tar, el))
+
         if os.path.exists(self.output_dir):
             shutil.rmtree(self.output_dir)
+
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
         preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid )
 
-        # entities_in_output = 0
-        # for file in os.listdir(self.output_dir):
-        #     with open(os.path.join(self.output_dir, file), 'r', encoding='utf-8') as f:
-        #         entities_in_output += len(list(csv.DictReader(f)))
-
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
+
+        citations_files_n = len(list(os.listdir(citations_output_path)))
         for file in os.listdir(citations_output_path):
             with open(os.path.join(citations_output_path, file), 'r', encoding='utf-8') as f:
-                cits_rows = csv.DictReader(f)
-                citations_in_output += len(list(cits_rows))
+                cits_rows = list(csv.DictReader(f))
+                citations_in_output += len(cits_rows)
                 for x in cits_rows:
                     citing_ids = x["citing"].split(" ")
                     citied_ids = x["referenced"].split(" ")
@@ -94,44 +96,92 @@ class OpenAireProcessTest(unittest.TestCase):
                         unique_entities += 1
                         encountered_ids.update(citied_ids)
 
-
-        print("LEN ", unique_entities)
         expected_citations_in_output= 2*3*4
-        #2 tar * 3 files * 4 citations * 2 entities
+        # 2 tar * 3 files * 4 citations
 
-        #self.assertEqual(expected_citations_in_output, citations_in_output)
-        shutil.rmtree(self.output_dir)
+        expected_entities_in_output= 2*3*4*2
+        # 2 tar * 3 files * 4 citations * 2 entities
+
+        self.assertEqual(expected_entities_in_output, unique_entities)
+        self.assertEqual(expected_citations_in_output, citations_in_output)
+
         shutil.rmtree(citations_output_path)
-        #decompr_
 
-    # def test_preprocess_base_data_processing(self):
-    #     """Test base functionalities of the OROCI processor for producing META csv tables:
-    #     1) All the data provided by the datasource are correctly placed in meta table fields
-    #     2) The meta tables fields store expected data
-    #     3) The index tables fields store expected data
-    #     """
-    #     if os.path.exists(self.output_dir):
-    #         shutil.rmtree(self.output_dir)
-    #     preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid )
-    #
-    #     output = dict()
-    #     for file in os.listdir(self.output_dir):
-    #         with open(os.path.join(self.output_dir, file), 'r', encoding='utf-8') as f:
-    #             output[file] = list(csv.DictReader(f))
-    #     expected_output= {}
-    #
-    #     elements_in_output = list()
-    #     for l in output.values():
-    #         for e in l:
-    #             elements_in_output.append(e)
-    #
-    #     elements_expected = list()
-    #     for l in expected_output.values():
-    #         for e in l:
-    #             elements_expected.append(e)
-    #
-    #     self.assertCountEqual(elements_in_output, elements_expected)
-    #     #shutil.rmtree(self.output_dir)
+        meta_files_n = len(list(os.listdir(self.output_dir)))
+
+        # Make sure that a meta table row was created for each entity and, thus, that the number of
+        entities_in_meta_output = 0
+        for file in os.listdir(self.output_dir):
+            with open(os.path.join(self.output_dir, file), 'r', encoding='utf-8') as f:
+                entities_in_meta_output += len(list(csv.DictReader(f)))
+
+        self.assertEqual(expected_entities_in_output, entities_in_meta_output)
+        self.assertEqual(unique_entities, entities_in_meta_output)
+
+        # make sure that for each of the input files was created a citation file and a meta input file
+        self.assertTrue(meta_files_n == citations_files_n == 6)
+
+        shutil.rmtree(self.output_dir)
+
+        for el in os.listdir(self.sample_2tar):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_2tar, el))
+
+    def test_preprocess_duplicates_management(self):
+        """Test functionalities of the OROCI processor for producing META csv tables and INDEX tables, when multiple
+        citations with a common id involved are processed. Expected output, given two citations with the same citing
+        entity: three rows in meta table, two rows in citations tables
+        1) All the files in the TARs in input are correctly processed
+        2) The number of files in input corresponds to the number of files in output (both for citation and for meta tables)
+        3) The number of bibliographic entities corresponds to the number of citations in input *2 (citing + cited)
+        """
+        for el in os.listdir(self.sample_dupl):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_dupl, el))
+
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+
+        citations_output_path = self.output_dir + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid )
+
+        citations_in_output = 0
+        encountered_ids = set()
+        unique_entities = 0
+
+        citations_files_n = len(list(os.listdir(citations_output_path)))
+        for file in os.listdir(citations_output_path):
+            with open(os.path.join(citations_output_path, file), 'r', encoding='utf-8') as f:
+                cits_rows = list(csv.DictReader(f))
+                citations_in_output += len(cits_rows)
+                for x in cits_rows:
+                    citing_ids = x["citing"].split(" ")
+                    citied_ids = x["referenced"].split(" ")
+                    if all(id not in encountered_ids for id in citing_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citing_ids)
+
+                    if all(id not in encountered_ids for id in citied_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citied_ids)
+
+        expected_citations_in_output= 2
+        # since the citing entity is the same for both citations
+
+        expected_entities_in_output= 3
+        # since the citing entity is the same for both citations
+
+        self.assertEqual(expected_entities_in_output, unique_entities)
+        self.assertEqual(expected_citations_in_output, citations_in_output)
+
+        shutil.rmtree(citations_output_path)
+        shutil.rmtree(self.output_dir)
+
+        for el in os.listdir(self.sample_dupl):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_dupl, el))
 
 if __name__ == '__main__':
     unittest.main()

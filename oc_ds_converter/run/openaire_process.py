@@ -68,13 +68,13 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
             index_citations_to_csv = []
             f = gzip.open(filename, 'rb')
             source_data = f.readlines()
+            f.close()
             filename = filename.name if isinstance(filename, TarInfo) else filename
             filename_without_ext = filename.replace('.json', '').replace('.tar', '').replace('.gz', '')
             filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
             filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
             pathoo(filepath)
             data = list()
-
             for entity in tqdm(source_data):
                 if entity:
                     d = json.loads(entity.decode('utf-8'))
@@ -138,6 +138,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                             any_source_id = all_citing_valid[0]
                                             data.append(source_tab_data) # Otherwise the row should not be included in meta tables
 
+
                                 # skip creation of a new row in meta table because there is no new id to be validated
                                 # "any_source_id" will be chosen among the valid source entity ids, if any
                                 elif source_identifier["valid"]:
@@ -153,7 +154,8 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                         all_cited_valid = processed_target_ids
                                         if all_cited_valid:
                                             any_target_id = all_cited_valid[0]
-                                            data.append(target_tab_data)
+                                            data.append(target_tab_data) # Otherwise the row should not be included in meta tables
+
                                 # skip creation of a new row in meta table because there is no new id to be validated
                                 # "any_target_id" will be chosen among the valid source entity ids, if any
                                 elif target_identifier["valid"]:

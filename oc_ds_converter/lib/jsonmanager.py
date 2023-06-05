@@ -91,6 +91,7 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
         for cur_file in targz_fd:
             if cur_file.name.endswith(req_type) and not basename(cur_file.name).startswith(".") and not cur_file in cache:
                 result.append(cur_file)
+        targz_fd.close()
     elif i_dir_or_compr.endswith(".tar"):
         dest_dir = i_dir_or_compr.replace('.tar', '') + "_decompr_zip_dir"
         targz_fd = tarfile.open(i_dir_or_compr, "r:*", encoding="utf-8")
@@ -100,6 +101,8 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
             for cur_file in cur_files:
                 if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and not cur_file in cache:
                     result.append(cur_dir + sep + cur_file)
+
+        targz_fd.close()
 
 
     elif i_dir_or_compr.endswith("zip"):
