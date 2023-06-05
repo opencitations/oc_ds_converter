@@ -215,6 +215,13 @@ if __name__ == '__main__':
                         help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
                             help='Show a loading bar, elapsed time and estimated time')
+    arg_parser.add_argument('-sm', '--storage_manager', dest='storage_manager', required=False,
+                        help='The storage manager to store in memory the processed data. '
+                             'Either InMemoryStorageManager or SqliteStorageManager')
+    arg_parser.add_argument('-sp', '--storage_path', dest='storage_path', required=False,
+                            help='path of the file where to store data concerning validated pids information.'
+                                 'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
+                                 'and a ".json" file if you chose InMemoryStorageManager')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -234,5 +241,10 @@ if __name__ == '__main__':
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
+    storage_manager = settings['storage_manager'] if settings else args.storage_manager
+    storage_manager = storage_manager if storage_manager else None
+    storage_path = settings['storage_path'] if settings else args.storage_path
+    storage_path = normalize_path(storage_path) if storage_path else None
+
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
-               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose)
+               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path)
