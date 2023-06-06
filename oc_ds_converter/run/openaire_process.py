@@ -30,10 +30,10 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
             storage_manager = InMemoryStorageManager(os.path.join(new_path_dir, "id_valid_dict.json"))
 
     else:
-        if storage_manager == SqliteStorageManager():
-            storage_manager = SqliteStorageManager(storage_path)
-        else:
+        if storage_manager == InMemoryStorageManager():
             storage_manager = InMemoryStorageManager(storage_path)
+        else:
+            storage_manager = SqliteStorageManager(storage_path)
 
 
     req_type = ".gz"
