@@ -14,12 +14,10 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-
 import os.path
 import shutil
 import unittest
 from os.path import join
-
 from oc_ds_converter.run.openaire_process import *
 
 
