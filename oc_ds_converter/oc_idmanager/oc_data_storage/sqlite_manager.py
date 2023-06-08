@@ -107,7 +107,12 @@ class SqliteStorageManager(StorageManager):
 
     def delete_storage(self):
         if os.path.exists(self.storage_filepath):
-            os.remove(self.storage_filepath)
+            try:
+                self.con.close()
+                os.remove(self.storage_filepath)
+            except:
+                os.remove(self.storage_filepath)
+
 
     def get_all_keys(self):
         ids = [id[0] for id in self.cur.execute("SELECT id FROM info")]

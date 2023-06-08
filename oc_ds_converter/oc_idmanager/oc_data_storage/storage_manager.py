@@ -23,6 +23,8 @@ class StorageManager(metaclass=ABCMeta):
     for string and retrieving data."""
 
     def __init__(self, **params):
+        self.cur = None
+        self.con = None
         """Storage manager constructor."""
         for key in params:
             setattr(self, key, params[key])

@@ -131,16 +131,18 @@ class ArxivIdentifierManagerTest(unittest.TestCase):
         test_sqlite_db = os.path.join(self.test_dir, "database.db")
         if os.path.exists(test_sqlite_db):
             os.remove(test_sqlite_db)
-        con = sqlite3.connect(test_sqlite_db)
-        cur = con.cursor()
+        # con = sqlite3.connect(test_sqlite_db)
+        # cur = con.cursor()
         to_insert = [self.invalid_arxiv_1, self.valid_arxiv_1, self.valid_arx_U_S]
         sql_file = ArXivManager(storage_manager=SqliteStorageManager(test_sqlite_db), use_api_service=True)
         for id in to_insert:
             norm_id = sql_file.normalise(id, include_prefix=True)
             is_valid = 1 if sql_file.is_valid(norm_id) else 0
             insert_tup = (norm_id, is_valid)
-            cur.execute(f"INSERT OR REPLACE INTO info VALUES (?,?)", insert_tup)
-            con.commit()
+            sql_file.storage_manager.cur.execute(f"INSERT OR REPLACE INTO info VALUES (?,?)", insert_tup)
+            sql_file.storage_manager.con.commit()
+        sql_file.storage_manager.con.close()
+
         sql_no_api = ArXivManager(storage_manager=SqliteStorageManager(test_sqlite_db), use_api_service=False)
         all_db_keys = sql_no_api.storage_manager.get_all_keys()
         #check that all the normalised ind in the list were correctly inserted in the db
