@@ -20,7 +20,17 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
-    if not storage_path or not os.path.exists(storage_path):
+    if storage_path and not os.path.exists(storage_path):
+        if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+            Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_manager == SqliteStorageManager() and storage_path.endswith(".db"):
+            pass
+        elif storage_manager == InMemoryStorageManager() and storage_path.endswith(".json"):
+            pass
+        else:
+            storage_path = None
+
+    if not storage_path:
         new_path_dir = os.path.join(os.getcwd(), "storage")
         if not os.path.exists(new_path_dir):
             os.makedirs(new_path_dir)
