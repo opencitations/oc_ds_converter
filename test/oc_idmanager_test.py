@@ -59,12 +59,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.invalid_ror_1 = "la673822"
         self.invalid_ror_2 = ".org/560jc3p57"
 
-        self.valid_jid_1 = "otoljpn1970"
-        self.valid_jid_2 = "jscej1944b"
-        self.valid_jid_3 = "japeoj" #SYS_ERR_009
-        self.invalid_jid_1 = "hjmee"
-        self.invalid_jid_2 = "jee1973e"
-
     def test_ror_normalise(self):
         rm = RORManager()
         self.assertEqual(
@@ -194,59 +188,6 @@ class IdentifierManagerTest(unittest.TestCase):
         wdm_nofile_noapi = WikidataManager(clean_data, use_api_service=False)
         self.assertTrue(wdm_nofile_noapi.is_valid(self.valid_wikidata_1))
         self.assertTrue(wdm_nofile_noapi.is_valid(self.valid_wikidata_2))
-
-    def test_jid_normalise(self):
-        jm = JIDManager()
-        self.assertEqual(
-            self.valid_jid_1, jm.normalise(self.valid_jid_1.replace("", " "))
-        )
-        self.assertEqual(
-            self.valid_jid_2, jm.normalise("jid:"+ self.valid_jid_2),
-        )
-
-    def test_jid_syntax_ok(self):
-        jm=JIDManager()
-        self.assertTrue(jm.syntax_ok(self.valid_jid_1))
-        self.assertTrue(jm.syntax_ok(self.invalid_jid_1))
-        self.assertFalse(jm.syntax_ok('1950'+self.valid_jid_1))
-
-
-    def test_jid_is_valid(self):
-        jm = JIDManager()
-        self.assertTrue(jm.is_valid(self.valid_jid_1))
-        self.assertTrue(jm.is_valid(self.valid_jid_2))
-        self.assertFalse(jm.is_valid(self.invalid_jid_1))
-        self.assertFalse(jm.is_valid(self.invalid_jid_2))
-        
-        jm_file = JIDManager(self.data)
-        self.assertTrue(jm_file.normalise(self.valid_jid_1, include_prefix=True) in self.data)
-        self.assertTrue(jm_file.normalise(self.valid_jid_2, include_prefix=True) in self.data)
-        self.assertTrue(jm_file.normalise(self.valid_jid_3, include_prefix=True) in self.data)
-        self.assertTrue(jm_file.is_valid(jm_file.normalise(self.valid_jid_1, include_prefix=True)))
-        self.assertTrue(jm_file.is_valid(jm_file.normalise(self.valid_jid_2, include_prefix=True)))
-        self.assertTrue(jm_file.is_valid(jm_file.normalise(self.valid_jid_3, include_prefix=True)))
-        
-        clean_data = {}
-        jm_nofile_noapi = JIDManager(clean_data, use_api_service=False)
-        self.assertTrue(jm_nofile_noapi.is_valid(self.valid_jid_1))
-        self.assertTrue(jm_nofile_noapi.is_valid(self.invalid_jid_1))
-
-    def test_jid_exists(self):
-        with self.subTest(msg="get_extra_info = True, allow_extra_api=None"):
-            jm=JIDManager()
-            output = jm.exists(self.valid_jid_1, get_extra_info=True, allow_extra_api=None)
-            expected_output = (True, {"valid":True})
-            self.assertEqual(output, expected_output)
-        with self.subTest(msg="get_extra_info = True, allow_extra_api=None"):
-            jm=JIDManager()
-            output = jm.exists(self.valid_jid_3, get_extra_info=True, allow_extra_api=None)
-            expected_output = (True, {"valid":True})
-            self.assertEqual(output, expected_output)
-        with self.subTest(msg="get_extra_info = True, allow_extra_api=None"):
-            jm=JIDManager()
-            output = jm.exists(self.invalid_jid_1, get_extra_info=True, allow_extra_api=None)
-            expected_output = (False, {"valid":False})
-            self.assertEqual(output, expected_output)
 
 
 

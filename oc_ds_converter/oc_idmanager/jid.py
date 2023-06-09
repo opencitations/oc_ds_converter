@@ -6,39 +6,78 @@ from urllib.parse import quote
 from bs4 import BeautifulSoup
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 class JIDManager(IdentifierManager):
     """This class implements an identifier manager for jid identifier"""
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
         """JID manager constructor"""
         super(JIDManager, self).__init__()
+        self.use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
+        self._p = "jid:"
         self._api = "https://api.jstage.jst.go.jp/searchapi/"
         self._api2 = "https://www.jstage.jst.go.jp/browse/"
-        self.use_api_service = use_api_service 
-        self._p = "jid:"
-        self._data = data
+        self._headers = {
+            "User-Agent": "Identifier Manager / OpenCitations Indexes "
+                          "(http://opencitations.net; mailto:contact@opencitations.net)"
+        }
+
+    def validated_as_id(self, id_string):
+        jid_validation_value = self.storage_manager.get_value(id_string)
+        if isinstance(jid_validation_value, bool):
+            return jid_validation_value
+        else:
+            return None
 
     def is_valid(self, jid, get_extra_info=False):
+        """Check if a jid is valid.
+
+            Args:
+                id_string (str): the jid to check
+
+            Returns:
+                bool: true if the jid is valid, false otherwise.
+        """
         jid = self.normalise(jid, include_prefix=True)
 
         if jid is None:
             return False
         else:
-            if jid not in self._data or self._data[jid] is None:
+            jid_validation_value = self.storage_manager.get_value(jid)
+            if isinstance(jid_validation_value, bool):
+                if get_extra_info:
+                        return jid_validation_value, {"id":jid, "valid": jid_validation_value}
+                return jid_validation_value
+            else:
                 if get_extra_info:
                     info = self.exists(jid, get_extra_info=True)
-                    self._data[jid] = info[1]
+                    self.storage_manager.set_full_value(jid, info[1])
                     return (info[0] and self.syntax_ok(jid)), info[1]
-                self._data[jid] = dict()
-                self._data[jid]["valid"] = True if (self.exists(jid) and self.syntax_ok(jid)) else False
-                return self._data[jid].get("valid")
+                validity_check = self.exists(jid) and self.syntax_ok(jid)
+                self.storage_manager.set_value(jid, validity_check)
+
+                return validity_check
             
-            if get_extra_info:
-                return self._data[jid].get("valid"), self._data[jid]
-            return self._data[jid].get("valid")
+
     
     def normalise(self, id_string, include_prefix=False):
+        """It returns the jid normalized.
+
+        Args:
+            id_string (str): the jid to normalize.
+            include_prefix (bool, optional): indicates if include the prefix. Defaults to False.
+
+        Returns:
+            str: the normalized jid
+        """
         try:
             if id_string.startswith(self._p):
                 jid_string = id_string[len(self._p):]
@@ -47,7 +86,7 @@ class JIDManager(IdentifierManager):
             jid_string = sub("[^/a-z0-9]", "", jid_string.lower())
             return "%s%s" % (self._p if include_prefix else "", jid_string)
         except:
-            # Any error in processing the PMID will return None
+            # Any error in processing the JID will return None
             return None
     
     def syntax_ok(self, id_string):
@@ -84,10 +123,10 @@ class JIDManager(IdentifierManager):
                                 tentative -=1
                                 try:
                                     r = get(self._api+ "/do?service=2&cdjournal=" + quote(jid), headers=self._headers, timeout=30)
-                                    #fromstring() parses XML from a string directly into an Element, which is the root element of the parsed tree
+                                    # fromstring() parses XML from a string directly into an Element, which is the root element of the parsed tree
                                     root = ET.fromstring(r.content)
                                     status = root.find(".//{http://www.w3.org/2005/Atom}status").text
-                                    if status =="0":
+                                    if status == "0":
                                         if get_extra_info:
                                             return True, self.extra_info(r.content)
                                         return True
@@ -102,7 +141,7 @@ class JIDManager(IdentifierManager):
                                 # Sleep 5 seconds, then try again
                                     sleep(5)
 
-                            #inserisci chiamata all'altra API
+                            # call to the other API
                             try:
                                 r = get(self._api2 + quote(jid), headers=self._headers, timeout=30)
                                 if r.status_code == 404:
