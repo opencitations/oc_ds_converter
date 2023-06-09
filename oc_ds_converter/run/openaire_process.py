@@ -205,8 +205,6 @@ if __name__ == '__main__':
                             help='Directory where CSV will be stored')
     arg_parser.add_argument('-p', '--publishers', dest='publishers_filepath', required=False,
                             help='CSV file path containing information about publishers (id, name, prefix)')
-    arg_parser.add_argument('-ep', '--ext_prefixes', dest='ext_prefixes_filepath', required=False,
-                            help='json file path containing prefixes external to crossref')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
     arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
