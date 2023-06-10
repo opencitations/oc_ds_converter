@@ -14,6 +14,22 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteSt
 
 
 def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager:StorageManager=None, storage_path:str = None, testing=True) -> None:
+    if not testing:
+        input_dir_cont = os.listdir(openaire_json_dir)
+        els_to_be_removed = []
+        for el in input_dir_cont:
+            if el.startswith("._"):
+                els_to_be_removed.append(os.path.join(openaire_json_dir, el))
+            else:
+                if el.endswith(".tar"):
+                    base_name = el.replace('.tar', '')
+                    if [x for x in os.listdir(openaire_json_dir) if x.startswith(base_name) and x.endswith("decompr_zip_dir")]:
+                        els_to_be_removed.append(os.path.join(openaire_json_dir, el))
+
+        if els_to_be_removed:
+            for etbr in els_to_be_removed:
+                os.remove(etbr)
+
 
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
@@ -248,8 +264,8 @@ if __name__ == '__main__':
                             help='path of the file where to store data concerning validated pids information.'
                                  'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
                                  'and a ".json" file if you chose InMemoryStorageManager')
-    arg_parser.add_argument('-t', '--testing', dest='testing', required=False, type=bool, default=True,
-                            help='Boolean value to define if the script is to be run in testing mode. Pay attention:'
+    arg_parser.add_argument('-t', '--testing', dest='testing', required=False, type=str, default=True,
+                            help='string of the boolean value to define if the script is to be run in testing mode. Pay attention:'
                                  'by default the script is run in test modality and thus the data managed by redis, '
                                  'stored in a specific redis db, are not retrieved nor permanently saved, since an '
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
@@ -278,12 +294,14 @@ if __name__ == '__main__':
     storage_path = normalize_path(storage_path) if storage_path else None
 
     def turn_bool(t):
-        if isinstance(str, t):
+        if isinstance(t, str):
             if t.strip().lower() in ["true", "yes", "y", "1"]:
                 return True
+            elif t.strip().lower() in ["false", "no", "n", "0"]:
+                return False
             else:
                 return False
-        elif isinstance(int, t):
+        elif isinstance(t, int):
             if t != 0:
                 return True
         else:
@@ -291,7 +309,7 @@ if __name__ == '__main__':
         return False
 
     testing = settings['testing'] if settings else args.testing
-    testing = testing if isinstance(testing, bool) else False
+    testing = testing if isinstance(testing, bool) else turn_bool(testing)
 
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
