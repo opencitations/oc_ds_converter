@@ -13,7 +13,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMem
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager:StorageManager=None, storage_path:str = None) -> None:
+def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager:StorageManager=None, storage_path:str = None, testing=True) -> None:
 
     storage_manager = storage_manager if storage_manager else SqliteStorageManager()
 
@@ -23,9 +23,9 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     if storage_path and not os.path.exists(storage_path):
         if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
             Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-        if storage_manager == SqliteStorageManager() and storage_path.endswith(".db"):
+        if isinstance(storage_manager, SqliteStorageManager) and storage_path.endswith(".db"):
             pass
-        elif storage_manager == InMemoryStorageManager() and storage_path.endswith(".json"):
+        elif isinstance(storage_manager, InMemoryStorageManager) and storage_path.endswith(".json"):
             pass
         else:
             storage_path = None
@@ -34,13 +34,13 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
         new_path_dir = os.path.join(os.getcwd(), "storage")
         if not os.path.exists(new_path_dir):
             os.makedirs(new_path_dir)
-        if storage_manager == SqliteStorageManager():
+        if isinstance(storage_manager, SqliteStorageManager):
             storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
         else:
             storage_manager = InMemoryStorageManager(os.path.join(new_path_dir, "id_valid_dict.json"))
 
     else:
-        if storage_manager == InMemoryStorageManager():
+        if isinstance(storage_manager, InMemoryStorageManager):
             storage_manager = InMemoryStorageManager(storage_path)
         else:
             storage_manager = SqliteStorageManager(storage_path)
@@ -62,7 +62,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
             log = '[INFO: openaire_process] Processing: ' + '; '.join(what)
             print(log)
 
-    openaire_csv = OpenaireProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath, publishers_filepath_openaire=publishers_filepath, storage_manager=storage_manager)
+    openaire_csv = OpenaireProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath, publishers_filepath_openaire=publishers_filepath, storage_manager=storage_manager, testing=testing)
     if verbose:
         print(f'[INFO: openaire_process] Getting all files from {openaire_json_dir}')
 
@@ -230,6 +230,11 @@ if __name__ == '__main__':
                             help='path of the file where to store data concerning validated pids information.'
                                  'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
                                  'and a ".json" file if you chose InMemoryStorageManager')
+    arg_parser.add_argument('-t', '--testing', dest='testing', required=False, type=bool, default=True,
+                            help='Boolean value to define if the script is to be run in testing mode. Pay attention:'
+                                 'by default the script is run in test modality and thus the data managed by redis, '
+                                 'stored in a specific redis db, are not retrieved nor permanently saved, since an '
+                                 'instance of a FakeRedis class is created and deleted by the end of the process.')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -254,5 +259,22 @@ if __name__ == '__main__':
     storage_path = settings['storage_path'] if settings else args.storage_path
     storage_path = normalize_path(storage_path) if storage_path else None
 
+    def turn_bool(t):
+        if isinstance(str, t):
+            if t.strip().lower() in ["true", "yes", "y", "1"]:
+                return True
+            else:
+                return False
+        elif isinstance(int, t):
+            if t != 0:
+                return True
+        else:
+            return False
+        return False
+
+    testing = settings['testing'] if settings else args.testing
+    testing = testing if isinstance(testing, bool) else False
+
+
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
-               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path)
+               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path, testing=testing)
