@@ -14,6 +14,24 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteSt
 
 
 def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager:StorageManager=None, storage_path:str = None, testing=True) -> None:
+    if cache and not cache.endswith(".json"):
+        raise ValueError("The cache file must be a json file")
+    if cache and os.path.exists(cache):
+        with open(cache, "r", encoding="utf-8") as c:
+            cache_dict = json.load(c)
+            if not "completed_tar" in cache_dict:
+                cache_dict["completed_tar"] = []
+    else:
+        if cache and not os.path.exists(cache):
+            if not os.path.exists(os.path.abspath(os.path.join(cache, os.pardir))):
+                Path(os.path.abspath(os.path.join(cache, os.pardir))).mkdir(parents=True, exist_ok=True)
+        else:
+            cache = os.path.join(os.getcwd(), "cache.json")
+
+        with open(cache, "w") as c:
+            cache_dict = {"completed_tar":[]}
+            json.dump(cache_dict, c)
+
     if not testing:
         input_dir_cont = os.listdir(openaire_json_dir)
         els_to_be_removed = []
@@ -103,11 +121,18 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     all_input_tar = os.listdir(openaire_json_dir)
     pbar_tar = tqdm(all_input_tar)
     for tar in pbar_tar:
+        if tar in cache_dict["completed_tar"]:
+            continue
         pbar_tar.set_description("Processing %s" % tar)
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
 
         pbar_all_files = tqdm(all_files)
         for filename in pbar_all_files:
+
+            if tar in cache_dict:
+                if filename in cache_dict[tar]:
+                    continue
+
             pbar_all_files.set_description(f'Processing File: {filename.split("/")[-1]} in tar {tar}')
             index_citations_to_csv = []
             f = gzip.open(filename, 'rb')
@@ -226,13 +251,22 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                     dict_writer.writeheader()
                     dict_writer.writerows(index_citations_to_csv)
 
-            if cache:
-                with open(cache, 'a', encoding='utf-8') as aux_file:
-                    aux_file.write(os.path.basename(filename) + '\n')
+            if tar not in  cache_dict:
+                cache_dict[tar]=[filename]
+            else:
+                cache_dict[tar].append(filename)
+
+            with open(cache, 'w', encoding='utf-8') as aux_file:
+                json.dump(cache_dict, aux_file)
+
+        cache_dict["completed_tar"].append(tar)
+        with open(cache, 'w', encoding='utf-8') as aux_file:
+            json.dump(cache_dict, aux_file)
 
     if cache:
         if os.path.exists(cache):
             os.remove(cache)
+
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
