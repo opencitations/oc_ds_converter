@@ -15,19 +15,37 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteSt
 
 def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager:StorageManager=None, storage_path:str = None, testing=True) -> None:
 
-    storage_manager = storage_manager if storage_manager else SqliteStorageManager()
-
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
+    # in case no storage_manager was passed in input, but the type of storage_manager can be derived from the type of
+    # storage filepath
+    if storage_path and not storage_manager:
+        if storage_path.endswith(".db"):
+            storage_manager = SqliteStorageManager()
+        elif storage_path.endswith(".db"):
+            storage_manager = InMemoryStorageManager()
+
+    # In case no storage manager was passed in input and the type of desired storage manager can not be derived from
+    # the extension of the database file, the default storagemanager is SqliteStorageManager()
+
+    storage_manager = storage_manager if (storage_manager and isinstance(storage_manager, StorageManager)) else SqliteStorageManager()
+
+    # in case a path was passed in input, but the filepath does not exist, if the file has an extension which is compatible
+    # with the type of storage manager, the filepath is used as db location.
+
     if storage_path and not os.path.exists(storage_path):
+        # if parent dir does not exist, it is created
         if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
             Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+
         if isinstance(storage_manager, SqliteStorageManager) and storage_path.endswith(".db"):
             pass
         elif isinstance(storage_manager, InMemoryStorageManager) and storage_path.endswith(".json"):
             pass
         else:
+            # if the storage_path extension is not compatible with the storagemanager type, a default one will be assigned,
+            # in accordance with the storagemanager type (a .db file for SqliteStorageManager and a .json for InMemoryStorageManager).
             storage_path = None
 
     if not storage_path:
