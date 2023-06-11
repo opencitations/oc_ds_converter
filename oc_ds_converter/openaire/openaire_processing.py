@@ -439,7 +439,6 @@ class OpenaireProcessing(RaProcessor):
                 for id_dict in id_dict_list:
                     if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
                         norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
-
                         if self.BR_redis.get(norm_id):
                             result_id_dict_list.append(id_dict)
                             return result_id_dict_list
@@ -460,7 +459,6 @@ class OpenaireProcessing(RaProcessor):
                         for id_dict in id_dict_list:
                             if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
                                 norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
-
                                 if self.BR_redis.get(norm_id):
                                     result_id_dict_list.append(id_dict)
                                     return result_id_dict_list
@@ -517,7 +515,6 @@ class OpenaireProcessing(RaProcessor):
                 norm_id = ent.get("identifier")
                 id_man = self.get_id_manager(schema, self._id_man_dict)
                 if schema in {"pmid", "pmcid", "pmc", "arxiv", "doi"}:
-
                     if self.BR_redis.get(norm_id):
                         id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
                         # preso in considerazione negli step successivi

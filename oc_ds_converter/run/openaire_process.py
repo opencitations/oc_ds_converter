@@ -298,7 +298,7 @@ if __name__ == '__main__':
                             help='path of the file where to store data concerning validated pids information.'
                                  'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
                                  'and a ".json" file if you chose InMemoryStorageManager')
-    arg_parser.add_argument('-t', '--testing', dest='testing', required=False, type=str, default=True,
+    arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
                             help='string of the boolean value to define if the script is to be run in testing mode. Pay attention:'
                                  'by default the script is run in test modality and thus the data managed by redis, '
                                  'stored in a specific redis db, are not retrieved nor permanently saved, since an '
@@ -326,25 +326,7 @@ if __name__ == '__main__':
     storage_manager = storage_manager if storage_manager else None
     storage_path = settings['storage_path'] if settings else args.storage_path
     storage_path = normalize_path(storage_path) if storage_path else None
-
-    def turn_bool(t):
-        if isinstance(t, str):
-            if t.strip().lower() in ["true", "yes", "y", "1"]:
-                return True
-            elif t.strip().lower() in ["false", "no", "n", "0"]:
-                return False
-            else:
-                return False
-        elif isinstance(t, int):
-            if t != 0:
-                return True
-        else:
-            return False
-        return False
-
     testing = settings['testing'] if settings else args.testing
-    testing = testing if isinstance(testing, bool) else turn_bool(testing)
-
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
                orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path, testing=testing)
