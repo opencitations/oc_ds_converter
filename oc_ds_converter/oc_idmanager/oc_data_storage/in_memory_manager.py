@@ -39,6 +39,14 @@ class InMemoryStorageManager(StorageManager):
             o_jfp = open(self.storage_filepath, "r")
             self.id_value_dict = json.load(o_jfp)
             o_jfp.close()
+        elif json_file_path and not os.path.exists(json_file_path):
+            if not os.path.exists(os.path.abspath(os.path.join(json_file_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(json_file_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+            self.storage_filepath = json_file_path
+            self.id_value_dict = dict()
+            file = open(self.storage_filepath, "w", encoding='utf8')
+            json.dump(self.id_value_dict, file)
+            file.close()
         else:
             new_path_dir = os.path.join(os.getcwd(), "storage")
             if not os.path.exists(new_path_dir):

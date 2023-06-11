@@ -15,6 +15,7 @@
 # SOFTWARE.
 import os.path
 import sqlite3
+import pathlib
 import urllib.parse
 
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
@@ -36,6 +37,12 @@ class SqliteStorageManager(StorageManager):
         if database and os.path.exists(database):
             self.con = sqlite3.connect(database=database)
             self.storage_filepath = database
+        elif database and not os.path.exists(database):
+            if not os.path.exists(os.path.abspath(os.path.join(database, os.pardir))):
+                pathlib.Path(os.path.abspath(os.path.join(database, os.pardir))).mkdir(parents=True, exist_ok=True)
+            self.con = sqlite3.connect(database=database)
+            self.storage_filepath =database
+
         else:
             new_path_dir = os.path.join(os.getcwd(), "storage")
             if not os.path.exists(new_path_dir):
