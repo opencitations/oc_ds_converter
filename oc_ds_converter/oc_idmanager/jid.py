@@ -14,7 +14,7 @@ from typing import Type, Optional
 
 class JIDManager(IdentifierManager):
     """This class implements an identifier manager for jid identifier"""
-    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
+    def __init__(self, use_api_service=True, storage_manager:Optional[StorageManager] = None):
         """JID manager constructor"""
         super(JIDManager, self).__init__()
         self.use_api_service = use_api_service

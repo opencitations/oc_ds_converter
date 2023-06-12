@@ -17,6 +17,7 @@ import os.path
 import sqlite3
 import pathlib
 import urllib.parse
+from typing import Optional
 
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 
@@ -25,7 +26,7 @@ class SqliteStorageManager(StorageManager):
     """A concrete implementation of the ``StorageManager`` interface that persistently stores
     the IDs validity values within a SQLite database."""
 
-    def __init__(self, database: str =None, **params) -> None:
+    def __init__(self, database:Optional[str] = None, **params) -> None:
         """
         Constructor of the ``SqliteStorageManager`` class.
 

@@ -2,34 +2,20 @@ from oc_ds_converter.lib.jsonmanager import *
 import os
 from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
 
-# TEST OpenaireProcessing METHODS
 import unittest
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 #
 
 BASE = os.path.join('test', 'openaire_processing')
-#IOD = os.path.join(BASE, 'iod')
-#WANTED_DOIS = os.path.join(BASE, 'wanted_dois.csv') #?
-#WANTED_DOIS_FOLDER = os.path.join(BASE, 'wanted_dois') #?
 DATA = os.path.join(BASE, 'jSonFile_1.json')
 DATA_DIR = BASE
 TMP_SUPPORT_MATERIAL = os.path.join(BASE,"tmp_support")
 OUTPUT = os.path.join(BASE, 'meta_input')
 MULTIPROCESS_OUTPUT = os.path.join(BASE, 'multi_process_test')
-#COMPR_INPUT = os.path.join(BASE, 'zst_test', "40228.json.zst")
-#PUBLISHERS_MAPPING = os.path.join(BASE, 'publishers.csv')
 MEMO_JSON_PATH = "test/openaire_processing/tmp_support/memo.json"
 SAMPLE_ENTITY = {'collectedFrom': [{'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::081b82f96300b6a6e3d282bad31cb6e2', 'schema': 'DNET Identifier'}], 'name': 'Crossref'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::8ac8380272269217cb09a928c8caa993', 'schema': 'DNET Identifier'}], 'name': 'UnpayWall'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::806360c771262b4d6770e7cdf04b5c5a', 'schema': 'DNET Identifier'}], 'name': 'ORCID'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::5f532a3fc4f1ea403f37070f59a7a53a', 'schema': 'DNET Identifier'}], 'name': 'Microsoft Academic Graph'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::9e3be59865b2c1c335d32dae2fe7b254', 'schema': 'DNET Identifier'}], 'name': 'Datacite'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::6f4922f45568161a8cdf4ad2299f6d23', 'schema': 'DNET Identifier'}], 'name': 'arXiv.org e-Print Archive'}, 'provisionMode': 'collected'}], 'creator': [{'name': 'Matteo Serra'}, {'name': 'Salvatore Mignemi'}, {'identifiers': [{'identifier': '0000-0001-5595-7537', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-5595-7537'}], 'name': 'Mariano Cadoni'}], 'dnetIdentifier': '50|doi_dedup___::41074cd388749ccbdb6668caaf059f4a', 'identifier': [{'identifier': '10.1103/physrevd.84.084046', 'schema': 'doi', 'url': 'https://doi.org/10.1103/physrevd.84.084046'}, {'identifier': '10.1103/physrevd.84.084046', 'schema': 'doi'}, {'identifier': '10.48550/arxiv.1107.5979', 'schema': 'doi', 'url': 'https://dx.doi.org/10.48550/arxiv.1107.5979'}, {'identifier': '1107.5979', 'schema': 'arXiv', 'url': 'http://arxiv.org/abs/1107.5979'}], 'objectSubType': 'Article', 'objectType': 'publication', 'publicationDate': '2011-10-21', 'publisher': [{'name': 'American Physical Society (APS)'}], 'title': 'Exact solutions with AdS asymptotics of Einstein and Einstein-Maxwell gravity minimally coupled to a scalar field'}
 SAMPLE_ENTITY_FOR_CSV_CREATOR = {'collectedFrom': [{'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::0a836ef43dcb67bb7cbd4dd509b11b73', 'schema': 'DNET Identifier'}], 'name': 'CORE (RIOXX-UK Aggregator)'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::eda80a3d5b344bc40f3bc04f65b7a357', 'schema': 'DNET Identifier'}], 'name': 'PubMed Central'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::8b6dd7db9af49e67306feb59a8bdc52c', 'schema': 'DNET Identifier'}], 'name': 'Europe PubMed Central'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|driver______::bee53aa31dc2cbb538c10c2b65fa5824', 'schema': 'DNET Identifier'}], 'name': 'DOAJ-Articles'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::566a9968b43628588e76be5a85a0f9e8', 'schema': 'DNET Identifier'}], 'name': "King's Research Portal"}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::c2cdfa5866e03cdd07d313cbc8fb8311', 'schema': 'DNET Identifier'}], 'name': 'Multidisciplinary Digital Publishing Institute'}, 'provisionMode': 'collected'}], 'creator': [{'name': 'Smith, Lee'}, {'name': 'Sawyer, Alexia'}, {'name': 'Gardner, Benjamin'}, {'name': 'Seppala, Katri'}, {'name': 'Ucci, Marcella'}, {'name': 'Marmot, Alexi'}, {'name': 'Lally, Pippa'}, {'name': 'Fisher, Abi'}], 'dnetIdentifier': '50|pmid_dedup__::a1a8687c2378a0d68314566dec29dafb', 'objectSubType': 'Article', 'objectType': 'publication', 'publicationDate': '2018-06-09', 'publisher': [{'name': 'MDPI'}], 'title': 'Occupational physical activity habits of UK office workers: cross-sectional data from the Active Buildings Study', 'identifier': {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:29890726', 'valid': None}]}}
-# memo_sqlite_path = "test/openaire_processing/tmp_support/memo.json"
-# storage_manager_m = InMemoryStorageManager(memo_json_path)
-# storage_manager_s = SqliteStorageManager(memo_sqlite_path)
-# doi_m = DOIManager(storage_manager=storage_manager_s)
-# pmid_m = PMIDManager(storage_manager=storage_manager_s)
-# pmc_m = PMCIDManager(storage_manager=storage_manager_s)
-# arxiv_m = ArXivManager(storage_manager=storage_manager_s)
-# orcid_m = ORCIDManager()
 
 
 class TestOpenaireProcessing(unittest.TestCase):

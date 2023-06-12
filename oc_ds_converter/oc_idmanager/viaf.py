@@ -33,7 +33,7 @@ from typing import Type, Optional
 class ViafManager(IdentifierManager):
     """This class implements an identifier manager for VIAF identifier"""
 
-    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
+    def __init__(self, use_api_service=True, storage_manager: Optional[StorageManager] = None):
         """VIAF manager constructor."""
         super(ViafManager, self).__init__()
         self._use_api_service = use_api_service

@@ -33,7 +33,7 @@ from typing import Type, Optional
 class PMCIDManager(IdentifierManager):
     """This class implements an identifier manager for PMCID identifier"""
 
-    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
+    def __init__(self, use_api_service=True, storage_manager: Optional[StorageManager] = None):
         """PMCID manager constructor."""
         super(PMCIDManager, self).__init__()
         self._use_api_service = use_api_service

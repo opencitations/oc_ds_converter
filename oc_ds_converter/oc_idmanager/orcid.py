@@ -33,7 +33,7 @@ from typing import Type, Optional
 class ORCIDManager(IdentifierManager):
     """This class implements an identifier manager for orcid identifier."""
 
-    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
+    def __init__(self, use_api_service=True, storage_manager:Optional[StorageManager] = None):
         """Orcid Manager constructor."""
         super(ORCIDManager, self).__init__()
         self._api = "https://pub.orcid.org/v3.0/"

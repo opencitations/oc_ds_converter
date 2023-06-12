@@ -37,7 +37,7 @@ from typing import Optional, Type
 class PMIDManager(IdentifierManager):
     """This class implements an identifier manager for pmid identifier"""
 
-    def __init__(self, use_api_service=True,  storage_manager: Optional[Type[StorageManager]] = None):
+    def __init__(self, use_api_service=True,  storage_manager: Optional[StorageManager] = None):
         """PMID manager constructor."""
         super(PMIDManager, self).__init__()
         self._api = "https://pubmed.ncbi.nlm.nih.gov/"

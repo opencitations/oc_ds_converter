@@ -8,13 +8,13 @@ from tqdm import tqdm
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import *
 from oc_ds_converter.openaire.openaire_processing import *
-from typing import Type, Optional
+from typing import Type, Optional, Callable
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager: Optional[Type[StorageManager]] = None, storage_path:str = None, testing=True) -> None:
+def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager: Callable[[], StorageManager] = None, storage_path:str = None, testing=True) -> None:
     if cache and not cache.endswith(".json"):
         raise ValueError("The cache file must be a json file")
     if cache and os.path.exists(cache):

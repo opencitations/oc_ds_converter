@@ -74,7 +74,7 @@ class OpenAireProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid )
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager,storage_path=self.any_db)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -127,8 +127,8 @@ class OpenAireProcessTest(unittest.TestCase):
             if el.endswith("decompr_zip_dir"):
                 shutil.rmtree(os.path.join(self.sample_2tar, el))
 
-        op = OpenaireProcessing(storage_manager=SqliteStorageManager())
-        op.storage_manager.delete_storage()
+        os.remove(self.any_db)
+
 
     def test_preprocess_duplicates_management(self):
         """Test functionalities of the OROCI processor for producing META csv tables and INDEX tables, when multiple
@@ -148,7 +148,7 @@ class OpenAireProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid)
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -185,8 +185,7 @@ class OpenAireProcessTest(unittest.TestCase):
         for el in os.listdir(self.sample_dupl):
             if el.endswith("decompr_zip_dir"):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
-        op = OpenaireProcessing(storage_manager=SqliteStorageManager())
-        op.storage_manager.delete_storage()
+        os.remove(self.any_db)
 
     def test_any_db_creation(self):
         preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db)

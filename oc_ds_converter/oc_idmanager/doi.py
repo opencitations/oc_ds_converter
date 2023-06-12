@@ -37,7 +37,7 @@ from typing import Optional, Type
 class DOIManager(IdentifierManager):
     """This class implements an identifier manager for doi identifier"""
 
-    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
+    def __init__(self, use_api_service=True, storage_manager:Optional[StorageManager] = None):
         """DOI manager constructor."""
         super(DOIManager,self).__init__()
         if storage_manager is None:
