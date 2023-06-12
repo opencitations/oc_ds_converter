@@ -33,6 +33,8 @@ class OpenAireProcessTest(unittest.TestCase):
         self.support_mat = join(self.test_dir, "support_mat")
         self.doi_orcid = join("test", "openaire_processing", "iod")
 
+        self.any_db = join("test", "openaire_process", "anydb.db")
+
         self.publishers_file = join(self.support_mat, "publishers.json")
         self.journals_file = join(self.support_mat, "journals.json")
 
@@ -185,6 +187,14 @@ class OpenAireProcessTest(unittest.TestCase):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
         op = OpenaireProcessing(storage_manager=SqliteStorageManager())
         op.storage_manager.delete_storage()
+
+    def test_any_db_creation(self):
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db)
+        self.assertTrue(os.path.exists(self.any_db))
+        for el in os.listdir(self.sample_dupl):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_dupl, el))
+        os.remove(self.any_db)
 
 
 

@@ -26,13 +26,14 @@ from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from typing import Type, Optional
 
 
 
 class PMCIDManager(IdentifierManager):
     """This class implements an identifier manager for PMCID identifier"""
 
-    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
+    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
         """PMCID manager constructor."""
         super(PMCIDManager, self).__init__()
         self._use_api_service = use_api_service

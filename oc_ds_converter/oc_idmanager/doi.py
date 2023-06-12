@@ -31,12 +31,13 @@ from oc_ds_converter.metadata_manager import MetadataManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from typing import Optional, Type
 
 
 class DOIManager(IdentifierManager):
     """This class implements an identifier manager for doi identifier"""
 
-    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
+    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
         """DOI manager constructor."""
         super(DOIManager,self).__init__()
         if storage_manager is None:

@@ -27,13 +27,13 @@ from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-
+from typing import Type, Optional
 
 # POSSIBLE EXTENSION: adding a new parameter in order to directly use the input orcid - doi map in the orcid manager
 class ORCIDManager(IdentifierManager):
     """This class implements an identifier manager for orcid identifier."""
 
-    def __init__(self, use_api_service=True, storage_manager: StorageManager=None):
+    def __init__(self, use_api_service=True, storage_manager: Optional[Type[StorageManager]] = None):
         """Orcid Manager constructor."""
         super(ORCIDManager, self).__init__()
         self._api = "https://pub.orcid.org/v3.0/"
