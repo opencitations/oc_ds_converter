@@ -123,9 +123,15 @@ class InMemoryStorageManager(StorageManager):
         file.close()
 
     def delete_storage(self):
+        self.id_value_dict = dict()
         if os.path.exists(self.storage_filepath):
             os.remove(self.storage_filepath)
 
     def get_all_keys(self):
         return self.id_value_dict.keys()
 
+    def get_validity_dict(self):
+        return {k: v["valid"] for k, v in self.id_value_dict.items()}
+
+    def get_validity_list_of_tuples(self):
+        return [(k, v["valid"]) for k, v in self.id_value_dict.items()]

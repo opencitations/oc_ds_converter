@@ -45,6 +45,8 @@ class OpenaireProcessing(RaProcessor):
         else:
             self.storage_manager = storage_manager
 
+        self.temporary_manager = InMemoryStorageManager('../"memory.json"')
+
         self.types_dict = {
             "Article": "journal article",
             "Part of book or chapter of book": "book chapter",
@@ -94,6 +96,24 @@ class OpenaireProcessing(RaProcessor):
         self.orcid_m = ORCIDManager(storage_manager=self.storage_manager)
 
         self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmcid": self.pmc_m,"pmc": self.pmc_m, "arxiv":self.arxiv_m}
+
+        # Temporary storage managers : all data must be stored in tmp storage manager and passed all together to the
+        # main storage_manager  only once the full file is processed. Checks must be done both on tmp and in
+        # storage_manager, so that in case the process breaks while processing a file which does not complete (so
+        # without writing the final file) all the data concerning the ids are not stored. Otherwise, the ids saved in
+        # a storage_manager db would be considered to have been processed and thus would be ignored by the process
+        # and lost.
+
+        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
+        self.tmp_pmid_m = PMIDManager(storage_manager=self.temporary_manager)
+        self.tmp_pmc_m = PMCIDManager(storage_manager=self.temporary_manager)
+        self.tmp_arxiv_m = ArXivManager(storage_manager=self.temporary_manager)
+
+        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager)
+
+        self.tmp_id_man_dict = {"doi": self.tmp_doi_m, "pmid": self.tmp_pmid_m, "pmcid": self.tmp_pmc_m, "pmc": self.tmp_pmc_m,
+                             "arxiv": self.tmp_arxiv_m}
+
 
         self._doi_prefixes_publishers_dict = {
         "10.48550":{"publisher":"arxiv", "priority":1},
@@ -156,10 +176,31 @@ class OpenaireProcessing(RaProcessor):
 
 
     def validated_as(self, id_dict):
-        schema = id_dict["schema"]
+        # Check if the validity was already retrieved and thus
+        # a) if it is now saved either in the in-memory database, which only concerns data validated
+        # during the current file processing;
+        # b) or if it is now saved in the storage_manager database, which only concerns data validated
+        # during the previous files processing.
+        # In memory db is checked first because the dimension is smaller and the check is faster and
+        # Because we assume that it is more likely to find the same ids in close positions, e.g.: same
+        # citing id in several citations with different cited ids.
+
+        schema = id_dict["schema"].strip().lower()
         id = id_dict["identifier"]
-        id_m = self.get_id_manager(schema, self._id_man_dict)
-        return id_m.validated_as_id(id)
+        if schema != "orcid":
+            tmp_id_m = self.get_id_manager(schema, self.tmp_id_man_dict)
+            validity_value = tmp_id_m.validated_as_id(id)
+
+            if validity_value is None:
+                id_m = self.get_id_manager(schema, self._id_man_dict)
+                validity_value = id_m.validated_as_id(id)
+            return validity_value
+        else:
+            validity_value = self.tmp_orcid_m.validated_as_id(id)
+            if validity_value is None:
+                validity_value = self.orcid_m.validated_as_id(id)
+            return validity_value
+
 
 
     def get_id_manager(self, schema_or_id, id_man_dict):
@@ -513,14 +554,14 @@ class OpenaireProcessing(RaProcessor):
             for ent in to_be_processed_id_dict_list:
                 schema = ent.get("schema")
                 norm_id = ent.get("identifier")
-                id_man = self.get_id_manager(schema, self._id_man_dict)
+                tmp_id_man = self.get_id_manager(schema, self.tmp_id_man_dict)
                 if schema in {"pmid", "pmcid", "pmc", "arxiv", "doi"}:
                     if self.BR_redis.get(norm_id):
-                        id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
+                        tmp_id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
                         # preso in considerazione negli step successivi
                         valid_id_set.add(norm_id)
                     # if the id is not in redis db, validate it before appending
-                    elif id_man.is_valid(norm_id):#In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
+                    elif tmp_id_man.is_valid(norm_id):#In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
                         # preso in considerazione negli step successivi
                         valid_id_set.add(norm_id)
 
@@ -564,9 +605,47 @@ class OpenaireProcessing(RaProcessor):
                     if schema.lower().strip() == "orcid":
                         if isinstance(identifier, str):
                             norm_orcid = self.orcid_m.normalise(identifier, include_prefix =True)
-                            if self.RA_redis.get(norm_orcid):
+                            ## Check orcid presence in memory and storage before validating the id
+                            validity_value_orcid = self.validated_as({"identifier":norm_orcid, "schema": schema})
+                            if validity_value_orcid is True:
                                 orcid = norm_orcid
-                            # if the id is not in redis db, validate it before appending
-                            elif self.orcid_m.is_valid(norm_orcid):
-                                orcid = norm_orcid
+                            elif validity_value_orcid is None:
+                                if self.RA_redis.get(norm_orcid):
+                                    orcid = norm_orcid
+                                # if the id is not in redis db, validate it before appending
+                                elif self.orcid_m.is_valid(norm_orcid):
+                                    orcid = norm_orcid
+
+
         return orcid
+
+    def memory_to_storage(self):
+        kv_in_memory = self.temporary_manager.get_validity_list_of_tuples()
+        self.storage_manager.set_multi_value(kv_in_memory)
+        self.temporary_manager.delete_storage()
+
+
+    def extract_all_ids(self, citation):
+        all_br = []
+        all_ra = []
+
+        # CITING
+        # br ids
+        # ra ids
+
+        # CITED
+        # br ids
+        # ra ids
+        return all_br, all_ra
+
+    def get_reids_validity_dict(self, id_list, redis_db):
+        if redis_db == "ra":
+            validity_dict_ra = self.RA_redis.mget(id_list)
+            return validity_dict_ra
+        elif redis_db == "br":
+            validity_dict_br = self.BR_redis.mget(id_list)
+            return validity_dict_br
+        else:
+            raise ValueError("redis_db must be either 'ra' for responsible agents ids "
+                             "or 'br' for bibliographic resources ids")
+

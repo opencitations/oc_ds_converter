@@ -43,6 +43,9 @@ class StorageManager(metaclass=ABCMeta):
     def get_value(self, id):
         pass
 
+    def set_multi_value(self, list_of_tuples):
+        pass
+
     def delete_storage(self):
         pass
 

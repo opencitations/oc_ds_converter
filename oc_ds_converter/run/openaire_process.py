@@ -147,6 +147,14 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
             data = list()
             for entity in tqdm(source_data):
                 if entity:
+                    all_br, all_ra = openaire_csv.extract_all_ids(entity)
+                    redis_validity_values_br = openaire_csv.get_reids_validity_dict(all_br, "br")
+                    redis_validity_values_ra = openaire_csv.get_reids_validity_dict(all_ra, "ra")
+                    #  TO DO:
+
+                    # Integrate this check in the code instead of accessing redis for one id at time
+                    # Develop extract_all_ids method
+
                     d = json.loads(entity.decode('utf-8'))
                     if d.get("relationship"):
                         if d.get("relationship").get("name") == "Cites":
@@ -259,6 +267,9 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
 
             with open(cache, 'w', encoding='utf-8') as aux_file:
                 json.dump(cache_dict, aux_file)
+
+            # Data in memory is saved in storage and memory is emptied before processing a new file
+            openaire_csv.memory_to_storage()
 
         cache_dict["completed_tar"].append(tar)
         with open(cache, 'w', encoding='utf-8') as aux_file:

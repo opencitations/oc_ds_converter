@@ -94,6 +94,27 @@ class SqliteStorageManager(StorageManager):
         self.cur.execute(f"INSERT OR REPLACE INTO info VALUES (?,?)", id_val)
         self.con.commit()
 
+    def set_multi_value(self, list_of_tuples: list) -> None :
+        """
+        It allows to set a value for the validity check of an id.
+
+        :param value: The new counter value to be set
+        :type value: bool
+        :param id: The id string with prefix
+        :type id: str
+        :raises ValueError: if ``value`` is neither 0 nor 1 (0 is False, 1 is True).
+        :return: None
+        """
+        sqlite_list_copy = []
+        for t in list_of_tuples:
+            if t[1] is True:
+                sqlite_list_copy.append((t[0], 1))
+            else:
+                sqlite_list_copy.append((t[0], 0))
+
+        self.cur.executemany(f"INSERT OR REPLACE INTO info VALUES (?,?)", sqlite_list_copy)
+        self.con.commit()
+
     def get_value(self, id: str):
         """
         It allows to read the value of the identifier.
