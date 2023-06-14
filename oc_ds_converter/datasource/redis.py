@@ -48,22 +48,39 @@ class RedisDataSource(DataSource):
                     password=None,
                     decode_responses=True
                 )
+        elif service == "PROCESS-DB":
+            self._r =  redis.Redis(
+                            host='127.0.0.1',
+                            port=int(config.get('redis', 'port')),
+                            db=(config.get('database 2', 'db')),
+                            password=None,
+                            decode_responses=True
+                        )
+
         else:
             raise ValueError
 
     def get(self, resource_id):
         redis_data = self._r.get(resource_id)
         if redis_data != None:
-            if isinstance(redis_data, str):
+            if isinstance(redis_data, str) or isinstance(redis_data, int):
                 return redis_data
             else:
                 return json.loads(redis_data)
+        else:
+            return None
 
     def mget(self, resources_id):
         return {
             resources_id[i]: json.loads(v) if not v is None else None
             for i, v in enumerate(self._r.mget(resources_id))
         }
+
+    def flushall(self):
+        self._r.flushall()
+
+    def scan_iter(self, match="*"):
+        return self._r.scan_iter(match=match)
 
     def set(self, resource_id, value):
         return self._r.set(resource_id, json.dumps(value))
