@@ -45,7 +45,7 @@ class OpenaireProcessing(RaProcessor):
         else:
             self.storage_manager = storage_manager
 
-        self.temporary_manager = InMemoryStorageManager('../"memory.json"')
+        self.temporary_manager = InMemoryStorageManager('../memory.json')
 
         self.types_dict = {
             "Article": "journal article",
@@ -142,6 +142,9 @@ class OpenaireProcessing(RaProcessor):
             self.BR_redis = RedisDataSource("DB-META-BR")
             self.RA_redis = RedisDataSource("DB-META-RA")
 
+        self._redis_values_ra = []
+        self._redis_values_br = []
+
 
         if not publishers_filepath_openaire:
 
@@ -173,6 +176,10 @@ class OpenaireProcessing(RaProcessor):
             self.publisher_manager = ExtractPublisherDOI({})
             with open(self.publishers_filepath, "w", encoding="utf8") as fdp:
                 json.dump({}, fdp, ensure_ascii=False, indent=4)
+
+    def update_redis_values(self, br, ra):
+        self._redis_values_br = br
+        self._redis_values_ra = ra
 
 
     def validated_as(self, id_dict):
@@ -243,6 +250,11 @@ class OpenaireProcessing(RaProcessor):
             json.dump(dict_to_be_saved, fd, ensure_ascii=False, indent=4)
 
     def csv_creator(self, item: dict) -> dict:
+        redis_br = item["redis_validity_lists"][0]
+        redis_ra = item["redis_validity_lists"][1]
+
+        self.update_redis_values(redis_br, redis_ra)
+
         row = dict()
         
         doi = []
@@ -480,7 +492,8 @@ class OpenaireProcessing(RaProcessor):
                 for id_dict in id_dict_list:
                     if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
                         norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
-                        if self.BR_redis.get(norm_id):
+                        #if self.BR_redis.get(norm_id):
+                        if norm_id in self._redis_values_br:
                             result_id_dict_list.append(id_dict)
                             return result_id_dict_list
                         # if the id is not in redis db, validate it before appending
@@ -500,7 +513,8 @@ class OpenaireProcessing(RaProcessor):
                         for id_dict in id_dict_list:
                             if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
                                 norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
-                                if self.BR_redis.get(norm_id):
+                                #if self.BR_redis.get(norm_id):
+                                if norm_id in self._redis_values_br:
                                     result_id_dict_list.append(id_dict)
                                     return result_id_dict_list
                                 # if the id is not in redis db, validate it before appending
@@ -556,7 +570,8 @@ class OpenaireProcessing(RaProcessor):
                 norm_id = ent.get("identifier")
                 tmp_id_man = self.get_id_manager(schema, self.tmp_id_man_dict)
                 if schema in {"pmid", "pmcid", "pmc", "arxiv", "doi"}:
-                    if self.BR_redis.get(norm_id):
+                    #if self.BR_redis.get(norm_id):
+                    if norm_id in self._redis_values_br:
                         tmp_id_man.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
                         # preso in considerazione negli step successivi
                         valid_id_set.add(norm_id)
@@ -610,7 +625,8 @@ class OpenaireProcessing(RaProcessor):
                             if validity_value_orcid is True:
                                 orcid = norm_orcid
                             elif validity_value_orcid is None:
-                                if self.RA_redis.get(norm_orcid):
+                                #if self.RA_redis.get(norm_orcid):
+                                if norm_orcid in self._redis_values_ra:
                                     orcid = norm_orcid
                                 # if the id is not in redis db, validate it before appending
                                 elif self.orcid_m.is_valid(norm_orcid):
@@ -626,25 +642,58 @@ class OpenaireProcessing(RaProcessor):
 
 
     def extract_all_ids(self, citation):
-        all_br = []
-        all_ra = []
+        all_br = set()
+        all_ra = set()
 
-        # CITING
-        # br ids
-        # ra ids
+        d1 = citation["source"]
+        d2 = citation["target"]
 
-        # CITED
-        # br ids
-        # ra ids
+        source_and_target = [d1, d2]
+
+        #for both source and target entity
+        for d in source_and_target:
+            # get all the br ids
+            br_ids_dicts = d["identifier"]
+            #and use the correct id manager to normalise
+            for br_id in br_ids_dicts:
+                schema = br_id.get("schema").strip().lower()
+                if schema in self._id_man_dict:
+                    norm_id = self._id_man_dict[schema].normalise(br_id["identifier"], include_prefix=True)
+                    if norm_id:
+                        # if it was possible to normalise the id according to one of the schemas accepted in oc, add
+                        # the id to the set of retrieved br ids for the citation.
+                        all_br.add(norm_id)
+            creators = d.get("creator")
+            if creators:
+                for c in creators:
+                    c_ids = c.get("identifiers")
+                    if c_ids:
+                        norm_orcids = {self.orcid_m.normalise(x.get("identifier"), include_prefix=True) for x in c_ids if x.get("schema") in {"ORCID", "orcid"}}
+                        if norm_orcids:
+                            # if it was possible to normalise any id according to orcid schema, add
+                            # the norm_orcids to the set of retrieved ra ids for the citation.
+                            all_ra.update(norm_orcids)
+        all_br = list(all_br)
+        all_ra = list(all_ra)
         return all_br, all_ra
 
-    def get_reids_validity_dict(self, id_list, redis_db):
+    def get_reids_validity_list(self, id_list, redis_db):
         if redis_db == "ra":
-            validity_dict_ra = self.RA_redis.mget(id_list)
-            return validity_dict_ra
+            valid_ra_ids = []
+            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
+            validity_list_ra = self.RA_redis.mget(id_list)
+            for i, e in enumerate(id_list):
+                if validity_list_ra[i]:
+                    valid_ra_ids.append(e)
+            return valid_ra_ids
         elif redis_db == "br":
-            validity_dict_br = self.BR_redis.mget(id_list)
-            return validity_dict_br
+            valid_br_ids = []
+            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
+            validity_list_br = self.BR_redis.mget(id_list)
+            for i, e in enumerate(id_list):
+                if validity_list_br[i]:
+                    valid_br_ids.append(e)
+            return valid_br_ids
         else:
             raise ValueError("redis_db must be either 'ra' for responsible agents ids "
                              "or 'br' for bibliographic resources ids")

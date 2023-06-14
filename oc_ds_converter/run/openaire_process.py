@@ -147,13 +147,6 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
             data = list()
             for entity in tqdm(source_data):
                 if entity:
-                    all_br, all_ra = openaire_csv.extract_all_ids(entity)
-                    redis_validity_values_br = openaire_csv.get_reids_validity_dict(all_br, "br")
-                    redis_validity_values_ra = openaire_csv.get_reids_validity_dict(all_ra, "ra")
-                    #  TO DO:
-
-                    # Integrate this check in the code instead of accessing redis for one id at time
-                    # Develop extract_all_ids method
 
                     d = json.loads(entity.decode('utf-8'))
                     if d.get("relationship"):
@@ -164,6 +157,10 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
 
                             any_source_id = ""
                             any_target_id = ""
+
+                            all_br, all_ra = openaire_csv.extract_all_ids(json.loads(entity))
+                            redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
+                            redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
 
                             source_entity = d.get("source")
                             if source_entity:
@@ -194,6 +191,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                 source_identifier["not_valid"] = source_invalid_ids
                                 source_identifier["to_be_val"] = source_to_be_val_ids
                                 source_entity_upd_ids["identifier"] = source_identifier
+                                source_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
 
                                 target_entity_upd_ids = {k:v for k,v in target_entity.items() if k != "identifier"}
                                 target_valid_ids = [x for x in norm_target_ids if x["valid"] is True]
@@ -204,6 +202,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                                 target_identifier["not_valid"] = target_invalid_ids
                                 target_identifier["to_be_val"] = target_to_be_val_ids
                                 target_entity_upd_ids["identifier"] = target_identifier
+                                target_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
 
                                 # creation of a new row in meta table because there are new ids to be validated.
                                 # "any_source_id" will be chosen among the valid source entity ids, if any

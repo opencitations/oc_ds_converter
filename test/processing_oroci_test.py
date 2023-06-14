@@ -5,6 +5,7 @@ from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
 import unittest
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from fakeredis import FakeStrictRedis
 #
 
 BASE = os.path.join('test', 'openaire_processing')
@@ -15,7 +16,8 @@ OUTPUT = os.path.join(BASE, 'meta_input')
 MULTIPROCESS_OUTPUT = os.path.join(BASE, 'multi_process_test')
 MEMO_JSON_PATH = "test/openaire_processing/tmp_support/memo.json"
 SAMPLE_ENTITY = {'collectedFrom': [{'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::081b82f96300b6a6e3d282bad31cb6e2', 'schema': 'DNET Identifier'}], 'name': 'Crossref'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::8ac8380272269217cb09a928c8caa993', 'schema': 'DNET Identifier'}], 'name': 'UnpayWall'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::806360c771262b4d6770e7cdf04b5c5a', 'schema': 'DNET Identifier'}], 'name': 'ORCID'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::5f532a3fc4f1ea403f37070f59a7a53a', 'schema': 'DNET Identifier'}], 'name': 'Microsoft Academic Graph'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::9e3be59865b2c1c335d32dae2fe7b254', 'schema': 'DNET Identifier'}], 'name': 'Datacite'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::6f4922f45568161a8cdf4ad2299f6d23', 'schema': 'DNET Identifier'}], 'name': 'arXiv.org e-Print Archive'}, 'provisionMode': 'collected'}], 'creator': [{'name': 'Matteo Serra'}, {'name': 'Salvatore Mignemi'}, {'identifiers': [{'identifier': '0000-0001-5595-7537', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-5595-7537'}], 'name': 'Mariano Cadoni'}], 'dnetIdentifier': '50|doi_dedup___::41074cd388749ccbdb6668caaf059f4a', 'identifier': [{'identifier': '10.1103/physrevd.84.084046', 'schema': 'doi', 'url': 'https://doi.org/10.1103/physrevd.84.084046'}, {'identifier': '10.1103/physrevd.84.084046', 'schema': 'doi'}, {'identifier': '10.48550/arxiv.1107.5979', 'schema': 'doi', 'url': 'https://dx.doi.org/10.48550/arxiv.1107.5979'}, {'identifier': '1107.5979', 'schema': 'arXiv', 'url': 'http://arxiv.org/abs/1107.5979'}], 'objectSubType': 'Article', 'objectType': 'publication', 'publicationDate': '2011-10-21', 'publisher': [{'name': 'American Physical Society (APS)'}], 'title': 'Exact solutions with AdS asymptotics of Einstein and Einstein-Maxwell gravity minimally coupled to a scalar field'}
-SAMPLE_ENTITY_FOR_CSV_CREATOR = {'collectedFrom': [{'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::0a836ef43dcb67bb7cbd4dd509b11b73', 'schema': 'DNET Identifier'}], 'name': 'CORE (RIOXX-UK Aggregator)'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::eda80a3d5b344bc40f3bc04f65b7a357', 'schema': 'DNET Identifier'}], 'name': 'PubMed Central'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::8b6dd7db9af49e67306feb59a8bdc52c', 'schema': 'DNET Identifier'}], 'name': 'Europe PubMed Central'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|driver______::bee53aa31dc2cbb538c10c2b65fa5824', 'schema': 'DNET Identifier'}], 'name': 'DOAJ-Articles'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::566a9968b43628588e76be5a85a0f9e8', 'schema': 'DNET Identifier'}], 'name': "King's Research Portal"}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::c2cdfa5866e03cdd07d313cbc8fb8311', 'schema': 'DNET Identifier'}], 'name': 'Multidisciplinary Digital Publishing Institute'}, 'provisionMode': 'collected'}], 'creator': [{'name': 'Smith, Lee'}, {'name': 'Sawyer, Alexia'}, {'name': 'Gardner, Benjamin'}, {'name': 'Seppala, Katri'}, {'name': 'Ucci, Marcella'}, {'name': 'Marmot, Alexi'}, {'name': 'Lally, Pippa'}, {'name': 'Fisher, Abi'}], 'dnetIdentifier': '50|pmid_dedup__::a1a8687c2378a0d68314566dec29dafb', 'objectSubType': 'Article', 'objectType': 'publication', 'publicationDate': '2018-06-09', 'publisher': [{'name': 'MDPI'}], 'title': 'Occupational physical activity habits of UK office workers: cross-sectional data from the Active Buildings Study', 'identifier': {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:29890726', 'valid': None}]}}
+SAMPLE_ENT2 = {"identifier":"000017d2c913b28e09291b811ce3609a","linkprovider":[{"identifiers":[{"identifier":"10|openaire____::0a836ef43dcb67bb7cbd4dd509b11b73","schema":"DNET Identifier"}],"name":"CORE (RIOXX-UK Aggregator)"},{"identifiers":[{"identifier":"10|opendoar____::eda80a3d5b344bc40f3bc04f65b7a357","schema":"DNET Identifier"}],"name":"PubMed Central"},{"identifiers":[{"identifier":"10|opendoar____::8b6dd7db9af49e67306feb59a8bdc52c","schema":"DNET Identifier"}],"name":"Europe PubMed Central"},{"identifiers":[{"identifier":"10|opendoar____::229754d7799160502a143a72f6789927","schema":"DNET Identifier"}],"name":"Publications at Bielefeld University"}],"publicationDate":"2014-02-01","publisher":[{"name":"Springer Nature"}],"relationship":{"inverse":"IsCitedBy","name":"Cites","schema":"datacite"},"source":{"collectedFrom":[{"completionStatus":"complete","provider":{"identifiers":[{"identifier":"10|openaire____::0a836ef43dcb67bb7cbd4dd509b11b73","schema":"DNET Identifier"}],"name":"CORE (RIOXX-UK Aggregator)"},"provisionMode":"collected"},{"completionStatus":"complete","provider":{"identifiers":[{"identifier":"10|opendoar____::eda80a3d5b344bc40f3bc04f65b7a357","schema":"DNET Identifier"}],"name":"PubMed Central"},"provisionMode":"collected"},{"completionStatus":"complete","provider":{"identifiers":[{"identifier":"10|opendoar____::8b6dd7db9af49e67306feb59a8bdc52c","schema":"DNET Identifier"}],"name":"Europe PubMed Central"},"provisionMode":"collected"},{"completionStatus":"complete","provider":{"identifiers":[{"identifier":"10|opendoar____::229754d7799160502a143a72f6789927","schema":"DNET Identifier"}],"name":"Publications at Bielefeld University"},"provisionMode":"collected"}],"creator":[{"identifiers":[{"identifier":"0000-0002-6491-0754","schema":"ORCID","url":"https://orcid.org/0000-0002-6491-0754"}],"name":"Sattler, Sebastian"},{"name":"Mehlkop, Guido"},{"name":"Graeff, Peter"},{"identifiers":[{"identifier":"0000-0002-8090-6886","schema":"ORCID","url":"https://orcid.org/0000-0002-8090-6886"}],"name":"Sauer, Carsten"}],"dnetIdentifier":"50|pmid_dedup__::8936076da7a86820c24ede7ca3ff15b3","identifier":[{"identifier":"PMC3928621","schema":"pmc","url":"http://europepmc.org/articles/PMC3928621"},{"identifier":"24484640","schema":"pmid"},{"identifier":"24484640","schema":"pmid","url":"https://pubmed.ncbi.nlm.nih.gov/24484640"},{"identifier":"PMC3928621","schema":"pmc"}],"objectSubType":"Article","objectType":"publication","publicationDate":"2014-02-01","publisher":[{"name":"Springer Nature"}],"title":"Evaluating the drivers of and obstacles to the willingness to use cognitive enhancement drugs: the influence of drug characteristics, social environment, and personal characteristics"},"target":{"collectedFrom":[{"completionStatus":"complete","provider":{"identifiers":[{"identifier":"10|openaire____::081b82f96300b6a6e3d282bad31cb6e2","schema":"DNET Identifier"}],"name":"Crossref"},"provisionMode":"collected"},{"completionStatus":"complete","provider":{"identifiers":[{"identifier":"10|openaire____::5f532a3fc4f1ea403f37070f59a7a53a","schema":"DNET Identifier"}],"name":"Microsoft Academic Graph"},"provisionMode":"collected"}],"creator":[{"name":"Harold G. Grasmick"},{"name":"Robert J. Bursik"}],"dnetIdentifier":"50|doi_________::816648c63de74835ec2b0a753a68f037","identifier":[{"identifier":"10.2307/3053861","schema":"doi","url":"https://doi.org/10.2307/3053861"}],"objectSubType":"Article","objectType":"publication","publicationDate":"1990-01-01","publisher":[{"name":"JSTOR"}],"title":"Conscience, significant others, and rational choice: Extending the deterrence model."}}
+SAMPLE_ENTITY_FOR_CSV_CREATOR = {'collectedFrom': [{'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::0a836ef43dcb67bb7cbd4dd509b11b73', 'schema': 'DNET Identifier'}], 'name': 'CORE (RIOXX-UK Aggregator)'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::eda80a3d5b344bc40f3bc04f65b7a357', 'schema': 'DNET Identifier'}], 'name': 'PubMed Central'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::8b6dd7db9af49e67306feb59a8bdc52c', 'schema': 'DNET Identifier'}], 'name': 'Europe PubMed Central'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|driver______::bee53aa31dc2cbb538c10c2b65fa5824', 'schema': 'DNET Identifier'}], 'name': 'DOAJ-Articles'}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|opendoar____::566a9968b43628588e76be5a85a0f9e8', 'schema': 'DNET Identifier'}], 'name': "King's Research Portal"}, 'provisionMode': 'collected'}, {'completionStatus': 'complete', 'provider': {'identifiers': [{'identifier': '10|openaire____::c2cdfa5866e03cdd07d313cbc8fb8311', 'schema': 'DNET Identifier'}], 'name': 'Multidisciplinary Digital Publishing Institute'}, 'provisionMode': 'collected'}], 'creator': [{'name': 'Smith, Lee'}, {'name': 'Sawyer, Alexia'}, {'name': 'Gardner, Benjamin'}, {'name': 'Seppala, Katri'}, {'name': 'Ucci, Marcella'}, {'name': 'Marmot, Alexi'}, {'name': 'Lally, Pippa'}, {'name': 'Fisher, Abi'}], 'dnetIdentifier': '50|pmid_dedup__::a1a8687c2378a0d68314566dec29dafb', 'objectSubType': 'Article', 'objectType': 'publication', 'publicationDate': '2018-06-09', 'publisher': [{'name': 'MDPI'}], 'title': 'Occupational physical activity habits of UK office workers: cross-sectional data from the Active Buildings Study', 'identifier': {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:29890726', 'valid': None}]}, "redis_validity_lists":[[],[]]}
 
 
 class TestOpenaireProcessing(unittest.TestCase):
@@ -34,6 +36,53 @@ class TestOpenaireProcessing(unittest.TestCase):
         elif specific_path:
             if os.path.exists(specific_path):
                 os.remove(specific_path)
+
+    def test_get_all_ids(self):
+        self.delete_storege(storage_type="sqlite")
+        opp = OpenaireProcessing()
+        allids = opp.extract_all_ids(SAMPLE_ENT2)
+        self.assertCountEqual(['pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'], allids[0])
+        self.assertCountEqual(['orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'], allids[1])
+        self.delete_storege(storage_type="sqlite")
+
+    def test_get_reids_validity_list(self):
+        br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
+        ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
+
+        self.delete_storege(storage_type="sqlite")
+        opp = OpenaireProcessing()
+        br_valid_list = opp.get_reids_validity_list(br, "br")
+        exp_exp_br_valid_list = []
+        ra_valid_list = opp.get_reids_validity_list(ra, "ra")
+        exp_exp_ra_valid_list = []
+        self.assertEqual(ra_valid_list, exp_exp_ra_valid_list)
+        self.assertEqual(br_valid_list, exp_exp_br_valid_list)
+
+        self.delete_storege(storage_type="sqlite")
+
+    def test_get_reids_validity_dict_w_fakeredis_db_values(self):
+        self.delete_storege(storage_type="sqlite")
+        opp = OpenaireProcessing()
+        opp.BR_redis.set('pmid:24484640', "omid:1")
+        opp.RA_redis.set('orcid:0000-0002-8090-6886', "omid:2")
+
+
+        br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
+        ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
+
+        br_validity_dict = opp.get_reids_validity_list(br, "br")
+        exp_br_valid_list = ["pmid:24484640"]
+        ra_validity_dict = opp.get_reids_validity_list(ra, "ra")
+        exp_ra_valid_list = ['orcid:0000-0002-8090-6886']
+        self.assertEqual(br_validity_dict, exp_br_valid_list)
+        self.assertEqual(ra_validity_dict, exp_ra_valid_list)
+
+        self.delete_storege(storage_type="sqlite")
+
+        opp.BR_redis.delete('pmid:24484640')
+        opp.BR_redis.delete('pmcid:PMC3928621')
+        opp.RA_redis.delete('orcid:0000-0002-8090-6886')
+
 
 
     def test_validated_as_default(self):
