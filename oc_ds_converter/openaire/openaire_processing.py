@@ -181,7 +181,6 @@ class OpenaireProcessing(RaProcessor):
         self._redis_values_br = br
         self._redis_values_ra = ra
 
-
     def validated_as(self, id_dict):
         # Check if the validity was already retrieved and thus
         # a) if it is now saved either in the in-memory database, which only concerns data validated
@@ -207,8 +206,6 @@ class OpenaireProcessing(RaProcessor):
             if validity_value is None:
                 validity_value = self.orcid_m.validated_as_id(id)
             return validity_value
-
-
 
     def get_id_manager(self, schema_or_id, id_man_dict):
         """Given as input the string of a schema (e.g.:'pmid') and a dictionary mapping strings of
@@ -639,7 +636,6 @@ class OpenaireProcessing(RaProcessor):
         kv_in_memory = self.temporary_manager.get_validity_list_of_tuples()
         self.storage_manager.set_multi_value(kv_in_memory)
         self.temporary_manager.delete_storage()
-
 
     def extract_all_ids(self, citation):
         all_br = set()
