@@ -79,6 +79,9 @@ class RedisDataSource(DataSource):
     def flushall(self):
         self._r.flushall()
 
+    def delete(self, resource_id):
+        self._r.delete(resource_id)
+
     def scan_iter(self, match="*"):
         return self._r.scan_iter(match=match)
 

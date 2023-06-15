@@ -49,11 +49,11 @@ class RedisStorageManager(StorageManager):
         :raises ValueError: if ``value`` is neither 0 nor 1 (0 is False, 1 is True).
         :return: None
         """
-        id_name = str(id)
+        id_name = str(id_name)
         if not isinstance(value, dict):
             raise ValueError("value must be dict")
         if not isinstance(self.get_value(id_name), bool):
-            id_val = True if value and value not in {"False", "false", "no", "n"} else False
+            id_val = True if value.get("valid") else False
             self.set_value(id_name, id_val)
 
     def set_value(self, id: str, value: bool) -> None :
@@ -101,13 +101,32 @@ class RedisStorageManager(StorageManager):
         """
         id_name = str(id)
         result = self.PROCESS_redis.get(id_name)
-        if isinstance(result, int):
+        if result:
+            result = int(result.decode("utf-8")) if isinstance(result, bytes) else int(result)
             return True if result == 1 else False
-        else:
-            return None
+        return None
+
+    def del_value(self, id: str) -> None:
+        """
+        It allows to delete the identifier from the redis db.
+
+        :param id: The id name
+        :type id: str
+        :return: None
+        """
+        self.PROCESS_redis.delete(id)
+
 
     def delete_storage(self):
         self.PROCESS_redis.flushall()
 
     def get_all_keys(self):
-        return {x.decode("utf-8") for x in self.PROCESS_redis.scan_iter('*')}
+        result = [x for x in self.PROCESS_redis.scan_iter('*')]
+        if result:
+            if isinstance(result[0], bytes):
+                result = {x.decode("utf-8") for x in result}
+            else:
+                result = set(result)
+        else:
+            result = set()
+        return result
