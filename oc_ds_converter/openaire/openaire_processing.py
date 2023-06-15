@@ -686,6 +686,7 @@ class OpenaireProcessing(RaProcessor):
                 if validity_list_ra[i]:
                     valid_ra_ids.append(e)
             return valid_ra_ids
+
         elif redis_db == "br":
             valid_br_ids = []
             # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)

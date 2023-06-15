@@ -71,10 +71,11 @@ class RedisDataSource(DataSource):
             return None
 
     def mget(self, resources_id):
-        return {
-            resources_id[i]: json.loads(v) if not v is None else None
-            for i, v in enumerate(self._r.mget(resources_id))
-        }
+        return [json.loads(x) if x else None for x in self._r.mget(resources_id)]
+        # return {
+        #     resources_id[i]: json.loads(v) if not v is None else None
+        #     for i, v in enumerate(self._r.mget(resources_id))
+        # }
 
     def flushall(self):
         self._r.flushall()

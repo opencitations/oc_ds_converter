@@ -129,6 +129,77 @@ class OpenAireProcessTest(unittest.TestCase):
 
         os.remove(self.any_db)
 
+    def test_preprocess_base_decompress_and_read_redis_test(self):
+        """Test base functionalities of the OROCI processor for producing META csv tables and INDEX tables:
+        1) All the files in the TARs in input are correctly processed
+        2) The number of files in input corresponds to the number of files in output (both for citation and for meta tables)
+        3) The number of bibliographic entities corresponds to the number of citations in input *2 (citing + cited)
+        """
+        for el in os.listdir(self.sample_2tar):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_2tar, el))
+
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+
+        citations_output_path = self.output_dir + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=RedisStorageManager,storage_path=self.any_db)
+
+        citations_in_output = 0
+        encountered_ids = set()
+        unique_entities = 0
+
+        citations_files_n = len(list(os.listdir(citations_output_path)))
+        for file in os.listdir(citations_output_path):
+            with open(os.path.join(citations_output_path, file), 'r', encoding='utf-8') as f:
+                cits_rows = list(csv.DictReader(f))
+                citations_in_output += len(cits_rows)
+                for x in cits_rows:
+                    citing_ids = x["citing"].split(" ")
+                    citied_ids = x["referenced"].split(" ")
+                    if all(id not in encountered_ids for id in citing_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citing_ids)
+
+                    if all(id not in encountered_ids for id in citied_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citied_ids)
+
+        expected_citations_in_output= 2*3*4
+        # 2 tar * 3 files * 4 citations
+
+        expected_entities_in_output= 2*3*4*2
+        # 2 tar * 3 files * 4 citations * 2 entities
+
+        self.assertEqual(expected_entities_in_output, unique_entities)
+        self.assertEqual(expected_citations_in_output, citations_in_output)
+
+        shutil.rmtree(citations_output_path)
+
+        meta_files_n = len(list(os.listdir(self.output_dir)))
+
+        # Make sure that a meta table row was created for each entity and, thus, that the number of
+        entities_in_meta_output = 0
+        for file in os.listdir(self.output_dir):
+            with open(os.path.join(self.output_dir, file), 'r', encoding='utf-8') as f:
+                entities_in_meta_output += len(list(csv.DictReader(f)))
+
+        self.assertEqual(expected_entities_in_output, entities_in_meta_output)
+        self.assertEqual(unique_entities, entities_in_meta_output)
+
+        # make sure that for each of the input files was created a citation file and a meta input file
+        self.assertTrue(meta_files_n == citations_files_n == 6)
+
+        shutil.rmtree(self.output_dir)
+
+        for el in os.listdir(self.sample_2tar):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_2tar, el))
+
+        os.remove(self.any_db)
 
     def test_preprocess_duplicates_management(self):
         """Test functionalities of the OROCI processor for producing META csv tables and INDEX tables, when multiple
@@ -187,6 +258,64 @@ class OpenAireProcessTest(unittest.TestCase):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
         os.remove(self.any_db)
 
+    def test_preprocess_duplicates_management_redis(self):
+        """Test functionalities of the OROCI processor for producing META csv tables and INDEX tables, when multiple
+        citations with a common id involved are processed. Expected output, given two citations with the same citing
+        entity: three rows in meta table, two rows in citations tables
+        1) All the files in the TARs in input are correctly processed
+        2) The number of files in input corresponds to the number of files in output (both for citation and for meta tables)
+        3) The number of bibliographic entities corresponds to the number of citations in input *2 (citing + cited)
+        """
+        for el in os.listdir(self.sample_dupl):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_dupl, el))
+
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+
+        citations_output_path = self.output_dir + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=RedisStorageManager)
+
+        citations_in_output = 0
+        encountered_ids = set()
+        unique_entities = 0
+
+        citations_files_n = len(list(os.listdir(citations_output_path)))
+        print("os.listdir(citations_output_path)",os.listdir(citations_output_path))
+        for file in os.listdir(citations_output_path):
+            with open(os.path.join(citations_output_path, file), 'r', encoding='utf-8') as f:
+                cits_rows = list(csv.DictReader(f))
+                citations_in_output += len(cits_rows)
+                for x in cits_rows:
+                    citing_ids = x["citing"].split(" ")
+                    citied_ids = x["referenced"].split(" ")
+                    if all(id not in encountered_ids for id in citing_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citing_ids)
+
+                    if all(id not in encountered_ids for id in citied_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citied_ids)
+
+        expected_citations_in_output= 2
+        # since the citing entity is the same for both citations
+
+        expected_entities_in_output= 3
+        # since the citing entity is the same for both citations
+
+        self.assertEqual(expected_entities_in_output, unique_entities)
+        self.assertEqual(expected_citations_in_output, citations_in_output)
+
+        shutil.rmtree(citations_output_path)
+        shutil.rmtree(self.output_dir)
+
+        for el in os.listdir(self.sample_dupl):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_dupl, el))
+
     def test_any_db_creation(self):
         preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db)
         self.assertTrue(os.path.exists(self.any_db))
@@ -195,6 +324,31 @@ class OpenAireProcessTest(unittest.TestCase):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
         os.remove(self.any_db)
 
+    def test_any_db_creation_redis_no_testing(self):
+        try:
+            rsm = RedisStorageManager(testing=False)
+            rsm.set_value("TEST VALUE", False)
+            run_test = True
+        except:
+            run_test = False
+            print("test skipped: 'test_any_db_creation_redis_no_testing': Connect to redis before running the test")
+
+        if run_test:
+            rsm.del_value("TEST VALUE")
+            if not len(rsm.get_all_keys()):
+                preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir,
+                           publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid,testing=False,
+                           redis_storage_manager=True)
+
+                for el in os.listdir(self.sample_dupl):
+                    if el.endswith("decompr_zip_dir"):
+                        shutil.rmtree(os.path.join(self.sample_dupl, el))
+                rsm.delete_storage()
+
+            else:
+                # print("get_all_keys()", rsm.get_all_keys())
+                # rsm.delete_storage()
+                print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
 
 
 if __name__ == '__main__':

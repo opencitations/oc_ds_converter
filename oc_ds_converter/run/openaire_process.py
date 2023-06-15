@@ -11,10 +11,11 @@ from oc_ds_converter.openaire.openaire_processing import *
 from typing import Type, Optional, Callable
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager: Callable[[], StorageManager] = None, storage_path:str = None, testing=True) -> None:
+def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager: Callable[[], StorageManager] = None, storage_path:str = None, testing=True, redis_storage_manager=False) -> None:
     if cache and not cache.endswith(".json"):
         raise ValueError("The cache file must be a json file")
     if cache and os.path.exists(cache):
@@ -53,51 +54,57 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
-    # in case no storage_manager was passed in input, but the type of storage_manager can be derived from the type of
-    # storage filepath
-    if storage_path and not storage_manager:
-        if storage_path.endswith(".db"):
-            storage_manager = SqliteStorageManager()
-        elif storage_path.endswith(".db"):
-            storage_manager = InMemoryStorageManager()
+    if not redis_storage_manager and not isinstance(storage_manager, RedisStorageManager):
+        # in case no storage_manager was passed in input, but the type of storage_manager can be derived from the type of
+        # storage filepath
+        if storage_path and not storage_manager:
+            if storage_path.endswith(".db"):
+                storage_manager = SqliteStorageManager()
+            elif storage_path.endswith(".json"):
+                storage_manager = InMemoryStorageManager()
 
-    # In case no storage manager was passed in input and the type of desired storage manager can not be derived from
-    # the extension of the database file, the default storagemanager is SqliteStorageManager()
+        # In case no storage manager was passed in input and the type of desired storage manager can not be derived from
+        # the extension of the database file, the default storagemanager is SqliteStorageManager()
 
-    storage_manager = storage_manager if (storage_manager and isinstance(storage_manager, StorageManager)) else SqliteStorageManager()
+        storage_manager = storage_manager if (storage_manager and isinstance(storage_manager, StorageManager)) else SqliteStorageManager()
 
-    # in case a path was passed in input, but the filepath does not exist, if the file has an extension which is compatible
-    # with the type of storage manager, the filepath is used as db location.
+        # in case a path was passed in input, but the filepath does not exist, if the file has an extension which is compatible
+        # with the type of storage manager, the filepath is used as db location.
 
-    if storage_path and not os.path.exists(storage_path):
-        # if parent dir does not exist, it is created
-        if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-            Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path and not os.path.exists(storage_path):
+            # if parent dir does not exist, it is created
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
 
-        if isinstance(storage_manager, SqliteStorageManager) and storage_path.endswith(".db"):
-            pass
-        elif isinstance(storage_manager, InMemoryStorageManager) and storage_path.endswith(".json"):
-            pass
+            if isinstance(storage_manager, SqliteStorageManager) and storage_path.endswith(".db"):
+                pass
+            elif isinstance(storage_manager, InMemoryStorageManager) and storage_path.endswith(".json"):
+                pass
+            else:
+                # if the storage_path extension is not compatible with the storagemanager type, a default one will be assigned,
+                # in accordance with the storagemanager type (a .db file for SqliteStorageManager and a .json for InMemoryStorageManager).
+                storage_path = None
+
+        if not storage_path:
+            new_path_dir = os.path.join(os.getcwd(), "storage")
+            if not os.path.exists(new_path_dir):
+                os.makedirs(new_path_dir)
+            if isinstance(storage_manager, SqliteStorageManager):
+                storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
+            else:
+                storage_manager = InMemoryStorageManager(os.path.join(new_path_dir, "id_valid_dict.json"))
+
         else:
-            # if the storage_path extension is not compatible with the storagemanager type, a default one will be assigned,
-            # in accordance with the storagemanager type (a .db file for SqliteStorageManager and a .json for InMemoryStorageManager).
-            storage_path = None
-
-    if not storage_path:
-        new_path_dir = os.path.join(os.getcwd(), "storage")
-        if not os.path.exists(new_path_dir):
-            os.makedirs(new_path_dir)
-        if isinstance(storage_manager, SqliteStorageManager):
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-        else:
-            storage_manager = InMemoryStorageManager(os.path.join(new_path_dir, "id_valid_dict.json"))
+            if isinstance(storage_manager, InMemoryStorageManager):
+                storage_manager = InMemoryStorageManager(storage_path)
+            else:
+                storage_manager = SqliteStorageManager(storage_path)
 
     else:
-        if isinstance(storage_manager, InMemoryStorageManager):
-            storage_manager = InMemoryStorageManager(storage_path)
+        if testing:
+            storage_manager = RedisStorageManager(testing=True)
         else:
-            storage_manager = SqliteStorageManager(storage_path)
-
+            storage_manager = RedisStorageManager(testing=False)
 
     req_type = ".gz"
     preprocessed_citations_dir = csv_dir + "_citations"
@@ -310,10 +317,14 @@ if __name__ == '__main__':
                                  'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
                                  'and a ".json" file if you chose InMemoryStorageManager')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
-                            help='string of the boolean value to define if the script is to be run in testing mode. Pay attention:'
+                            help='parameter to define if the script is to be run in testing mode. Pay attention:'
                                  'by default the script is run in test modality and thus the data managed by redis, '
                                  'stored in a specific redis db, are not retrieved nor permanently saved, since an '
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
+    arg_parser.add_argument('-r', '--redis_storage_manager', dest='redis_storage_manager', action='store_true', required=False,
+                            help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
+                                 'value is set to false, which means that -unless it is differently stated- the storage manager used is'
+                                 'the one chosen as value of the parametr --storage_manager. The redis db used by the storage manager is the n.2')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -338,6 +349,7 @@ if __name__ == '__main__':
     storage_path = settings['storage_path'] if settings else args.storage_path
     storage_path = normalize_path(storage_path) if storage_path else None
     testing = settings['testing'] if settings else args.testing
+    redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
-               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path, testing=testing)
+               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path, testing=testing, redis_storage_manager=redis_storage_manager)
