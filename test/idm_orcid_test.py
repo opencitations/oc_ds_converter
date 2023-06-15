@@ -14,6 +14,7 @@ from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 
 class orcidIdentifierManagerTest(unittest.TestCase):
     """This class aim at testing identifiers manager."""
@@ -193,3 +194,63 @@ class orcidIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(am_nofile_noapi.is_valid(self.valid_orcid_1))
         self.assertTrue(am_nofile_noapi.is_valid(self.invalid_orcid_5))
         am_nofile_noapi.storage_manager.delete_storage()
+
+
+
+    #### REDIS STORAGE MANAGER
+    def test_orcid_redis_nofile_api(self):
+        # No available data in redis db
+        # Storage manager : RedisStorageManager
+        # uses API
+        sql_am_nofile = ORCIDManager(storage_manager=RedisStorageManager(testing=True))
+        self.assertTrue(sql_am_nofile.is_valid(self.valid_orcid_1))
+        self.assertTrue(sql_am_nofile.is_valid(self.valid_orcid_2))
+        self.assertFalse(sql_am_nofile.is_valid(self.invalid_orcid_1))
+        self.assertFalse(sql_am_nofile.is_valid(self.invalid_orcid_2))
+        # check that the redis db was correctly filled and that it contains all the validated ids
+
+        validated_ids = {self.valid_orcid_1, self.valid_orcid_2, self.invalid_orcid_1, self.invalid_orcid_2}
+        validated_ids = {sql_am_nofile.normalise(x, include_prefix=True) for x in validated_ids}
+        all_ids_stored = sql_am_nofile.storage_manager.get_all_keys()
+        # check that all the validated ids are stored in the json file
+        self.assertEqual(validated_ids, all_ids_stored)
+        sql_am_nofile.storage_manager.delete_storage()
+        # check that the support file was correctly deleted
+        self.assertEqual(sql_am_nofile.storage_manager.get_all_keys(), set())
+
+    def test_orcid_redis_file_api(self):
+        # Uses data in redis db
+        # Uses RedisStorageManager
+        # does not use API (so a syntactically correct id is considered to be valid)
+        # fills db
+
+        to_insert = [self.invalid_orcid_1, self.valid_orcid_1]
+        storage_manager = RedisStorageManager(testing=True)
+        sql_file = ORCIDManager(storage_manager=storage_manager, use_api_service=True)
+        for id in to_insert:
+            norm_id = sql_file.normalise(id, include_prefix=True)
+            is_valid = sql_file.is_valid(norm_id)
+            #insert_tup = (norm_id, is_valid)
+            sql_file.storage_manager.set_value(norm_id,is_valid)
+
+        sql_no_api = ORCIDManager(storage_manager=storage_manager, use_api_service=False)
+        all_db_keys = sql_no_api.storage_manager.get_all_keys()
+        #check that all the normalised ids in the list were correctly inserted in the db
+        self.assertTrue(all(sql_no_api.normalise(x,include_prefix=True) in all_db_keys for x in to_insert))
+
+        self.assertTrue(sql_no_api.is_valid(self.valid_orcid_1)) # is stored in support file as valid
+        self.assertFalse(sql_no_api.is_valid(self.invalid_orcid_1)) # is stored in support file as invalid
+        self.assertTrue(sql_no_api.is_valid(sql_no_api.normalise(self.invalid_orcid_5, include_prefix=True))) # is not stored in support file as invalid, does not exist but has correct syntax
+        sql_no_api.storage_manager.delete_storage()
+
+    def test_orcid_redis_nofile_noapi(self):
+        # No data in redis db
+        # Uses RedisStorageManager
+        # Does not API (so a syntactically correct id which is not valid is considered to be valid)
+        am_nofile_noapi = ORCIDManager(storage_manager=RedisStorageManager(testing=True), use_api_service=False)
+        self.assertTrue(am_nofile_noapi.is_valid(self.valid_orcid_1))
+        self.assertTrue(am_nofile_noapi.is_valid(self.invalid_orcid_5))
+        am_nofile_noapi.storage_manager.delete_storage()
+
+
+
