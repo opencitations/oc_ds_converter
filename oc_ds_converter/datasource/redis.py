@@ -72,7 +72,7 @@ class RedisDataSource(DataSource):
 
     def mget(self, resources_id):
         if resources_id:
-            return [json.loads(x) if x else None for x in self._r.mget(resources_id)]
+            return [json.loads(x.decode("utf-8")) if x else None for x in self._r.mget(resources_id)]
         else:
             return[]
         # return {
