@@ -1564,7 +1564,28 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(op._redis_values_ra, ra)
 
 
-    #### REAL REDIS TESTS (SKIPPED IF REDIS IS NOT CONNECTED // REDIS DB 2 IS NOT EMPTY)
+    #### REAL REDIS TESTS (SKIPPED IF REDIS IS NOT CONNECTED // REDIS DB 14 IS NOT EMPTY)
+
+    def test_get_reids_validity_list_real_redis(self):
+        function_to_execute = "test_get_reids_validity_list_real_redis"
+        try:
+            rsm = RedisStorageManager(testing=False)
+            rsm.set_value("TEST VALUE", False)
+            run_test = True
+        except:
+            run_test = False
+            print(f'test skipped: {function_to_execute}: Connect to redis before running the test')
+        if run_test:
+            rsm.del_value("TEST VALUE")
+            op = OpenaireProcessing(storage_manager=RedisStorageManager(testing=False))
+            if not op.BR_redis.get("pmcid:PMC4005913"):
+                op.BR_redis.set("pmcid:PMC4005913", "ra/061randomra")
+            list_br = ['pmcid:PMC4005913', 'pmid:24632350', 'pmid:1581770']
+            out_list = op.get_reids_validity_list(list_br, "br")
+            exp = ['pmcid:PMC4005913']
+            self.assertEqual(exp, out_list)
+            op.BR_redis.delete("pmcid:PMC4005913")
+            self.assertFalse(op.BR_redis.get("pmcid:PMC4005913"))
 
     def real_redis_test_case(self, function_to_execute):
         try:
