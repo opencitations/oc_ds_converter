@@ -71,7 +71,10 @@ class RedisDataSource(DataSource):
             return None
 
     def mget(self, resources_id):
-        return [json.loads(x) if x else None for x in self._r.mget(resources_id)]
+        if resources_id:
+            return [json.loads(x) if x else None for x in self._r.mget(resources_id)]
+        else:
+            return[]
         # return {
         #     resources_id[i]: json.loads(v) if not v is None else None
         #     for i, v in enumerate(self._r.mget(resources_id))
@@ -90,4 +93,5 @@ class RedisDataSource(DataSource):
         return self._r.set(resource_id, json.dumps(value))
 
     def mset(self, resources):
-        return self._r.mset({k: json.dumps(v) for k, v in resources.items()})
+        if resources:
+            return self._r.mset({k: json.dumps(v) for k, v in resources.items()})

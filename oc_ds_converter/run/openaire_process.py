@@ -34,7 +34,7 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
             cache_dict = {"completed_tar":[]}
             json.dump(cache_dict, c)
 
-    if not testing:
+    if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(openaire_json_dir)
         els_to_be_removed = []
         for el in input_dir_cont:
