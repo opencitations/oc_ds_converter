@@ -316,6 +316,7 @@ class OpenAireProcessTest(unittest.TestCase):
             if el.endswith("decompr_zip_dir"):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
 
+
     def test_any_db_creation(self):
         preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db)
         self.assertTrue(os.path.exists(self.any_db))

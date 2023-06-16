@@ -626,7 +626,7 @@ class OpenaireProcessing(RaProcessor):
                                 if norm_orcid in self._redis_values_ra:
                                     orcid = norm_orcid
                                 # if the id is not in redis db, validate it before appending
-                                elif self.orcid_m.is_valid(norm_orcid):
+                                elif self.tmp_orcid_m.is_valid(norm_orcid):
                                     orcid = norm_orcid
 
 
