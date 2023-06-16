@@ -16,23 +16,27 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteSt
 
 
 def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager: Callable[[], StorageManager] = None, storage_path:str = None, testing=True, redis_storage_manager=False) -> None:
-    if cache and not cache.endswith(".json"):
-        raise ValueError("The cache file must be a json file")
-    if cache and os.path.exists(cache):
-        with open(cache, "r", encoding="utf-8") as c:
-            cache_dict = json.load(c)
-            if not "completed_tar" in cache_dict:
-                cache_dict["completed_tar"] = []
-    else:
-        if cache and not os.path.exists(cache):
-            if not os.path.exists(os.path.abspath(os.path.join(cache, os.pardir))):
-                Path(os.path.abspath(os.path.join(cache, os.pardir))).mkdir(parents=True, exist_ok=True)
-        else:
+    if cache:
+        if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
+            cache_dict = dict()
+        else:
+            if os.path.exists(cache):
+                with open(cache, "r", encoding="utf-8") as c:
+                    cache_dict = json.load(c)
+            else:
+                if not os.path.exists(os.path.abspath(os.path.join(cache, os.pardir))):
+                    Path(os.path.abspath(os.path.join(cache, os.pardir))).mkdir(parents=True, exist_ok=True)
+                cache_dict = dict()
+    else:
+        cache = os.path.join(os.getcwd(), "cache.json")
+        cache_dict = dict()
+    if not "completed_tar" in cache_dict:
+        cache_dict["completed_tar"] = []
 
-        with open(cache, "w") as c:
-            cache_dict = {"completed_tar":[]}
-            json.dump(cache_dict, c)
+    with open(cache, "w", encoding="utf-8") as c:
+        json.dump(cache_dict, c)
+
 
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(openaire_json_dir)

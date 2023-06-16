@@ -57,6 +57,7 @@ class OpenAireProcessTest(unittest.TestCase):
 
         self.processing_csv_row_base = os.path.join('test', 'openaire_processing')
         self._id_orcid_data = os.path.join(self.processing_csv_row_base, 'iod')
+        self.cache = os.path.join(os.getcwd(), "cache.json")
 
     def test_preprocess_base_decompress_and_read(self):
         """Test base functionalities of the OROCI processor for producing META csv tables and INDEX tables:
@@ -74,7 +75,7 @@ class OpenAireProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager,storage_path=self.any_db)
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager,storage_path=self.any_db, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -146,7 +147,7 @@ class OpenAireProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=RedisStorageManager,storage_path=self.any_db)
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=RedisStorageManager,storage_path=self.any_db, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -219,7 +220,7 @@ class OpenAireProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db)
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -277,7 +278,7 @@ class OpenAireProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=RedisStorageManager)
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=RedisStorageManager, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -318,7 +319,7 @@ class OpenAireProcessTest(unittest.TestCase):
 
 
     def test_any_db_creation(self):
-        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db)
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, storage_manager=SqliteStorageManager, storage_path=self.any_db, cache=self.cache)
         self.assertTrue(os.path.exists(self.any_db))
         for el in os.listdir(self.sample_dupl):
             if el.endswith("decompr_zip_dir"):
@@ -339,7 +340,7 @@ class OpenAireProcessTest(unittest.TestCase):
             if not len(rsm.get_all_keys()):
                 preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir,
                            publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid,testing=False,
-                           redis_storage_manager=True)
+                           redis_storage_manager=True, cache=self.cache)
 
                 for el in os.listdir(self.sample_dupl):
                     if el.endswith("decompr_zip_dir"):
