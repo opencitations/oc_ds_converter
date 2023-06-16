@@ -494,7 +494,7 @@ class OpenaireProcessing(RaProcessor):
                             result_id_dict_list.append(id_dict)
                             return result_id_dict_list
                         # if the id is not in redis db, validate it before appending
-                        elif self.doi_m.is_valid(norm_id):
+                        elif self.tmp_doi_m.is_valid(norm_id):
                             result_id_dict_list.append(id_dict)
                             return result_id_dict_list
 
@@ -515,7 +515,7 @@ class OpenaireProcessing(RaProcessor):
                                     result_id_dict_list.append(id_dict)
                                     return result_id_dict_list
                                 # if the id is not in redis db, validate it before appending
-                                elif self.doi_m.is_valid(norm_id):
+                                elif self.tmp_doi_m.is_valid(norm_id):
                                     result_id_dict_list.append(id_dict)
                                     return result_id_dict_list
 
