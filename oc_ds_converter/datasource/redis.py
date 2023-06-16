@@ -72,7 +72,7 @@ class RedisDataSource(DataSource):
 
     def mget(self, resources_id):
         if resources_id:
-            return [x if x else None for x in self._r.mget(resources_id)]
+            return [x if x and isinstance(x, (int,str,bool)) else json.loads(x) if x and isinstance(x, bytes) else None for x in self._r.mget(resources_id)]
         else:
             return[]
         # return {
@@ -94,4 +94,4 @@ class RedisDataSource(DataSource):
 
     def mset(self, resources):
         if resources:
-            return self._r.mset({k: json.dumps(v) for k, v in resources.items()})
+            return self._r.mset({k: v for k, v in resources.items()})
