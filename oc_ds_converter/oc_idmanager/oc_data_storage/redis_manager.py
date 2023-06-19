@@ -22,7 +22,7 @@ class RedisStorageManager(StorageManager):
     """A concrete implementation of the ``StorageManager`` interface that persistently stores
     the IDs validity values within a REDIS database."""
 
-    def __init__(self,  testing=True, **params) -> None:
+    def __init__(self,  testing=True, config_filepath: str = 'config.ini', **params) -> None:
         """
         Constructor of the ``RedisStorageManager`` class.
 
@@ -34,7 +34,7 @@ class RedisStorageManager(StorageManager):
             self.PROCESS_redis = fakeredis.FakeStrictRedis()
         else:
             self.testing = False
-            self.PROCESS_redis = RedisDataSource("PROCESS-DB")
+            self.PROCESS_redis = RedisDataSource("PROCESS-DB", config_filepath)
         super().__init__(**params)
 
 

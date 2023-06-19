@@ -2,7 +2,6 @@ import functools
 import os.path
 import sys
 from tarfile import TarInfo
-from typing import Callable, Optional, Type
 
 import yaml
 from oc_ds_converter.lib.file_manager import normalize_path
@@ -13,8 +12,6 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
     RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
     SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import \
-    StorageManager
 from oc_ds_converter.openaire.openaire_processing import *
 from pebble import ProcessFuture, ProcessPool
 from tqdm import tqdm
@@ -22,8 +19,7 @@ from tqdm import tqdm
 
 def preprocess(
         openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, 
-        csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, 
-        storage_manager: Callable[[], StorageManager] = None, storage_path:str = None, 
+        csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None, 
         testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
     if cache:
         if not cache.endswith(".json"):
@@ -67,58 +63,6 @@ def preprocess(
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
-    if not redis_storage_manager and not isinstance(storage_manager, RedisStorageManager):
-        # in case no storage_manager was passed in input, but the type of storage_manager can be derived from the type of
-        # storage filepath
-        if storage_path and not storage_manager:
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager()
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager()
-
-        # In case no storage manager was passed in input and the type of desired storage manager can not be derived from
-        # the extension of the database file, the default storagemanager is SqliteStorageManager()
-
-        storage_manager = storage_manager if (storage_manager and isinstance(storage_manager, StorageManager)) else SqliteStorageManager()
-
-        # in case a path was passed in input, but the filepath does not exist, if the file has an extension which is compatible
-        # with the type of storage manager, the filepath is used as db location.
-
-        if storage_path and not os.path.exists(storage_path):
-            # if parent dir does not exist, it is created
-            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-
-            if isinstance(storage_manager, SqliteStorageManager) and storage_path.endswith(".db"):
-                pass
-            elif isinstance(storage_manager, InMemoryStorageManager) and storage_path.endswith(".json"):
-                pass
-            else:
-                # if the storage_path extension is not compatible with the storagemanager type, a default one will be assigned,
-                # in accordance with the storagemanager type (a .db file for SqliteStorageManager and a .json for InMemoryStorageManager).
-                storage_path = None
-
-        if not storage_path:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            if isinstance(storage_manager, SqliteStorageManager):
-                storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-            else:
-                storage_manager = InMemoryStorageManager(os.path.join(new_path_dir, "id_valid_dict.json"))
-
-        else:
-            if isinstance(storage_manager, InMemoryStorageManager):
-                storage_manager = InMemoryStorageManager(storage_path)
-            else:
-                storage_manager = SqliteStorageManager(storage_path)
-
-    else:
-        if testing:
-            storage_manager = RedisStorageManager(testing=True)
-        else:
-            storage_manager = RedisStorageManager(testing=False)
-
     req_type = ".gz"
     preprocessed_citations_dir = csv_dir + "_citations"
     if not os.path.exists(preprocessed_citations_dir):
@@ -140,21 +84,20 @@ def preprocess(
         print(f'[INFO: openaire_process] Getting all files from {openaire_json_dir}')
 
     all_input_tar = os.listdir(openaire_json_dir)
-    openaire_csv = OpenaireProcessing(orcid_index=None, doi_csv=None, publishers_filepath_openaire=None, storage_manager=storage_manager, testing=testing)
     for tar in all_input_tar:
         if tar in cache_dict["completed_tar"]:
             continue
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
-        if isinstance(storage_manager, SqliteStorageManager) or max_workers == 1:
+        if not redis_storage_manager or max_workers == 1:
             for filename in all_files:
-                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, openaire_csv)
+                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing)
                 if tar not in  cache_dict:
                     cache_dict[tar]=[filename]
                 else:
                     cache_dict[tar].append(filename)
                 with open(cache, 'w', encoding='utf-8') as aux_file:
                     json.dump(cache_dict, aux_file)                
-        else:
+        elif redis_storage_manager or max_workers > 1:
             with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
                 for filename in all_files:
                     if tar in cache_dict:
@@ -162,7 +105,7 @@ def preprocess(
                             continue
                     future:ProcessFuture = executor.schedule(
                         function = get_citations_and_metadata,
-                        args=(tar, preprocessed_citations_dir, csv_dir, filename, openaire_csv)
+                        args=(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing)
                     )
                     future.add_done_callback(functools.partial(task_done, cache_dict, cache))
         cache_dict["completed_tar"].append(tar)
@@ -173,7 +116,9 @@ def preprocess(
         if os.path.exists(cache):
             os.remove(cache)
 
-def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, openaire_csv: OpenaireProcessing):
+def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str, doi_csv: str, publishers_filepath_openaire: str, storage_path: str, redis_storage_manager: bool, testing: bool):
+    storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+    openaire_csv = OpenaireProcessing(orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath_openaire=publishers_filepath_openaire, storage_manager=storage_manager, testing=testing)
     index_citations_to_csv = []
     f = gzip.open(filename, 'rb')
     source_data = f.readlines()
@@ -184,7 +129,8 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
     pathoo(filepath)
     data = list()
-    for entity in tqdm(source_data):
+    pbar = tqdm(total=len(source_data))
+    for entity in source_data:
         if entity:
             d = json.loads(entity.decode('utf-8'))
             if d.get("relationship"):
@@ -283,6 +229,8 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         citation["citing"] = any_source_id
                         citation["referenced"] = any_target_id
                         index_citations_to_csv.append(citation)
+        pbar.update()
+    pbar.close()
     if data:
         with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
             dict_writer = csv.DictWriter(output_file, data[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
@@ -297,8 +245,31 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     openaire_csv.memory_to_storage()
     return tar, filename
 
+def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
+    if not redis_storage_manager:
+        if storage_path:
+            if not os.path.exists(storage_path):
+            # if parent dir does not exist, it is created
+                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+            if storage_path.endswith(".db"):
+                storage_manager = SqliteStorageManager(storage_path)
+            elif storage_path.endswith(".json"):
+                storage_manager = InMemoryStorageManager(storage_path)
+
+        if not storage_path and not redis_storage_manager:
+            new_path_dir = os.path.join(os.getcwd(), "storage")
+            if not os.path.exists(new_path_dir):
+                os.makedirs(new_path_dir)
+            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
+    elif redis_storage_manager:
+        if testing:
+            storage_manager = RedisStorageManager(testing=True)
+        else:
+            storage_manager = RedisStorageManager(testing=False)
+    return storage_manager
+
 def task_done(cache_dict: dict, cache: str, task_output:ProcessFuture) -> None:
-    import traceback
     try:
         tar, filename = task_output.result()
         if tar not in  cache_dict:
@@ -309,7 +280,7 @@ def task_done(cache_dict: dict, cache: str, task_output:ProcessFuture) -> None:
         with open(cache, 'w', encoding='utf-8') as aux_file:
             json.dump(cache_dict, aux_file)
     except Exception as e:
-        traceback.print_exc()
+        print(e)
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
@@ -334,9 +305,6 @@ if __name__ == '__main__':
                         help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
                             help='Show a loading bar, elapsed time and estimated time')
-    arg_parser.add_argument('-sm', '--storage_manager', dest='storage_manager', required=False,
-                        help='The storage manager to store in memory the processed data. '
-                             'Either InMemoryStorageManager or SqliteStorageManager')
     arg_parser.add_argument('-sp', '--storage_path', dest='storage_path', required=False,
                             help='path of the file where to store data concerning validated pids information.'
                                  'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
@@ -370,8 +338,6 @@ if __name__ == '__main__':
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
-    storage_manager = settings['storage_manager'] if settings else args.storage_manager
-    storage_manager = storage_manager if storage_manager else None
     storage_path = settings['storage_path'] if settings else args.storage_path
     storage_path = normalize_path(storage_path) if storage_path else None
     testing = settings['testing'] if settings else args.testing
@@ -380,5 +346,5 @@ if __name__ == '__main__':
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
                orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, 
-               cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path, testing=testing, 
+               cache=cache, verbose=verbose, storage_path=storage_path, testing=testing, 
                redis_storage_manager=redis_storage_manager, max_workers=max_workers)

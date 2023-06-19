@@ -22,16 +22,14 @@ import redis
 
 from oc_ds_converter.datasource.datasource import DataSource
 
-# Read the Redis configuration file
-config = configparser.ConfigParser(allow_no_value=True)
-cur_path = os.path.dirname(os.path.abspath(__file__))
-conf_file = join(cur_path, "config.ini")
-config.read(conf_file)
-
 
 class RedisDataSource(DataSource):
-    def __init__(self, service):
+    def __init__(self, service, config_filepath: str = 'config.ini'):
         super().__init__(service)
+        config = configparser.ConfigParser(allow_no_value=True)
+        cur_path = os.path.dirname(os.path.abspath(__file__))
+        conf_file = config_filepath if config_filepath != 'config.ini' else join(cur_path, config_filepath)
+        config.read(conf_file)
         if service == "DB-META-RA":
             self._r =  redis.Redis(
                             host='127.0.0.1',
