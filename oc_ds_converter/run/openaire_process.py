@@ -135,7 +135,7 @@ def preprocess(
             log = '[INFO: openaire_process] Processing: ' + '; '.join(what)
             print(log)
 
-    openaire_csv = OpenaireProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath, publishers_filepath_openaire=publishers_filepath, storage_manager=storage_manager, testing=testing)
+    
     if verbose:
         print(f'[INFO: openaire_process] Getting all files from {openaire_json_dir}')
 
@@ -146,15 +146,13 @@ def preprocess(
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
         if isinstance(storage_manager, SqliteStorageManager) or max_workers == 1:
             for filename in all_files:
-                get_citations_and_metadata(preprocessed_citations_dir, csv_dir, filename, openaire_csv)
+                get_citations_and_metadata(preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_manager, testing)
                 if tar not in  cache_dict:
                     cache_dict[tar]=[filename]
                 else:
                     cache_dict[tar].append(filename)
                 with open(cache, 'w', encoding='utf-8') as aux_file:
-                    json.dump(cache_dict, aux_file)
-                # Data in memory is saved in storage and memory is emptied before processing a new file
-                openaire_csv.memory_to_storage()
+                    json.dump(cache_dict, aux_file)                
         else:
             with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
                 for filename in all_files:
@@ -163,9 +161,9 @@ def preprocess(
                             continue
                     future:ProcessFuture = executor.schedule(
                         function = get_citations_and_metadata,
-                        args=(preprocessed_citations_dir, csv_dir, filename, openaire_csv)
+                        args=(preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_manager, testing)
                     )
-                    future.add_done_callback(functools.partial(task_done, tar, filename, cache_dict, cache, openaire_csv))
+                    future.add_done_callback(functools.partial(task_done, tar, filename, cache_dict, cache))
         cache_dict["completed_tar"].append(tar)
         with open(cache, 'w', encoding='utf-8') as aux_file:
             json.dump(cache_dict, aux_file)
@@ -174,7 +172,8 @@ def preprocess(
         if os.path.exists(cache):
             os.remove(cache)
 
-def get_citations_and_metadata(preprocessed_citations_dir: str, csv_dir: str, filename: str, openaire_csv: OpenaireProcessing):
+def get_citations_and_metadata(preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_doi_filepath: str, wanted_doi_filepath: str, publishers_filepath: str, storage_manager: str, testing: bool):
+    openaire_csv = OpenaireProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath, publishers_filepath_openaire=publishers_filepath, storage_manager=storage_manager, testing=testing)
     index_citations_to_csv = []
     f = gzip.open(filename, 'rb')
     source_data = f.readlines()
@@ -295,6 +294,7 @@ def get_citations_and_metadata(preprocessed_citations_dir: str, csv_dir: str, fi
             dict_writer = csv.DictWriter(output_file_citations, index_citations_to_csv[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
             dict_writer.writeheader()
             dict_writer.writerows(index_citations_to_csv)
+    openaire_csv.memory_to_storage()
 
 def task_done(task_output:ProcessFuture, tar: str, filename: str, cache_dict: dict, cache: str, openaire_csv: OpenaireProcessing) -> None:
     try:
