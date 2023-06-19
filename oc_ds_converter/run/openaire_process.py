@@ -296,7 +296,7 @@ def get_citations_and_metadata(preprocessed_citations_dir: str, csv_dir: str, fi
             dict_writer.writerows(index_citations_to_csv)
     openaire_csv.memory_to_storage()
 
-def task_done(task_output:ProcessFuture, tar: str, filename: str, cache_dict: dict, cache: str, openaire_csv: OpenaireProcessing) -> None:
+def task_done(task_output:ProcessFuture, tar: str, filename: str, cache_dict: dict, cache: str) -> None:
     try:
         task_output.result()
         if tar not in  cache_dict:
@@ -306,12 +306,8 @@ def task_done(task_output:ProcessFuture, tar: str, filename: str, cache_dict: di
 
         with open(cache, 'w', encoding='utf-8') as aux_file:
             json.dump(cache_dict, aux_file)
-
-        # Data in memory is saved in storage and memory is emptied before processing a new file
-        openaire_csv.memory_to_storage()
     except Exception as e:
         print(e)
-
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
