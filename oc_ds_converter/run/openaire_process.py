@@ -1,3 +1,4 @@
+import functools
 import os.path
 import sys
 from tarfile import TarInfo
@@ -145,15 +146,26 @@ def preprocess(
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
         if isinstance(storage_manager, SqliteStorageManager) or max_workers == 1:
             for filename in all_files:
-                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, openaire_csv, cache, cache_dict)
+                get_citations_and_metadata(preprocessed_citations_dir, csv_dir, filename, openaire_csv)
+                if tar not in  cache_dict:
+                    cache_dict[tar]=[filename]
+                else:
+                    cache_dict[tar].append(filename)
+                with open(cache, 'w', encoding='utf-8') as aux_file:
+                    json.dump(cache_dict, aux_file)
+                # Data in memory is saved in storage and memory is emptied before processing a new file
+                openaire_csv.memory_to_storage()
         else:
             with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
                 for filename in all_files:
+                    if tar in cache_dict:
+                        if filename in cache_dict[tar]:
+                            continue
                     future:ProcessFuture = executor.schedule(
                         function = get_citations_and_metadata,
-                        args=(tar, preprocessed_citations_dir, csv_dir, filename, openaire_csv, cache, cache_dict)
+                        args=(preprocessed_citations_dir, csv_dir, filename, openaire_csv)
                     )
-                    future.add_done_callback(task_done)
+                    future.add_done_callback(functools.partial(task_done, tar, filename, cache_dict, cache, openaire_csv))
         cache_dict["completed_tar"].append(tar)
         with open(cache, 'w', encoding='utf-8') as aux_file:
             json.dump(cache_dict, aux_file)
@@ -162,10 +174,7 @@ def preprocess(
         if os.path.exists(cache):
             os.remove(cache)
 
-def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, openaire_csv: OpenaireProcessing, cache: str, cache_dict: dict):
-    if tar in cache_dict:
-        if filename in cache_dict[tar]:
-            return
+def get_citations_and_metadata(preprocessed_citations_dir: str, csv_dir: str, filename: str, openaire_csv: OpenaireProcessing):
     index_citations_to_csv = []
     f = gzip.open(filename, 'rb')
     source_data = f.readlines()
@@ -275,8 +284,6 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         citation["citing"] = any_source_id
                         citation["referenced"] = any_target_id
                         index_citations_to_csv.append(citation)
-
-
     if data:
         with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
             dict_writer = csv.DictWriter(output_file, data[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
@@ -289,20 +296,19 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
             dict_writer.writeheader()
             dict_writer.writerows(index_citations_to_csv)
 
-    if tar not in  cache_dict:
-        cache_dict[tar]=[filename]
-    else:
-        cache_dict[tar].append(filename)
-
-    with open(cache, 'w', encoding='utf-8') as aux_file:
-        json.dump(cache_dict, aux_file)
-
-    # Data in memory is saved in storage and memory is emptied before processing a new file
-    openaire_csv.memory_to_storage()
-
-def task_done(task_output:ProcessFuture) -> None:
+def task_done(task_output:ProcessFuture, tar: str, filename: str, cache_dict: dict, cache: str, openaire_csv: OpenaireProcessing) -> None:
     try:
-        output = task_output.result()
+        task_output.result()
+        if tar not in  cache_dict:
+            cache_dict[tar]=[filename]
+        else:
+            cache_dict[tar].append(filename)
+
+        with open(cache, 'w', encoding='utf-8') as aux_file:
+            json.dump(cache_dict, aux_file)
+
+        # Data in memory is saved in storage and memory is emptied before processing a new file
+        openaire_csv.memory_to_storage()
     except Exception as e:
         print(e)
 
