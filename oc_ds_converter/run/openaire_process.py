@@ -1,21 +1,29 @@
 import os.path
 import sys
 from tarfile import TarInfo
+from typing import Callable, Optional, Type
 
 import yaml
-from tqdm import tqdm
-
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import *
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
+    InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
+    RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
+    SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import \
+    StorageManager
 from oc_ds_converter.openaire.openaire_processing import *
-from typing import Type, Optional, Callable
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from pebble import ProcessFuture, ProcessPool
+from tqdm import tqdm
 
 
-def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_manager: Callable[[], StorageManager] = None, storage_path:str = None, testing=True, redis_storage_manager=False) -> None:
+def preprocess(
+        openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, 
+        csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, 
+        storage_manager: Callable[[], StorageManager] = None, storage_path:str = None, 
+        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -131,156 +139,21 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
         print(f'[INFO: openaire_process] Getting all files from {openaire_json_dir}')
 
     all_input_tar = os.listdir(openaire_json_dir)
-    pbar_tar = tqdm(all_input_tar)
-    for tar in pbar_tar:
+    for tar in all_input_tar:
         if tar in cache_dict["completed_tar"]:
             continue
-        pbar_tar.set_description("Processing %s" % tar)
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
-
-        pbar_all_files = tqdm(all_files)
-        for filename in pbar_all_files:
-
-            if tar in cache_dict:
-                if filename in cache_dict[tar]:
-                    continue
-
-            pbar_all_files.set_description(f'Processing File: {filename.split("/")[-1]} in tar {tar}')
-            index_citations_to_csv = []
-            f = gzip.open(filename, 'rb')
-            source_data = f.readlines()
-            f.close()
-            filename = filename.name if isinstance(filename, TarInfo) else filename
-            filename_without_ext = filename.replace('.json', '').replace('.tar', '').replace('.gz', '')
-            filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
-            filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
-            pathoo(filepath)
-            data = list()
-            for entity in tqdm(source_data):
-                if entity:
-
-                    d = json.loads(entity.decode('utf-8'))
-                    if d.get("relationship"):
-                        if d.get("relationship").get("name") == "Cites":
-
-                            norm_source_ids = []
-                            norm_target_ids = []
-
-                            any_source_id = ""
-                            any_target_id = ""
-
-                            all_br, all_ra = openaire_csv.extract_all_ids(json.loads(entity))
-                            redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
-                            redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
-
-                            source_entity = d.get("source")
-                            if source_entity:
-                                norm_source_ids = openaire_csv.get_norm_ids(source_entity['identifier'])
-                                if norm_source_ids:
-                                    for e, nsi in enumerate(norm_source_ids):
-                                        stored_validity = openaire_csv.validated_as(nsi)
-                                        norm_source_ids[e]["valid"] = stored_validity
-
-
-                            target_entity = d.get("target")
-                            if target_entity:
-                                norm_target_ids = openaire_csv.get_norm_ids(target_entity['identifier'])
-                                if norm_target_ids:
-                                    for i, nti in enumerate(norm_target_ids):
-                                        stored_validity_t = openaire_csv.validated_as(nti)
-                                        norm_target_ids[i]["valid"] = stored_validity_t
-
-                            # check that there is a citation we can handle (i.e.: expressed with ids we actually manage)
-                            if norm_source_ids and norm_target_ids:
-
-                                source_entity_upd_ids = {k:v for k,v in source_entity.items() if k != "identifier"}
-                                source_valid_ids = [x for x in norm_source_ids if x["valid"] is True]
-                                source_invalid_ids = [x for x in norm_source_ids if x["valid"] is False]
-                                source_to_be_val_ids = [x for x in norm_source_ids if x["valid"] is None]
-                                source_identifier = {}
-                                source_identifier["valid"] = source_valid_ids
-                                source_identifier["not_valid"] = source_invalid_ids
-                                source_identifier["to_be_val"] = source_to_be_val_ids
-                                source_entity_upd_ids["identifier"] = source_identifier
-                                source_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
-
-                                target_entity_upd_ids = {k:v for k,v in target_entity.items() if k != "identifier"}
-                                target_valid_ids = [x for x in norm_target_ids if x["valid"] is True]
-                                target_invalid_ids = [x for x in norm_target_ids if x["valid"] is False]
-                                target_to_be_val_ids = [x for x in norm_target_ids if x["valid"] is None]
-                                target_identifier = {}
-                                target_identifier["valid"] = target_valid_ids
-                                target_identifier["not_valid"] = target_invalid_ids
-                                target_identifier["to_be_val"] = target_to_be_val_ids
-                                target_entity_upd_ids["identifier"] = target_identifier
-                                target_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
-
-                                # creation of a new row in meta table because there are new ids to be validated.
-                                # "any_source_id" will be chosen among the valid source entity ids, if any
-                                if source_identifier["to_be_val"]:
-                                    source_tab_data = openaire_csv.csv_creator(source_entity_upd_ids) #valid_citation_ids_s --> evitare rivalidazione ?
-                                    if source_tab_data:
-                                        processed_source_ids = source_tab_data["id"].split(" ")
-                                        all_citing_valid = processed_source_ids
-                                        if all_citing_valid: # It meanst that there is at least one valid id for the citing entity
-                                            any_source_id = all_citing_valid[0]
-                                            data.append(source_tab_data) # Otherwise the row should not be included in meta tables
-
-
-                                # skip creation of a new row in meta table because there is no new id to be validated
-                                # "any_source_id" will be chosen among the valid source entity ids, if any
-                                elif source_identifier["valid"]:
-                                    all_citing_valid = source_identifier["valid"]
-                                    any_source_id = all_citing_valid[0]["identifier"]
-
-                                # creation of a new row in meta table because there are new ids to be validated.
-                                # "any_target_id" will be chosen among the valid target entity ids, if any
-                                if target_identifier["to_be_val"]:
-                                    target_tab_data = openaire_csv.csv_creator(target_entity_upd_ids) # valid_citation_ids_t  --> evitare rivalidazione ?
-                                    if target_tab_data:
-                                        processed_target_ids = target_tab_data["id"].split(" ")
-                                        all_cited_valid = processed_target_ids
-                                        if all_cited_valid:
-                                            any_target_id = all_cited_valid[0]
-                                            data.append(target_tab_data) # Otherwise the row should not be included in meta tables
-
-                                # skip creation of a new row in meta table because there is no new id to be validated
-                                # "any_target_id" will be chosen among the valid source entity ids, if any
-                                elif target_identifier["valid"]:
-                                    all_cited_valid = target_identifier["valid"]
-                                    any_target_id = all_cited_valid[0]["identifier"]
-
-
-                            if any_source_id and any_target_id:
-                                citation = dict()
-                                citation["citing"] = any_source_id
-                                citation["referenced"] = any_target_id
-                                index_citations_to_csv.append(citation)
-
-
-            if data:
-                with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
-                    dict_writer = csv.DictWriter(output_file, data[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
-                    dict_writer.writeheader()
-                    dict_writer.writerows(data)
-
-            if index_citations_to_csv:
-                with open(filepath_citations, 'w', newline='', encoding='utf-8') as output_file_citations:
-                    dict_writer = csv.DictWriter(output_file_citations, index_citations_to_csv[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
-                    dict_writer.writeheader()
-                    dict_writer.writerows(index_citations_to_csv)
-
-            if tar not in  cache_dict:
-                cache_dict[tar]=[filename]
-            else:
-                cache_dict[tar].append(filename)
-
-            with open(cache, 'w', encoding='utf-8') as aux_file:
-                json.dump(cache_dict, aux_file)
-
-            # Data in memory is saved in storage and memory is emptied before processing a new file
-            openaire_csv.memory_to_storage()
-
+        if isinstance(storage_manager, SqliteStorageManager) or max_workers == 1:
+            for filename in all_files:
+                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, openaire_csv, cache, cache_dict)
+        else:
+            with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
+                for filename in all_files:
+                    future:ProcessFuture = executor.schedule(
+                        function = get_citations_and_metadata,
+                        args=(tar, preprocessed_citations_dir, csv_dir, filename, openaire_csv, cache, cache_dict)
+                    )
+                    future.add_done_callback(task_done)
         cache_dict["completed_tar"].append(tar)
         with open(cache, 'w', encoding='utf-8') as aux_file:
             json.dump(cache_dict, aux_file)
@@ -288,6 +161,150 @@ def preprocess(openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     if cache:
         if os.path.exists(cache):
             os.remove(cache)
+
+def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, openaire_csv: OpenaireProcessing, cache: str, cache_dict: dict):
+    if tar in cache_dict:
+        if filename in cache_dict[tar]:
+            return
+    index_citations_to_csv = []
+    f = gzip.open(filename, 'rb')
+    source_data = f.readlines()
+    f.close()
+    filename = filename.name if isinstance(filename, TarInfo) else filename
+    filename_without_ext = filename.replace('.json', '').replace('.tar', '').replace('.gz', '')
+    filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
+    filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
+    pathoo(filepath)
+    data = list()
+    for entity in tqdm(source_data):
+        if entity:
+            d = json.loads(entity.decode('utf-8'))
+            if d.get("relationship"):
+                if d.get("relationship").get("name") == "Cites":
+
+                    norm_source_ids = []
+                    norm_target_ids = []
+
+                    any_source_id = ""
+                    any_target_id = ""
+
+                    all_br, all_ra = openaire_csv.extract_all_ids(json.loads(entity))
+                    redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
+                    redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
+
+                    source_entity = d.get("source")
+                    if source_entity:
+                        norm_source_ids = openaire_csv.get_norm_ids(source_entity['identifier'])
+                        if norm_source_ids:
+                            for e, nsi in enumerate(norm_source_ids):
+                                stored_validity = openaire_csv.validated_as(nsi)
+                                norm_source_ids[e]["valid"] = stored_validity
+
+
+                    target_entity = d.get("target")
+                    if target_entity:
+                        norm_target_ids = openaire_csv.get_norm_ids(target_entity['identifier'])
+                        if norm_target_ids:
+                            for i, nti in enumerate(norm_target_ids):
+                                stored_validity_t = openaire_csv.validated_as(nti)
+                                norm_target_ids[i]["valid"] = stored_validity_t
+
+                    # check that there is a citation we can handle (i.e.: expressed with ids we actually manage)
+                    if norm_source_ids and norm_target_ids:
+
+                        source_entity_upd_ids = {k:v for k,v in source_entity.items() if k != "identifier"}
+                        source_valid_ids = [x for x in norm_source_ids if x["valid"] is True]
+                        source_invalid_ids = [x for x in norm_source_ids if x["valid"] is False]
+                        source_to_be_val_ids = [x for x in norm_source_ids if x["valid"] is None]
+                        source_identifier = {}
+                        source_identifier["valid"] = source_valid_ids
+                        source_identifier["not_valid"] = source_invalid_ids
+                        source_identifier["to_be_val"] = source_to_be_val_ids
+                        source_entity_upd_ids["identifier"] = source_identifier
+                        source_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
+
+                        target_entity_upd_ids = {k:v for k,v in target_entity.items() if k != "identifier"}
+                        target_valid_ids = [x for x in norm_target_ids if x["valid"] is True]
+                        target_invalid_ids = [x for x in norm_target_ids if x["valid"] is False]
+                        target_to_be_val_ids = [x for x in norm_target_ids if x["valid"] is None]
+                        target_identifier = {}
+                        target_identifier["valid"] = target_valid_ids
+                        target_identifier["not_valid"] = target_invalid_ids
+                        target_identifier["to_be_val"] = target_to_be_val_ids
+                        target_entity_upd_ids["identifier"] = target_identifier
+                        target_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
+
+                        # creation of a new row in meta table because there are new ids to be validated.
+                        # "any_source_id" will be chosen among the valid source entity ids, if any
+                        if source_identifier["to_be_val"]:
+                            source_tab_data = openaire_csv.csv_creator(source_entity_upd_ids) #valid_citation_ids_s --> evitare rivalidazione ?
+                            if source_tab_data:
+                                processed_source_ids = source_tab_data["id"].split(" ")
+                                all_citing_valid = processed_source_ids
+                                if all_citing_valid: # It meanst that there is at least one valid id for the citing entity
+                                    any_source_id = all_citing_valid[0]
+                                    data.append(source_tab_data) # Otherwise the row should not be included in meta tables
+
+
+                        # skip creation of a new row in meta table because there is no new id to be validated
+                        # "any_source_id" will be chosen among the valid source entity ids, if any
+                        elif source_identifier["valid"]:
+                            all_citing_valid = source_identifier["valid"]
+                            any_source_id = all_citing_valid[0]["identifier"]
+
+                        # creation of a new row in meta table because there are new ids to be validated.
+                        # "any_target_id" will be chosen among the valid target entity ids, if any
+                        if target_identifier["to_be_val"]:
+                            target_tab_data = openaire_csv.csv_creator(target_entity_upd_ids) # valid_citation_ids_t  --> evitare rivalidazione ?
+                            if target_tab_data:
+                                processed_target_ids = target_tab_data["id"].split(" ")
+                                all_cited_valid = processed_target_ids
+                                if all_cited_valid:
+                                    any_target_id = all_cited_valid[0]
+                                    data.append(target_tab_data) # Otherwise the row should not be included in meta tables
+
+                        # skip creation of a new row in meta table because there is no new id to be validated
+                        # "any_target_id" will be chosen among the valid source entity ids, if any
+                        elif target_identifier["valid"]:
+                            all_cited_valid = target_identifier["valid"]
+                            any_target_id = all_cited_valid[0]["identifier"]
+
+
+                    if any_source_id and any_target_id:
+                        citation = dict()
+                        citation["citing"] = any_source_id
+                        citation["referenced"] = any_target_id
+                        index_citations_to_csv.append(citation)
+
+
+    if data:
+        with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
+            dict_writer = csv.DictWriter(output_file, data[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
+            dict_writer.writeheader()
+            dict_writer.writerows(data)
+
+    if index_citations_to_csv:
+        with open(filepath_citations, 'w', newline='', encoding='utf-8') as output_file_citations:
+            dict_writer = csv.DictWriter(output_file_citations, index_citations_to_csv[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
+            dict_writer.writeheader()
+            dict_writer.writerows(index_citations_to_csv)
+
+    if tar not in  cache_dict:
+        cache_dict[tar]=[filename]
+    else:
+        cache_dict[tar].append(filename)
+
+    with open(cache, 'w', encoding='utf-8') as aux_file:
+        json.dump(cache_dict, aux_file)
+
+    # Data in memory is saved in storage and memory is emptied before processing a new file
+    openaire_csv.memory_to_storage()
+
+def task_done(task_output:ProcessFuture) -> None:
+    try:
+        output = task_output.result()
+    except Exception as e:
+        print(e)
 
 
 def pathoo(path:str) -> None:
@@ -329,6 +346,7 @@ if __name__ == '__main__':
                             help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
                                  'value is set to false, which means that -unless it is differently stated- the storage manager used is'
                                  'the one chosen as value of the parametr --storage_manager. The redis db used by the storage manager is the n.2')
+    arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int, help='Workers number')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -354,6 +372,9 @@ if __name__ == '__main__':
     storage_path = normalize_path(storage_path) if storage_path else None
     testing = settings['testing'] if settings else args.testing
     redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
+    max_workers = settings['max_workers'] if settings else args.max_workers
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
-               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path, testing=testing, redis_storage_manager=redis_storage_manager)
+               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, 
+               cache=cache, verbose=verbose, storage_manager = storage_manager, storage_path=storage_path, testing=testing, 
+               redis_storage_manager=redis_storage_manager, max_workers=max_workers)
