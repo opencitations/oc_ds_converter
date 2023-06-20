@@ -16,7 +16,7 @@ from oc_ds_converter.openaire.openaire_processing import *
 from pebble import ProcessFuture, ProcessPool
 from tqdm import tqdm
 
-
+print("cipcip")
 def preprocess(
         openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, 
         csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None, 
