@@ -247,10 +247,10 @@ class OpenaireProcessing(RaProcessor):
             json.dump(dict_to_be_saved, fd, ensure_ascii=False, indent=4)
 
     def csv_creator(self, item: dict) -> dict:
-        redis_br = item["redis_validity_lists"][0]
-        redis_ra = item["redis_validity_lists"][1]
+        #redis_br = item["redis_validity_lists"][0]
+        #redis_ra = item["redis_validity_lists"][1]
 
-        self.update_redis_values(redis_br, redis_ra)
+        #self.update_redis_values(redis_br, redis_ra)
 
         row = dict()
         

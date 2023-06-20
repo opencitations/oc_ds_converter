@@ -130,6 +130,25 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     pathoo(filepath)
     data = list()
     pbar = tqdm(total=len(source_data))
+    target = 50000
+    cnt = 0
+    all_br = []
+    all_ra = []
+
+    # MECCANISMO OGNI 50 000
+    for entity in source_data:
+        if entity:
+            d = json.loads(entity.decode('utf-8'))
+            if d.get("relationship"):
+                if d.get("relationship").get("name") == "Cites":
+                    ent_all_br, ent_all_ra = openaire_csv.extract_all_ids(json.loads(entity))
+                    all_br.extend(ent_all_br)
+                    all_ra.extend(ent_all_ra)
+
+    redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
+    redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
+    openaire_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
+
     for entity in source_data:
         if entity:
             d = json.loads(entity.decode('utf-8'))
@@ -142,9 +161,9 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                     any_source_id = ""
                     any_target_id = ""
 
-                    all_br, all_ra = openaire_csv.extract_all_ids(json.loads(entity))
-                    redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
-                    redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
+                    #all_br, all_ra = openaire_csv.extract_all_ids(json.loads(entity))
+                    #redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
+                    #redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
 
                     source_entity = d.get("source")
                     if source_entity:
@@ -175,7 +194,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         source_identifier["not_valid"] = source_invalid_ids
                         source_identifier["to_be_val"] = source_to_be_val_ids
                         source_entity_upd_ids["identifier"] = source_identifier
-                        source_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
+                        #source_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
 
                         target_entity_upd_ids = {k:v for k,v in target_entity.items() if k != "identifier"}
                         target_valid_ids = [x for x in norm_target_ids if x["valid"] is True]
@@ -186,7 +205,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         target_identifier["not_valid"] = target_invalid_ids
                         target_identifier["to_be_val"] = target_to_be_val_ids
                         target_entity_upd_ids["identifier"] = target_identifier
-                        target_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
+                        #target_entity_upd_ids["redis_validity_lists"] = [redis_validity_values_br, redis_validity_values_ra]
 
                         # creation of a new row in meta table because there are new ids to be validated.
                         # "any_source_id" will be chosen among the valid source entity ids, if any
