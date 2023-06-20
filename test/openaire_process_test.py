@@ -285,7 +285,6 @@ class OpenAireProcessTest(unittest.TestCase):
         unique_entities = 0
 
         citations_files_n = len(list(os.listdir(citations_output_path)))
-        print("os.listdir(citations_output_path)",os.listdir(citations_output_path))
         for file in os.listdir(citations_output_path):
             with open(os.path.join(citations_output_path, file), 'r', encoding='utf-8') as f:
                 cits_rows = list(csv.DictReader(f))

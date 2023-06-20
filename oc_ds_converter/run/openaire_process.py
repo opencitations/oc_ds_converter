@@ -16,7 +16,6 @@ from oc_ds_converter.openaire.openaire_processing import *
 from pebble import ProcessFuture, ProcessPool
 from tqdm import tqdm
 
-print("cipcip")
 def preprocess(
         openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, 
         csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None, 
@@ -36,6 +35,7 @@ def preprocess(
     else:
         cache = os.path.join(os.getcwd(), "cache.json")
         cache_dict = dict()
+
     if not "completed_tar" in cache_dict:
         cache_dict["completed_tar"] = []
 
@@ -58,6 +58,7 @@ def preprocess(
         if els_to_be_removed:
             for etbr in els_to_be_removed:
                 os.remove(etbr)
+
 
 
     if not os.path.exists(csv_dir):
@@ -116,40 +117,84 @@ def preprocess(
         if os.path.exists(cache):
             os.remove(cache)
 
+
 def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str, doi_csv: str, publishers_filepath_openaire: str, storage_path: str, redis_storage_manager: bool, testing: bool):
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     openaire_csv = OpenaireProcessing(orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath_openaire=publishers_filepath_openaire, storage_manager=storage_manager, testing=testing)
     index_citations_to_csv = []
+    data = []
     f = gzip.open(filename, 'rb')
     source_data = f.readlines()
+    pbar = tqdm(total=len(source_data))
     f.close()
     filename = filename.name if isinstance(filename, TarInfo) else filename
+    file_nr = 0
     filename_without_ext = filename.replace('.json', '').replace('.tar', '').replace('.gz', '')
     filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
     filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
     pathoo(filepath)
-    data = list()
-    pbar = tqdm(total=len(source_data))
+
+    def get_all_redis_ids_and_save_updates(sli_da):
+        all_br = []
+        all_ra = []
+        for entity in sli_da:
+            if entity:
+                d = json.loads(entity.decode('utf-8'))
+                if d.get("relationship"):
+                    if d.get("relationship").get("name") == "Cites":
+                        ent_all_br, ent_all_ra = openaire_csv.extract_all_ids(json.loads(entity))
+                        all_br.extend(ent_all_br)
+                        all_ra.extend(ent_all_ra)
+
+        redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
+        redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
+        openaire_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
+
+    def save_files(ent_list, citation_list, nf):
+        if ent_list:
+            with open(filepath+str(nf), 'w', newline='', encoding='utf-8') as output_file:
+                dict_writer = csv.DictWriter(output_file, ent_list[0].keys(), delimiter=',', quotechar='"',
+                                             quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
+                dict_writer.writeheader()
+                dict_writer.writerows(ent_list)
+            ent_list = []
+
+        if citation_list:
+            with open(filepath_citations+str(nf), 'w', newline='', encoding='utf-8') as output_file_citations:
+                dict_writer = csv.DictWriter(output_file_citations, citation_list[0].keys(), delimiter=',',
+                                             quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
+                dict_writer.writeheader()
+                dict_writer.writerows(citation_list)
+            citation_list = []
+        openaire_csv.memory_to_storage()
+        return ent_list, citation_list
+
     target = 50000
+    start = 0
     cnt = 0
-    all_br = []
-    all_ra = []
+    end = start + target
+    if len(source_data[start:]) > target:
+        source_data_slice = source_data[start: end]
+    else:
+        source_data_slice = source_data[start:]
 
-    # MECCANISMO OGNI 50 000
-    for entity in source_data:
-        if entity:
-            d = json.loads(entity.decode('utf-8'))
-            if d.get("relationship"):
-                if d.get("relationship").get("name") == "Cites":
-                    ent_all_br, ent_all_ra = openaire_csv.extract_all_ids(json.loads(entity))
-                    all_br.extend(ent_all_br)
-                    all_ra.extend(ent_all_ra)
-
-    redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
-    redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
-    openaire_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
+    get_all_redis_ids_and_save_updates(source_data_slice)
 
     for entity in source_data:
+
+        if cnt == end:
+            start = cnt
+            end = start + target
+            if len(source_data[start:]) >= target:
+                source_data_slice = source_data[start: end]
+            else:
+                source_data_slice = source_data[start:]
+
+            # update redis validated id list + save citation and meta file
+            get_all_redis_ids_and_save_updates(source_data_slice)
+            data, index_citations_to_csv = save_files(data, index_citations_to_csv, file_nr)
+            file_nr += 1
+
         if entity:
             d = json.loads(entity.decode('utf-8'))
             if d.get("relationship"):
@@ -249,19 +294,11 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         citation["referenced"] = any_target_id
                         index_citations_to_csv.append(citation)
         pbar.update()
+        cnt += 1
+    data, index_citations_to_csv = save_files(data, index_citations_to_csv, file_nr)
+    file_nr += 1
     pbar.close()
-    if data:
-        with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
-            dict_writer = csv.DictWriter(output_file, data[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
-            dict_writer.writeheader()
-            dict_writer.writerows(data)
 
-    if index_citations_to_csv:
-        with open(filepath_citations, 'w', newline='', encoding='utf-8') as output_file_citations:
-            dict_writer = csv.DictWriter(output_file_citations, index_citations_to_csv[0].keys(), delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
-            dict_writer.writeheader()
-            dict_writer.writerows(index_citations_to_csv)
-    openaire_csv.memory_to_storage()
     return tar, filename
 
 def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
