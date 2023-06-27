@@ -27,6 +27,7 @@ packaging = "^23.1"
 poetry = "^1.5.1"
 self = "^2020.12.3"
 update = "^0.0.1"
+filelock = "^3.12.2"
 
 [tool.poetry.group.dev.dependencies]
 wget = "^3.2"

@@ -15,33 +15,13 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
 from oc_ds_converter.openaire.openaire_processing import *
 from pebble import ProcessFuture, ProcessPool
 from tqdm import tqdm
+from filelock import Timeout, FileLock
+
 
 def preprocess(
         openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, 
         csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None, 
-        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
-    if cache:
-        if not cache.endswith(".json"):
-            cache = os.path.join(os.getcwd(), "cache.json")
-            cache_dict = dict()
-        else:
-            if os.path.exists(cache):
-                with open(cache, "r", encoding="utf-8") as c:
-                    cache_dict = json.load(c)
-            else:
-                if not os.path.exists(os.path.abspath(os.path.join(cache, os.pardir))):
-                    Path(os.path.abspath(os.path.join(cache, os.pardir))).mkdir(parents=True, exist_ok=True)
-                cache_dict = dict()
-    else:
-        cache = os.path.join(os.getcwd(), "cache.json")
-        cache_dict = dict()
-
-    if not "completed_tar" in cache_dict:
-        cache_dict["completed_tar"] = []
-
-    with open(cache, "w", encoding="utf-8") as c:
-        json.dump(cache_dict, c)
-
+        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target=50000) -> None:
 
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(openaire_json_dir)
@@ -86,50 +66,80 @@ def preprocess(
 
     all_input_tar = os.listdir(openaire_json_dir)
     for tar in all_input_tar:
-        if tar in cache_dict["completed_tar"]:
-            continue
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
         if not redis_storage_manager or max_workers == 1:
             for filename in all_files:
-                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing)
-                if tar not in  cache_dict:
-                    cache_dict[tar]=[filename]
-                else:
-                    cache_dict[tar].append(filename)
-                with open(cache, 'w', encoding='utf-8') as aux_file:
-                    json.dump(cache_dict, aux_file)                
+                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing, cache, target)
+
+
         elif redis_storage_manager or max_workers > 1:
             with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
                 for filename in all_files:
-                    if tar in cache_dict:
-                        if filename in cache_dict[tar]:
-                            continue
                     future:ProcessFuture = executor.schedule(
                         function = get_citations_and_metadata,
-                        args=(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing)
+                        args=(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing, cache, target)
                     )
-                    future.add_done_callback(functools.partial(task_done, cache_dict, cache))
-        cache_dict["completed_tar"].append(tar)
-        with open(cache, 'w', encoding='utf-8') as aux_file:
-            json.dump(cache_dict, aux_file)
+
 
     if cache:
         if os.path.exists(cache):
             os.remove(cache)
+    lock_file = cache + ".lock"
+    if os.path.exists(lock_file):
+        os.remove(lock_file)
 
 
-def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str, doi_csv: str, publishers_filepath_openaire: str, storage_path: str, redis_storage_manager: bool, testing: bool):
+def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str, doi_csv: str, publishers_filepath_openaire: str, storage_path: str, redis_storage_manager: bool, testing: bool, cache:str, target=50000):
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+    if cache:
+        if not cache.endswith(".json"):
+            cache = os.path.join(os.getcwd(), "cache.json")
+        else:
+            if not os.path.exists(os.path.abspath(os.path.join(cache, os.pardir))):
+                Path(os.path.abspath(os.path.join(cache, os.pardir))).mkdir(parents=True, exist_ok=True)
+    else:
+        cache = os.path.join(os.getcwd(), "cache.json")
+
+    last_part_processed = 0
+    lock = FileLock(cache + ".lock")
+    cache_dict = dict()
+    write_new = False
+    if os.path.exists(cache):
+        with lock:
+            with open(cache, "r", encoding="utf-8") as c:
+                try:
+                    cache_dict = json.load(c)
+                except:
+                    write_new = True
+    else:
+        write_new = True
+    if write_new:
+        with lock:
+            with open(cache, "w", encoding="utf-8") as c:
+                json.dump(cache_dict, c)
+
+    # skip if in cache
+    if tar in cache_dict:
+        if filename in cache_dict[tar]:
+            if cache_dict[tar][filename] == "completed":
+                return
+            else:
+                last_part_processed = cache_dict[tar][filename]
+
     openaire_csv = OpenaireProcessing(orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath_openaire=publishers_filepath_openaire, storage_manager=storage_manager, testing=testing)
     index_citations_to_csv = []
     data = []
+    target = target
+    skip_rows = target * last_part_processed
     f = gzip.open(filename, 'rb')
     source_data = f.readlines()
     pbar = tqdm(total=len(source_data))
     f.close()
     filename = filename.name if isinstance(filename, TarInfo) else filename
-    file_nr = 0
     filename_without_ext = filename.replace('.json', '').replace('.tar', '').replace('.gz', '')
+    filepath_ne = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}')
+    filepath_citations_ne = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}')
+
     filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
     filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
     pathoo(filepath)
@@ -150,9 +160,10 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
         redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
         openaire_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
 
-    def save_files(ent_list, citation_list, nf):
+    def save_files(ent_list, citation_list, nf, is_last_sf=False):
         if ent_list:
-            with open(filepath+str(nf), 'w', newline='', encoding='utf-8') as output_file:
+            filename_str = filepath_ne+"_"+str(nf)
+            with open(filename_str, 'w', newline='', encoding='utf-8') as output_file:
                 dict_writer = csv.DictWriter(output_file, ent_list[0].keys(), delimiter=',', quotechar='"',
                                              quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
                 dict_writer.writeheader()
@@ -160,18 +171,62 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
             ent_list = []
 
         if citation_list:
-            with open(filepath_citations+str(nf), 'w', newline='', encoding='utf-8') as output_file_citations:
+            filename_cit_str = filepath_citations_ne+"_"+str(nf)
+            with open(filename_cit_str, 'w', newline='', encoding='utf-8') as output_file_citations:
                 dict_writer = csv.DictWriter(output_file_citations, citation_list[0].keys(), delimiter=',',
                                              quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
                 dict_writer.writeheader()
                 dict_writer.writerows(citation_list)
             citation_list = []
         openaire_csv.memory_to_storage()
+        task_done(nf, is_last=is_last_sf)
         return ent_list, citation_list
 
-    target = 50000
-    start = 0
-    cnt = 0
+    def task_done(file_part_number, is_last=False) -> None:
+        try:
+            if tar not in cache_dict:
+                cache_dict[tar] = dict()
+
+            if not is_last:
+                cache_dict[tar][filename] = file_part_number
+            else:
+                cache_dict[tar][filename] = "completed"
+
+            with lock:
+                with open(cache, 'r', encoding='utf-8') as aux_file:
+                    cur_cache_dict = json.load(aux_file)
+
+                    for k,v in cur_cache_dict.items():
+                        if not cache_dict.get(k) and cur_cache_dict.get(k):
+                            cache_dict[k] = v
+                        elif cache_dict[k] != v:
+                            tar_files_processed_values_dict = cache_dict[k]
+                            cur_tar_files_processed_values_dict = cur_cache_dict[k]
+
+                            for c, w in cur_tar_files_processed_values_dict.items():
+                                if tar_files_processed_values_dict.get(c) == "completed" or cur_tar_files_processed_values_dict.get(c) == "completed":
+                                    cur_tar_files_processed_values_dict[c] = "completed"
+                                elif isinstance(tar_files_processed_values_dict.get(c), int) and isinstance(cur_tar_files_processed_values_dict.get(c), int):
+                                    cur_tar_files_processed_values_dict[c] = max([tar_files_processed_values_dict.get(c), cur_tar_files_processed_values_dict.get(c)])
+                                elif isinstance(tar_files_processed_values_dict.get(c), int) or isinstance(cur_tar_files_processed_values_dict.get(c), int):
+                                    cur_tar_files_processed_values_dict[c] = tar_files_processed_values_dict.get(c) if isinstance(tar_files_processed_values_dict.get(c), int) else cur_tar_files_processed_values_dict.get(c)
+
+                            tar_files_processed_values_dict.update(cur_tar_files_processed_values_dict)
+                            cache_dict[k] = tar_files_processed_values_dict
+
+                    for k,v in cache_dict.items():
+                        if k not in cur_cache_dict:
+                            cur_cache_dict[k] = v
+
+                with open(cache, 'w', encoding='utf-8') as aux_file:
+                    json.dump(cache_dict, aux_file)
+
+        except Exception as e:
+            print(e)
+
+
+    start = skip_rows
+    cnt = skip_rows
     end = start + target
     if len(source_data[start:]) > target:
         source_data_slice = source_data[start: end]
@@ -192,8 +247,8 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
 
             # update redis validated id list + save citation and meta file
             get_all_redis_ids_and_save_updates(source_data_slice)
-            data, index_citations_to_csv = save_files(data, index_citations_to_csv, file_nr)
-            file_nr += 1
+            last_part_processed += 1
+            data, index_citations_to_csv = save_files(data, index_citations_to_csv, last_part_processed)
 
         if entity:
             d = json.loads(entity.decode('utf-8'))
@@ -205,10 +260,6 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
 
                     any_source_id = ""
                     any_target_id = ""
-
-                    #all_br, all_ra = openaire_csv.extract_all_ids(json.loads(entity))
-                    #redis_validity_values_br = openaire_csv.get_reids_validity_list(all_br, "br")
-                    #redis_validity_values_ra = openaire_csv.get_reids_validity_list(all_ra, "ra")
 
                     source_entity = d.get("source")
                     if source_entity:
@@ -273,13 +324,13 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         # creation of a new row in meta table because there are new ids to be validated.
                         # "any_target_id" will be chosen among the valid target entity ids, if any
                         if target_identifier["to_be_val"]:
-                            target_tab_data = openaire_csv.csv_creator(target_entity_upd_ids) # valid_citation_ids_t  --> evitare rivalidazione ?
+                            target_tab_data = openaire_csv.csv_creator(target_entity_upd_ids)
                             if target_tab_data:
                                 processed_target_ids = target_tab_data["id"].split(" ")
                                 all_cited_valid = processed_target_ids
                                 if all_cited_valid:
                                     any_target_id = all_cited_valid[0]
-                                    data.append(target_tab_data) # Otherwise the row should not be included in meta tables
+                                    data.append(target_tab_data) # otherwise the row should not be included in meta tables
 
                         # skip creation of a new row in meta table because there is no new id to be validated
                         # "any_target_id" will be chosen among the valid source entity ids, if any
@@ -295,11 +346,9 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         index_citations_to_csv.append(citation)
         pbar.update()
         cnt += 1
-    data, index_citations_to_csv = save_files(data, index_citations_to_csv, file_nr)
-    file_nr += 1
+    last_part_processed += 1
+    data, index_citations_to_csv = save_files(data, index_citations_to_csv, last_part_processed, is_last_sf=True)
     pbar.close()
-
-    return tar, filename
 
 def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
     if not redis_storage_manager:
@@ -325,18 +374,6 @@ def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing:
             storage_manager = RedisStorageManager(testing=False)
     return storage_manager
 
-def task_done(cache_dict: dict, cache: str, task_output:ProcessFuture) -> None:
-    try:
-        tar, filename = task_output.result()
-        if tar not in  cache_dict:
-            cache_dict[tar]=[filename]
-        else:
-            cache_dict[tar].append(filename)
-
-        with open(cache, 'w', encoding='utf-8') as aux_file:
-            json.dump(cache_dict, aux_file)
-    except Exception as e:
-        print(e)
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):

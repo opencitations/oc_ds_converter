@@ -12,3 +12,4 @@ test/openaire_process/1alt_tar_sample/part2_decompr_zip_dir/
 test/openaire_process/2_tar_sample/part0_decompr_zip_dir/
 test/openaire_process/2_tar_sample/part1_decompr_zip_dir/
 cache.json
+.DS_Store*

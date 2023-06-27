@@ -31,6 +31,7 @@ class OpenAireProcessTest(unittest.TestCase):
         self.sample_1tar_alt = join(self.test_dir, "1alt_tar_sample")
         self.output_dir = join(self.test_dir, "tmp")
         self.support_mat = join(self.test_dir, "support_mat")
+        self.cache_test1 = join(self.support_mat, "cache_1.json")
         self.doi_orcid = join("test", "openaire_processing", "iod")
 
         self.any_db = join("test", "openaire_process", "anydb.db")
@@ -316,15 +317,6 @@ class OpenAireProcessTest(unittest.TestCase):
             if el.endswith("decompr_zip_dir"):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
 
-
-    # def test_any_db_creation(self):
-    #     preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, redis_storage_manager=False, storage_path=self.any_db, cache=self.cache)
-    #     self.assertTrue(os.path.exists(self.any_db))
-    #     for el in os.listdir(self.sample_dupl):
-    #         if el.endswith("decompr_zip_dir"):
-    #             shutil.rmtree(os.path.join(self.sample_dupl, el))
-    #     os.remove(self.any_db)
-
     def test_any_db_creation_redis_no_testing(self):
         try:
             rsm = RedisStorageManager(testing=False)
@@ -351,6 +343,60 @@ class OpenAireProcessTest(unittest.TestCase):
                 # rsm.delete_storage()
                 print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
 
+    def test_cache(self):
+        '''Nothing should be produced in output, since the cache file reports that all the files in input were completed'''
+
+        for el in os.listdir(self.sample_2tar):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_2tar, el))
+
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+
+        citations_output_path = self.output_dir + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+        with open(self.cache_test1, "w") as write_cache:
+            processed_files_dict = {'part1.tar': {'test/openaire_process/2_tar_sample/part1_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n3.gz': 'completed', 'test/openaire_process/2_tar_sample/part1_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n4.gz': 'completed', 'test/openaire_process/2_tar_sample/part1_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n2.gz': 'completed'}, 'part0.tar': {'test/openaire_process/2_tar_sample/part0_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n7.gz': 'completed', 'test/openaire_process/2_tar_sample/part0_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n5.gz': 'completed', 'test/openaire_process/2_tar_sample/part0_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n6.gz': 'completed'}}
+            json.dump(processed_files_dict,write_cache)
+
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, redis_storage_manager=True, cache=self.cache_test1, max_workers=2, target=2)
+
+        citations_in_output = 0
+        encountered_ids = set()
+        unique_entities = 0
+
+        citations_files_n = len(list(os.listdir(citations_output_path)))
+        for file in os.listdir(citations_output_path):
+            with open(os.path.join(citations_output_path, file), 'r', encoding='utf-8') as f:
+                cits_rows = list(csv.DictReader(f))
+                citations_in_output += len(cits_rows)
+                for x in cits_rows:
+                    citing_ids = x["citing"].split(" ")
+                    citied_ids = x["referenced"].split(" ")
+                    if all(id not in encountered_ids for id in citing_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citing_ids)
+
+                    if all(id not in encountered_ids for id in citied_ids):
+                        unique_entities += 1
+                        encountered_ids.update(citied_ids)
+
+        expected_citations_in_output= 0
+        # since the citing entity is the same for both citations
+
+        expected_entities_in_output= 0
+        # since the citing entity is the same for both citations
+
+        self.assertEqual(expected_entities_in_output, unique_entities)
+        self.assertEqual(expected_citations_in_output, citations_in_output)
+
+        shutil.rmtree(citations_output_path)
+        shutil.rmtree(self.output_dir)
+
+        for el in os.listdir(self.sample_2tar):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_2tar, el))
 
 if __name__ == '__main__':
     unittest.main()
