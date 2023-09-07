@@ -193,6 +193,7 @@ class OpenaireProcessing(RaProcessor):
 
         schema = id_dict["schema"].strip().lower()
         id = id_dict["identifier"]
+
         if schema != "orcid":
             tmp_id_m = self.get_id_manager(schema, self.tmp_id_man_dict)
             validity_value = tmp_id_m.validated_as_id(id)
@@ -201,6 +202,7 @@ class OpenaireProcessing(RaProcessor):
                 id_m = self.get_id_manager(schema, self._id_man_dict)
                 validity_value = id_m.validated_as_id(id)
             return validity_value
+
         else:
             validity_value = self.tmp_orcid_m.validated_as_id(id)
             if validity_value is None:

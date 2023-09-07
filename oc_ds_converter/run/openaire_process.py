@@ -35,16 +35,21 @@ def preprocess(
                     if [x for x in os.listdir(openaire_json_dir) if x.startswith(base_name) and x.endswith("decompr_zip_dir")]:
                         els_to_be_removed.append(os.path.join(openaire_json_dir, el))
 
-        if els_to_be_removed:
+        if els_to_be_removed: # Anziché els_to_be_removed +  os.remove(etbr), fare in modo di skippare (es. els_to_be_skipped + skip
+            # in fase di lettura dell'input) questi compressi nel processo
+            # nel caso in cui ci sia già un decompresso equivalente (per evitare di riprocessare inutilmente gli stessi dati)
             for etbr in els_to_be_removed:
                 os.remove(etbr)
 
 
 
+    # creare cartella di output se non esiste (dove verranno salvati i csv delle tabelle di meta)
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
     req_type = ".gz"
+
+    # creare cartella _citations di output se non esiste (dove verranno salvati i csv delle citazioni)
     preprocessed_citations_dir = csv_dir + "_citations"
     if not os.path.exists(preprocessed_citations_dir):
         makedirs(preprocessed_citations_dir)
@@ -90,7 +95,9 @@ def preprocess(
 
 
 def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str, doi_csv: str, publishers_filepath_openaire: str, storage_path: str, redis_storage_manager: bool, testing: bool, cache:str, target=50000):
+
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -104,6 +111,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     lock = FileLock(cache + ".lock")
     cache_dict = dict()
     write_new = False
+
     if os.path.exists(cache):
         with lock:
             with open(cache, "r", encoding="utf-8") as c:
@@ -113,6 +121,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                     write_new = True
     else:
         write_new = True
+
     if write_new:
         with lock:
             with open(cache, "w", encoding="utf-8") as c:
@@ -127,10 +136,14 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                 last_part_processed = cache_dict[tar][filename]
 
     openaire_csv = OpenaireProcessing(orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath_openaire=publishers_filepath_openaire, storage_manager=storage_manager, testing=testing)
+
     index_citations_to_csv = []
     data = []
+
     target = target
+
     skip_rows = target * last_part_processed
+
     f = gzip.open(filename, 'rb')
     source_data = f.readlines()
     pbar = tqdm(total=len(source_data))
@@ -148,10 +161,14 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
         all_br = []
         all_ra = []
         for entity in sli_da:
+
+            # start check: if line is processable
             if entity:
                 d = json.loads(entity.decode('utf-8'))
                 if d.get("relationship"):
                     if d.get("relationship").get("name") == "Cites":
+                        # end check: if line is processable
+
                         ent_all_br, ent_all_ra = openaire_csv.extract_all_ids(json.loads(entity))
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
@@ -178,8 +195,11 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                 dict_writer.writeheader()
                 dict_writer.writerows(citation_list)
             citation_list = []
+
         openaire_csv.memory_to_storage()
+
         task_done(nf, is_last=is_last_sf)
+
         return ent_list, citation_list
 
     def task_done(file_part_number, is_last=False) -> None:
@@ -218,6 +238,10 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                         if k not in cur_cache_dict:
                             cur_cache_dict[k] = v
 
+                    for k,v in cur_cache_dict.items():
+                        if k not in cache_dict:
+                            cache_dict[k] = v
+
                 with open(cache, 'w', encoding='utf-8') as aux_file:
                     json.dump(cache_dict, aux_file)
 
@@ -228,6 +252,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     start = skip_rows
     cnt = skip_rows
     end = start + target
+
     if len(source_data[start:]) > target:
         source_data_slice = source_data[start: end]
     else:
@@ -237,10 +262,11 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
 
     for entity in source_data:
 
+        # in case the current entity is the <target>nth entity
         if cnt == end:
             start = cnt
             end = start + target
-            if len(source_data[start:]) >= target:
+            if len(source_data[start:]) > target:
                 source_data_slice = source_data[start: end]
             else:
                 source_data_slice = source_data[start:]
@@ -250,6 +276,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
             last_part_processed += 1
             data, index_citations_to_csv = save_files(data, index_citations_to_csv, last_part_processed)
 
+        # real entity process
         if entity:
             d = json.loads(entity.decode('utf-8'))
             if d.get("relationship"):
