@@ -134,6 +134,18 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                 return
             else:
                 last_part_processed = cache_dict[tar][filename]
+        else:
+            filename_alt = ''
+            if '/' in filename:
+                filename_alt = filename.replace('/', '\\')
+            elif '\\' in filename:
+                filename_alt = filename.replace('\\', '/')
+            if filename_alt:
+                if filename_alt in cache_dict[tar]:
+                    if cache_dict[tar][filename_alt] == "completed":
+                        return
+                    else:
+                        last_part_processed = cache_dict[tar][filename]
 
     openaire_csv = OpenaireProcessing(orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath_openaire=publishers_filepath_openaire, storage_manager=storage_manager, testing=testing)
 
