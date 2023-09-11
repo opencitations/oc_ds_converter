@@ -39,12 +39,12 @@ class TestOpenaireProcessing(unittest.TestCase):
                 os.remove(specific_path)
 
     def test_get_all_ids(self):
-        self.delete_storege(storage_type="sqlite")
         opp = OpenaireProcessing()
         allids = opp.extract_all_ids(SAMPLE_ENT2)
         self.assertCountEqual(['pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'], allids[0])
         self.assertCountEqual(['orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'], allids[1])
-        self.delete_storege(storage_type="sqlite")
+
+        opp.storage_manager.delete_storage()
 
     def test_get_all_ids_redis(self):
         opp = OpenaireProcessing(storage_manager=RedisStorageManager(testing=True))
@@ -57,7 +57,6 @@ class TestOpenaireProcessing(unittest.TestCase):
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
 
-        self.delete_storege(storage_type="sqlite")
         opp = OpenaireProcessing()
         br_valid_list = opp.get_reids_validity_list(br, "br")
         exp_exp_br_valid_list = []
@@ -66,7 +65,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(ra_valid_list, exp_exp_ra_valid_list)
         self.assertEqual(br_valid_list, exp_exp_br_valid_list)
 
-        self.delete_storege(storage_type="sqlite")
+        opp.storage_manager.delete_storage()
 
     def test_get_reids_validity_list_redis(self):
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
@@ -82,7 +81,6 @@ class TestOpenaireProcessing(unittest.TestCase):
         opp.storage_manager.delete_storage()
 
     def test_get_reids_validity_dict_w_fakeredis_db_values_sqlite(self):
-        self.delete_storege(storage_type="sqlite")
         opp = OpenaireProcessing()
         opp.BR_redis.set('pmid:24484640', "omid:1")
         opp.RA_redis.set('orcid:0000-0002-8090-6886', "omid:2")
@@ -98,7 +96,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(br_validity_dict, exp_br_valid_list)
         self.assertEqual(ra_validity_dict, exp_ra_valid_list)
 
-        self.delete_storege(storage_type="sqlite")
+        opp.storage_manager.delete_storage()
 
         opp.BR_redis.delete('pmid:24484640')
         opp.BR_redis.delete('pmcid:PMC3928621')
@@ -137,11 +135,10 @@ class TestOpenaireProcessing(unittest.TestCase):
         - With default storage manager (sqlite) without a pre-existent db associated
         '''
 
-        self.delete_storege(storage_type="sqlite")
         opp = OpenaireProcessing()
         validate_as_none = opp.validated_as({"schema":"pmid", "identifier": "pmid:23483834"})
         self.assertEqual(validate_as_none, None)
-        self.delete_storege(storage_type="sqlite")
+        opp.storage_manager.delete_storage()
 
     def test_validated_as_default_redis(self):
         '''
@@ -172,7 +169,6 @@ class TestOpenaireProcessing(unittest.TestCase):
         '''
 
         db_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.db")
-        self.delete_storege(specific_path=db_path)
 
         sqlite_man = SqliteStorageManager(db_path)
         valid_pmid_not_in_db = {"identifier":"pmid:2938", "schema":"pmid"}
@@ -191,7 +187,8 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(validated_as_False, False)
         self.assertEqual(not_validated, None)
 
-        self.delete_storege(specific_path=db_path)
+        opp_sql.storage_manager.delete_storage()
+
 
     def test_validated_as_inmemory(self):
         '''
@@ -206,7 +203,6 @@ class TestOpenaireProcessing(unittest.TestCase):
         '''
 
         db_json_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.json")
-        self.delete_storege(specific_path=db_json_path)
 
         inmemory_man = InMemoryStorageManager(db_json_path)
         valid_pmid_not_in_db = {"identifier":"pmid:2938", "schema":"pmid"}
@@ -226,7 +222,8 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(validated_as_False, False)
         self.assertEqual(not_validated, None)
 
-        self.delete_storege(specific_path=db_json_path)
+        opp_sql.storage_manager.delete_storage()
+
 
     def test_validated_as_redis(self):
         '''
@@ -303,7 +300,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertTrue(arxiv_man_exp.is_valid(arxiv_id))
         self.assertTrue(arxiv_man_exp_2.is_valid(arxiv_id))
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_get_id_manager_redis(self):
         """Check that, given in input the string of a schema (e.g.:'pmid') or an id with a prefix (e.g.: 'pmid:12334')
@@ -369,7 +366,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(arxiv_id + "v1", op.normalise_any_id(arxiv_id.replace(".", "....")))
         self.assertEqual(pmc_id, op.normalise_any_id(pmc_id+"     "))
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_normalise_any_id_redis(self):
         '''
@@ -426,7 +423,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(norm_ids, exp_norm_ids)
         self.assertEqual(norm_ids_2, exp_norm_ids_2)
         self.assertEqual(norm_ids_3, exp_norm_ids_3)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
 
     def test_get_norm_ids_redis(self):
@@ -478,7 +475,8 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertTrue(os.path.exists(MEMO_JSON_PATH))
         self.delete_storege(specific_path=MEMO_JSON_PATH)
         self.assertFalse(os.path.exists(MEMO_JSON_PATH))
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
+
 
     def test_csv_creator_base(self):
         '''
@@ -504,7 +502,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         }
         self.assertEqual(csv_row, expected_row)
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_csv_creator_base_redis(self):
         '''
@@ -548,7 +546,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         expected_row = {} #because there is no ID accepted in opencitations for this entity
         self.assertEqual(csv_row, expected_row)
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_csv_creator_not_accepted_id_redis(self):
         '''
@@ -584,7 +582,8 @@ class TestOpenaireProcessing(unittest.TestCase):
         expected_row = {}  # because there is no ID accepted in opencitations for this entity
         self.assertEqual(csv_row, expected_row)
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
+
 
     def test_csv_creator_invalid_id_redis(self):
         '''
@@ -628,7 +627,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(no_doi_pub_output, "Blackwell Publishing Ltd")
         self.assertEqual(doi_pub_output_2, "Oxford University Press (OUP)")
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_get_publisher_name_base_redis(self):
         '''
@@ -686,7 +685,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(no_doi_pub_output, "Blackwell Publishing Ltd")
         self.assertEqual(doi_pub_output_2, "Oxford University Press (OUP)")
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_get_publisher_name_publishers_mapping_redis(self):
         '''
@@ -769,7 +768,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         self.assertEqual(doi_pub_output3, "American Physiological Society [crossref:24]")
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         # CASE 4: OPENAIRE does not provide a publisher name but one of the entity's DOI prefixes is in the
         # prefix-to-publisher-data mapping in input
@@ -789,7 +788,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(doi_pub_output4_1, "")
         self.assertEqual(doi_pub_output4_2, "")
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_get_publisher_name_publishers_mapping_multi_dois_redis(self):
         '''
@@ -840,7 +839,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         self.assertEqual(doi_pub_output3, "American Physiological Society [crossref:24]")
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         # CASE 4: OPENAIRE does not provide a publisher name but one of the entity's DOI prefixes is in the
         # prefix-to-publisher-data mapping in input
@@ -893,7 +892,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_sample_arxiv_ver = op.manage_arxiv_single_id(sample_arxiv_ver)
         self.assertEqual(out_sample_arxiv_ver, [{'schema': 'arxiv', 'identifier': 'arxiv:1509.08217v3'}])
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_manage_arxiv_single_id_redis(self):
         '''Check the correct management of entities with only one ID, in particular in
@@ -1013,7 +1012,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         exp_8_2 = [{'schema': 'doi', 'identifier': 'doi:10.1184/R1/12841247.v1', 'valid': None}]
         self.assertEqual(exp_8_2, out_8_2)
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_manage_doi_prefixes_priorities_redis(self):
         op = OpenaireProcessing(storage_manager=RedisStorageManager(testing=True))
@@ -1117,7 +1116,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_1 = op.to_validated_id_list(inp_1)
         exp_1 = ['pmid:20662931']
         self.assertEqual(out_1, exp_1)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE1_2: No already validated ids + 1 id to be validated, which is invalid
@@ -1125,7 +1124,6 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_2 = op.to_validated_id_list(inp_2)
         exp_2 = []
         self.assertEqual(out_2, exp_2)
-        #self.delete_storege(storage_type="sqlite")
 
         op = OpenaireProcessing()
         # CASE1_3: No already validated ids + 1 id to be validated, which is a valid arxiv doi
@@ -1133,7 +1131,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_3 = op.to_validated_id_list(inp_3)
         exp_3 = ['arxiv:1509.08217v1']
         self.assertEqual(out_3, exp_3)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
 
         op = OpenaireProcessing()
@@ -1142,7 +1140,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_4 = op.to_validated_id_list(inp_4)
         exp_4 = []
         self.assertEqual(out_4, exp_4)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE1_5: No already validated ids + 1 id to be validated, which is not valid
@@ -1150,7 +1148,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_5 = op.to_validated_id_list(inp_5)
         exp_5 = []
         self.assertEqual(out_5, exp_5)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE1_9: No already validated ids + 1 id to be validated, which is a valid PMC
@@ -1158,7 +1156,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_9 = op.to_validated_id_list(inp_9)
         exp_9 = ['pmcid:PMC2873764']
         self.assertEqual(out_9, exp_9)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_1: No already validated ids + >1 id to be validated, both valid and with accepted schemas
@@ -1167,7 +1165,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_6 = op.to_validated_id_list(inp_6)
         exp_6 = ['pmid:20662931', 'doi:10.1007/s12160-011-9282-0']
         self.assertCountEqual(out_6, exp_6) #Test that sequence first contains the same elements as second, regardless of their order
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_2: No already validated ids + >1 id to be validated, both valid, one of the two is an arxiv id
@@ -1176,7 +1174,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_8 = op.to_validated_id_list(inp_8)
         exp_8 = ['pmid:20662931']
         self.assertEqual(out_8, exp_8)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_3: No already validated ids + >1 id to be validated, both valid, one of the two is an arxiv doi
@@ -1184,7 +1182,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_7 = op.to_validated_id_list(inp_7)
         exp_7 = ['pmid:20662931']
         self.assertEqual(out_7, exp_7)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_4: No already validated ids + >1 id to be validated, both valid, one of the two is a PMC
@@ -1193,7 +1191,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_10 = op.to_validated_id_list(inp_10)
         exp_10 = ['pmid:20662931']
         self.assertEqual(out_10, exp_10)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_5: No already validated ids + >1 id to be validated, 1 valid pmid, 1 valid doi, 1 valid doi with a "critic" prefix
@@ -1208,7 +1206,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_11 = op.to_validated_id_list(inp_11)
         exp_11 = ['pmid:20662931', 'doi:10.1007/s12160-011-9282-0']
         self.assertCountEqual(out_11, exp_11) #Test that sequence first contains the same elements as second, regardless of their order
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_6: No already validated ids + >1 id to be validated, one doi with a "critic" prefix and a PMCID
@@ -1222,7 +1220,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_12 = op.to_validated_id_list(inp_12)
         exp_12 = ['pmcid:PMC5555555']
         self.assertEqual(out_12, exp_12)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_7: no already validated ids + >1 id to be validated, one doi with a "critic" prefix for opencitations
@@ -1235,7 +1233,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_13 = op.to_validated_id_list(inp_13)
         exp_13 = ['arxiv:1107.5979v1']
         self.assertEqual(out_13, exp_13)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE2_8: no already validated ids and more dois with "critic" prefixes for opencitations
@@ -1248,7 +1246,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_14 = op.to_validated_id_list(inp_14)
         exp_14 = ['doi:10.1184/r1/12841247.v1']
         self.assertEqual(out_14, exp_14)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         op = OpenaireProcessing()
         # CASE3: an already validated id and more dois with "critic" prefixes for opencitations
@@ -1263,7 +1261,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         out_15 = op.to_validated_id_list(inp_15)
         exp_15 = ['doi:10.7557/5.5607']
         self.assertEqual(out_15, exp_15)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_to_validated_id_list_redis(self):
         # NOTE: in tests using the sqlite storage method it must be avoided to delete the storage
@@ -1434,7 +1432,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         sample_exp = op.add_authors_to_agent_list(sample_inp, [])
         sample_out = [{'role': 'author', 'name': 'Carlos Hoyos', 'family': '', 'given': ''}, {'role': 'author', 'name': 'Yaron Oz', 'family': '', 'given': ''}, {'role': 'author', 'name': 'Bom Soo Kim', 'family': '', 'given': '', 'orcid': 'orcid:0000-0001-6946-5074'}]
         self.assertEqual(sample_out, sample_exp)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
 
     def test_add_authors_to_agent_list_redis(self):
@@ -1451,7 +1449,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         sample_exp = op.add_authors_to_agent_list(sample_inp, [])
         sample_out = []
         self.assertEqual(sample_out, sample_exp)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
 
     def test_add_authors_to_agent_list_no_creator_redis(self):
@@ -1468,7 +1466,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         op = OpenaireProcessing()
         sample_exp = op.get_agents_strings_list(best_doi, agents_list_2)
         self.assertEqual(sample_exp, (['Hoyos Carlos', 'Oz Yaron', 'Kim Bom Soo [orcid:0000-0001-6946-5074]'], []))
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
     def test_get_agents_strings_list_redis(self):
         best_doi = "doi:10.1007/jhep03(2014)050"
@@ -1495,7 +1493,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         exp_invalid_id = ""
         self.assertEqual(out_invalid_id, exp_invalid_id)
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
         # set a valid id as invalid in storage, so to check that the api check is
         # avoided if the info is already in storage
@@ -1507,14 +1505,14 @@ class TestOpenaireProcessing(unittest.TestCase):
         exp = ""
         self.assertEqual(out, exp)
 
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
         op = OpenaireProcessing()
         op.storage_manager.set_value("orcid:0000-0001-9759-3938", True)
         inp = [{'identifier': '0000-0001-9759-3938', 'schema': 'ORCID', 'url': 'https://orcid.org/0000-0001-9759-3938'}]
         out = op.find_openaire_orcid(inp)
         exp = "orcid:0000-0001-9759-3938"
         self.assertEqual(out, exp)
-        self.delete_storege(storage_type="sqlite")
+        op.storage_manager.delete_storage()
 
 
     def test_find_openaire_orcid_redis(self):
