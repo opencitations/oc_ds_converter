@@ -1,0 +1,233 @@
+{
+    "status": "OK",
+    "apiType": "doi",
+    "apiVersion": "1.0.0",
+    "message": {
+        "total": 1,
+        "rows": 1,
+        "totalPages": 1,
+        "page": 1
+    },
+    "data": {
+        "siteId": "SI/JST.JSTAGE",
+        "content_type": "JA",
+        "doi": "10.11230/jsts.17.2_1",
+        "url": "https://doi.org/10.11230/jsts.17.2_1",
+        "ra": "JaLC",
+        "prefix": "10.11230",
+        "site_name": "J-STAGE",
+        "publisher_list": [
+            {
+                "publisher_name": "Japanese Rocket Society",
+                "lang": "en"
+            },
+            {
+                "publisher_name": "特定非営利活動法人　日本ロケット協会",
+                "lang": "ja"
+            }
+        ],
+        "title_list": [
+            {
+                "lang": "en",
+                "title": "Diamond Synthesis with Completely Closed Chamber from Solid or Liquid Carbon Sources, In-Situ Analysis of Gaseous Species and the Possible Reaction Model"
+            }
+        ],
+        "creator_list": [
+            {
+                "sequence": "1",
+                "type": "person",
+                "names": [
+                    {
+                        "lang": "en",
+                        "last_name": "TAKAGI",
+                        "first_name": "Yoshiki"
+                    }
+                ],
+                "affiliation_list": [
+                    {
+                        "affiliation_name": "Teikyo University of Science and Technology",
+                        "sequence": "1",
+                        "lang": "en"
+                    }
+                ]
+            }
+        ],
+        "publication_date": {
+            "publication_year": "2001"
+        },
+        "relation_list": [
+            {
+                "content": "https://www.jstage.jst.go.jp/article/jsts/17/2/17_2_1/_pdf",
+                "type": "URL",
+                "relation": "fullTextPdf"
+            }
+        ],
+        "content_language": "en",
+        "updated_date": "2014-12-09",
+        "article_type": "pub",
+        "journal_id_list": [
+            {
+                "journal_id": "0911-551X",
+                "type": "ISSN",
+                "issn_type": "print"
+            },
+            {
+                "journal_id": "2186-4772",
+                "type": "ISSN",
+                "issn_type": "online"
+            },
+            {
+                "journal_id": "jsts",
+                "type": "JID"
+            }
+        ],
+        "journal_title_name_list": [
+            {
+                "journal_title_name": "The Journal of Space Technology and Science",
+                "type": "full",
+                "lang": "en"
+            },
+            {
+                "journal_title_name": "JSTS",
+                "type": "abbreviation",
+                "lang": "en"
+            }
+        ],
+        "journal_classification": "01",
+        "journal_txt_lang": "en",
+        "recorded_year": "1985-2013",
+        "volume": "17",
+        "issue": "2",
+        "first_page": "2_1",
+        "last_page": "2_7",
+        "date": "2013-08-21",
+        "keyword_list": [
+            {
+                "keyword": "Microgravity",
+                "sequence": "1",
+                "lang": "en"
+            },
+            {
+                "keyword": "Diamond synthesis",
+                "sequence": "2",
+                "lang": "en"
+            }
+        ],
+        "citation_list": [
+            {
+                "sequence": "1",
+                "doi": "10.1063/1.1656693",
+                "volume": "39",
+                "first_page": "2915",
+                "publication_date": {
+                    "publication_year": "1968"
+                },
+                "original_text": "1) J. C. Angus, H. A. Will and W S. Stanko: Journal of Applied Physics 39, 2915 (1968)."
+            },
+            {
+                "sequence": "2",
+                "doi": "10.1016/0022-0248(83)90411-6",
+                "journal_title_name_list": [
+                    {
+                        "journal_title_name": "Journal of Crystal Growth",
+                        "lang": "ja"
+                    }
+                ],
+                "volume": "62",
+                "first_page": "642",
+                "publication_date": {
+                    "publication_year": "1983"
+                },
+                "content_language": "ja",
+                "original_text": "2) M. Kamo, Y. Sato, S. Matsumoto, H. Setaka: Journal of Crystal Growth 62, 642 (1983)."
+            },
+            {
+                "sequence": "3",
+                "original_text": "3) Genchi. Y, Yasuda and T. Komiyama. H: International Chemical Engineering 32(3), 560-569 (1992)."
+            },
+            {
+                "sequence": "3",
+                "original_text": "4) Tsang. R S. May: International Chemical Engineering 32(3), 560-569 (1992)."
+            },
+            {
+                "sequence": "4",
+                "original_text": "3) Genchi. Y, Yasuda and T. Komiyama. H: International Chemical Engineering 32(3), 560-569 (1992)."
+            },
+            {
+                "sequence": "4",
+                "original_text": "4) Tsang. R S. May: International Chemical Engineering 32(3), 560-569 (1992)."
+            },
+            {
+                "sequence": "5",
+                "original_text": "5) Y. Hirose: Proceeding of 1 st International Conference for New Diamond Science and Technology P.51, KTK Terra Publish. (Tokyo, 1988)."
+            },
+            {
+                "sequence": "6",
+                "original_text": "6) Y. Takagi, S. Sato, K. Kaigawa, A. B. Sawaoka and L. L. Regel: Microgravity Quaterly, 2(1), 39-42 (1992)."
+            },
+            {
+                "sequence": "7",
+                "original_text": "7) S. Sato, K. Kaigawa, Y. Takagi, Y. Hirose and A. B. Sawaoka: Journal of the Japan Society of Microgravity Application 10(1), 38-45 (1993)."
+            },
+            {
+                "sequence": "8",
+                "original_text": "8) Y. Tanabe, K. Kaigawa, Y. Takagi and A. B. Sawaoka: Journal of the Japan Society of Microgravity Application 11(2), 71-79 ( 1994)."
+            },
+            {
+                "sequence": "9",
+                "original_text": "9) Y. Takagi, K. Hibiya and H. Takeuchi: Journal of the Japan Society of Microgravity Application 13(4), 225-233 (1996)."
+            },
+            {
+                "sequence": "10",
+                "original_text": "10) Y. Takagi, L. L. Regel and W R Wilcox: Transaction of the Materials Research Society of Japan 24(4), 513-518 (1999)."
+            },
+            {
+                "sequence": "11",
+                "original_text": "11) Y. Takagi, L. L. Regel and W R Wilcox: Journal, of the Japan Society of Microgravity Application 15(3), 140-145 (1998)."
+            },
+            {
+                "sequence": "12",
+                "original_text": "12) Y. Takagi, M. Suzuki, H. Abe and Y. Inatomi: Journal, of the Japan Society of Microgravity Application 17(3), 159-165 (2000)."
+            },
+            {
+                "sequence": "13",
+                "original_text": "13) K. Fabisiak, et al., Diamond and Related Materials, 1(1992) pp. 77-82."
+            },
+            {
+                "sequence": "14",
+                "original_text": "14) M. Uede &amp; Y. Takagi: J. Mater. Res., 16 (11), 3069-3072 (2001)."
+            },
+            {
+                "sequence": "15",
+                "original_text": "15) M. Okoshi, et al., Applied Surface Science, 154-155 (2000) pp.376-381."
+            },
+            {
+                "sequence": "16",
+                "original_text": "16) F. Onishi, R Hayashi, Y. Takagi, Proceedings of 2001 MRS Spring meeting, San Francisco,(submitted)."
+            },
+            {
+                "sequence": "17",
+                "doi": "10.1016/0038-1098(88)91128-3",
+                "title_list": [
+                    {
+                        "lang": "en",
+                        "title": "Raman spectra of diamondlike amorphous carbon films."
+                    }
+                ],
+                "volume": "66",
+                "issue": "11",
+                "first_page": "1177",
+                "last_page": "1180",
+                "publication_date": {
+                    "publication_year": "1988"
+                },
+                "content_language": "en",
+                "original_text": "17) M. Yoshikawa, G. Katagiri, H. Ishida and A. Ishitani: Solid State Communication, 66, 1177 (1988)."
+            },
+            {
+                "sequence": "18",
+                "original_text": "18) R Gat and J. C. Angus: Journal of Applied Physics 74, 5981-5989 (1993)."
+            }
+        ]
+    }
+}
