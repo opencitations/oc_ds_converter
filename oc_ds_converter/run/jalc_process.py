@@ -35,8 +35,10 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
     #check if in the input folder the zipped folder has already been decompressed
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(jalc_json_dir)
-        for el in input_dir_cont:
+        # for element in the list of elements in jalc_json_dir (input)
+        for el in input_dir_cont: #should be one (the input dir contains 1 zip)
             if el.startswith("._"):
+                # skip elements starting with ._
                 els_to_be_skipped.append(os.path.join(jalc_json_dir, el))
             else:
                 if el.endswith(".zip"):
@@ -71,20 +73,28 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
     all_input_zip= []
     if not testing:
         els_to_be_skipped_cont = [x for x in els_to_be_skipped if x.endswith(".zip")]
+
         if els_to_be_skipped_cont:
             for el_to_skip in els_to_be_skipped_cont:
+                if el_to_skip.startswith("._"):
+                    continue
                 base_name_el_to_skip = el_to_skip.replace('.zip', '')
                 for el in os.listdir(jalc_json_dir):
-                    if el.startswith(base_name_el_to_skip) and el.endswith("decompr_zip_dir"):
-                        all_input_zip = [os.path.join(jalc_json_dir, el, file) for file in os.listdir(os.path.join(jalc_json_dir, el))]
-        else:
-            all_input_zip = os.listdir(jalc_json_dir)
-            for zip in all_input_zip:
-                all_input_zip, targz_fd = get_all_files_by_type(os.path.join(jalc_json_dir, zip), req_type, cache)
+                    if el == base_name_el_to_skip + "decompr_zip_dir":
+                    #if el.startswith(base_name_el_to_skip) and el.endswith("decompr_zip_dir"):
+                        all_input_zip = [os.path.join(jalc_json_dir, el, file) for file in os.listdir(os.path.join(jalc_json_dir, el)) if not file.endswith(".json") and not file.startswith("._")]
+
+
+        if len(all_input_zip) == 0:
+
+            for zip_lev0 in os.listdir(jalc_json_dir):
+                all_input_zip, targz_fd = get_all_files_by_type(os.path.join(jalc_json_dir, zip_lev0), req_type, cache)
+
     else:
         all_input_zip = os.listdir(jalc_json_dir)
         for zip in all_input_zip:
             all_input_zip, targz_fd = get_all_files_by_type(os.path.join(jalc_json_dir, zip), req_type, cache)
+
     if not redis_storage_manager or max_workers == 1:
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
@@ -99,6 +109,7 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
 
 
     elif redis_storage_manager or max_workers > 1:
+
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for zip_file in all_input_zip:
                 future: ProcessFuture = executor.schedule(
@@ -106,6 +117,8 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
                     args=(
                     zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
                     publishers_filepath, storage_path, redis_storage_manager, testing, cache, True))
+
+        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for zip_file in all_input_zip:
                 future: ProcessFuture = executor.schedule(
                     function=get_citations_and_metadata,
@@ -173,7 +186,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
     data_citing = []
     data_cited = []
     zip_f = zipfile.ZipFile(zip_file)
-    source_data = zip_f.namelist()
+    source_data = [x for x in zip_f.namelist() if not x.startswith("doiList")]
     source_dict = []
     #here I create a list containing all the json in the zip folder as dictionaries
     for json_file in tqdm(source_data):
