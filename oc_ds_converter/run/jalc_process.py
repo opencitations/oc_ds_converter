@@ -112,6 +112,7 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
 
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for zip_file in all_input_zip:
+
                 future: ProcessFuture = executor.schedule(
                     function=get_citations_and_metadata,
                     args=(
@@ -228,9 +229,9 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         if ent_list:
             # qua il filename sarà quello della cartella zippata, tipo “105834_citing” o "105834_cited"
             if is_first_iteration_par:
-                filename_str = filepath_ne+"_citing"
+                filename_str = filepath_ne+"_citing.csv"
             else:
-                filename_str = filepath_ne+"_cited"
+                filename_str = filepath_ne+"_cited.csv"
             with open(filename_str, 'w', newline='', encoding='utf-8') as output_file:
                 dict_writer = csv.DictWriter(output_file, ent_list[0].keys(), delimiter=',', quotechar='"',
                                              quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
@@ -239,7 +240,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
             ent_list = []
         if not is_first_iteration_par:
             if citation_list:
-                filename_cit_str = filepath_citations_ne
+                filename_cit_str = filepath_citations_ne + ".csv"
                 with open(filename_cit_str, 'w', newline='', encoding='utf-8') as output_file_citations:
                     dict_writer = csv.DictWriter(output_file_citations, citation_list[0].keys(), delimiter=',',
                                                  quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
@@ -449,7 +450,6 @@ if __name__ == '__main__':
     testing = settings['testing'] if settings else args.testing
     redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
     max_workers = settings['max_workers'] if settings else args.max_workers
-    print("Jalc Preprocessing Phase: started")
     preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
                redis_storage_manager=redis_storage_manager, max_workers=max_workers)
 
