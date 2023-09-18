@@ -191,7 +191,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
 
     def save_files(ent_list, citation_list, nf, is_last_sf=False):
         if ent_list:
-            filename_str = filepath_ne+"_"+str(nf)
+            filename_str = filepath_ne+"_"+str(nf) + ".csv"
             with open(filename_str, 'w', newline='', encoding='utf-8') as output_file:
                 dict_writer = csv.DictWriter(output_file, ent_list[0].keys(), delimiter=',', quotechar='"',
                                              quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
@@ -200,7 +200,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
             ent_list = []
 
         if citation_list:
-            filename_cit_str = filepath_citations_ne+"_"+str(nf)
+            filename_cit_str = filepath_citations_ne+"_"+str(nf) + ".csv"
             with open(filename_cit_str, 'w', newline='', encoding='utf-8') as output_file_citations:
                 dict_writer = csv.DictWriter(output_file_citations, citation_list[0].keys(), delimiter=',',
                                              quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
