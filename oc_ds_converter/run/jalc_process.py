@@ -70,7 +70,7 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
         print(f'[INFO: jalc_process] Getting all files from {jalc_json_dir}')
 
     req_type = ".zip"
-    all_input_zip= []
+    all_input_zip = []
     if not testing:
         els_to_be_skipped_cont = [x for x in els_to_be_skipped if x.endswith(".zip")]
 
@@ -191,6 +191,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
     source_dict = []
     #here I create a list containing all the json in the zip folder as dictionaries
     for json_file in tqdm(source_data):
+        print(json_file)
         f = zip_f.open(json_file, 'r')
         my_dict = json.load(f)
         source_dict.append(my_dict)
