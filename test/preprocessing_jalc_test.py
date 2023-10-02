@@ -76,7 +76,7 @@ class TestJalcPreprocessing(unittest.TestCase):
             return count
 
         expected_count = count_files(JALC_DIR)
-        preprocessing(JALC_DIR, OUT_DIR)
+        preprocessing(JALC_DIR, OUT_DIR, 5)
 
         def count_elements_in_zip(zip_file):
             element_count = 0
