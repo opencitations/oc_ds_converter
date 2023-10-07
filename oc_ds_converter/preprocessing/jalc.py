@@ -1,5 +1,4 @@
-import os
-import zipfile
+
 import shutil
 from tqdm import tqdm
 from oc_ds_converter.lib.jsonmanager import *
@@ -9,7 +8,28 @@ from pebble import ProcessPool, ProcessFuture
 
 
 def preprocessing(jalc_json_dir:str, output_dir:str, max_workers:int = 1):
+    """This function preprocesses the original JALC zipped dump. The original dump has the following structure:
+    - jalc_dump.zip
+        -jalc_dump
+            -prefixes.json
+            -prefix1.zip
+                -prefix1
+                    -doiList1.json
+                    -doi1A.json
+                    -doi1B.json
+                    -etc.
+            -prefix2.zip
+                -prefix2
+                    -doiList2.json
+                    -doi2A.json
+                    -etc.
+    The preprocessing in particular removes the intermediate folders (like jalc_dump, prefix1, prefix2 in the example above)
+    and if inside one prefix.zip file are found more than 100 files, the original zip file is divided into the number of
+    json files in it//100 +1. In the case in which a prefix.zip file is divided into more zip files, the doiList.json is copied
+    just in the first subfile."""
 
+    '''In the els_to_be_skipped list are appended all the files found in the input directory starting with
+    "._" and the zip file if the corresponding decompressed directory is found'''
     els_to_be_skipped = []
     input_dir_cont = os.listdir(jalc_json_dir)
     for el in input_dir_cont:# should be one (the input dir contains 1 zip)
@@ -26,6 +46,9 @@ def preprocessing(jalc_json_dir:str, output_dir:str, max_workers:int = 1):
         os.makedirs(output_dir)
 
     all_unzipped_files = []
+    '''The elements in the "els_to_be_skipped" list are now taken into account. If inside the list a zip element is found,
+    the corresponding unzipped folder (if found in the input directory) is used to list all the elements inside the original 
+    zipped dump.'''
     els_to_be_skipped_cont = [x for x in els_to_be_skipped if x.endswith(".zip")]
     if els_to_be_skipped_cont:
         for el_to_skip in els_to_be_skipped_cont:
@@ -38,6 +61,8 @@ def preprocessing(jalc_json_dir:str, output_dir:str, max_workers:int = 1):
                     for dir_lev2 in os.listdir(os.path.join(jalc_json_dir, directory)):
                         all_unzipped_files = [os.path.join(jalc_json_dir, directory, dir_lev2, file) for file in os.listdir(os.path.join(jalc_json_dir, directory, dir_lev2)) if not file.startswith("._")]
 
+    '''If there aren't elements in the "els_to_be_skipped" list all the elements in the original
+    zipped dump are extracted in a folder with the same basename of the original dump + "_decompre_zip_dir".'''
     if len(all_unzipped_files) == 0:
         for zip_lev0 in os.listdir(jalc_json_dir):
             if zip_lev0.endswith("zip") and not zip_lev0.startswith("._"):
@@ -63,7 +88,7 @@ def preprocessing(jalc_json_dir:str, output_dir:str, max_workers:int = 1):
         if os.path.isfile(file):
             shutil.copy(file, output_dir)
 
-    # Iterate over the zip files and print the names of files they contain
+    # parallelization of the process
     if max_workers == 1:
         for zip_file in tqdm(zip_files, desc="Processing ZIP Files"):
             process_zip(zip_file, output_dir)
@@ -100,6 +125,7 @@ def process_zip(zip_file, output_dir2):
             # List the names of files within the zip (the relevant one, the json containing the citation information)
             file_names = [x for x in all_files_in_zip if x.endswith(".json") and "doiList" not in x and x not in directories]
             extra_file_names = [x for x in all_files_in_zip if "doiList" in x or x.endswith(".out")]
+
             if len(file_names) <= 100:
                 print("less than 100")
                 zip_file_name = os.path.basename(zip_file_path).replace(".zip", "")
@@ -140,21 +166,20 @@ def process_zip(zip_file, output_dir2):
 
             else:
                 # if there are more than 100 jsons, they should be divided as many zips as the total number of jsons/ 100.
-                # Each new zip should also contain all the extra files which where stored in the original zip
+                # The first of the new sub-zip files should also contain all the extra files which where stored in the original zip
                 print("more than 100: ", len(file_names))
                 zip_basename = zip_file_path.replace(".zip", "").replace(first_level_path, "").replace("/", "").replace(
                 "\\", "")
                 zip_part_counter = 0
 
                 while len(file_names):
-                    # nominare con numerazione la cartella del nuovo zip di arrivo
+                    # name of the new folder (prefix_0.zip)
                     zip_basename_w_counter = zip_basename + "_" + str(zip_part_counter)
-                    # definire il path per la cartella dove verranno estratti i files
+                    # path of the new folder where files will be extracted
                     sliced_out_name = os.path.join(output_dir2, zip_basename_w_counter)
-                    # creare la cartella
                     os.makedirs(sliced_out_name, exist_ok=True)
-                    # copiare nella cartella tutti i files extra che non sono json con informazioni sulle citazioni
 
+                    # copying in the output folder all the extra files (not json files with information on the bibliographic entities)
                     if zip_part_counter == 0:
                         for non_zip in extra_file_names:
                             if not os.path.isdir(non_zip) and 'doiList' in non_zip:
@@ -166,7 +191,6 @@ def process_zip(zip_file, output_dir2):
                                 with open(extracted_file_path, 'wb') as extracted_file:
                                     extracted_file.write(zip_ref.read(non_zip))
 
-                    # se i files rimasti da processare sono più di cento
                     if len(file_names) > 100:
                         print("json to be processed in this zip:", len(file_names))
 
@@ -214,7 +238,6 @@ def process_zip(zip_file, output_dir2):
         zip_ref.close()
 
 
-#preprocessing(r"C:\Users\marta\Desktop\oc_ds_converter\test\preprocessing_jalc\ZIP_JOCI_TEST", r"C:\Users\marta\Desktop\oc_ds_converter\test\preprocessing_jalc\OUT_DIR")
 
 if __name__ == '__main__':
     arg_parser = ArgumentParser('jalc.py', description='''This script does the preprocessing of the initial JALC dump, in particular it splits the original zip files in smaller ones if they contain more than 100 JSON files 
