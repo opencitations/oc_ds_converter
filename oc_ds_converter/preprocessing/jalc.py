@@ -8,8 +8,7 @@ from argparse import ArgumentParser
 from pebble import ProcessPool, ProcessFuture
 
 
-
-def preprocessing(jalc_json_dir: str, output_dir:str, max_workers:int = 1):
+def preprocessing(jalc_json_dir:str, output_dir:str, max_workers:int = 1):
 
     els_to_be_skipped = []
     input_dir_cont = os.listdir(jalc_json_dir)
@@ -20,8 +19,7 @@ def preprocessing(jalc_json_dir: str, output_dir:str, max_workers:int = 1):
         else:
             if el.endswith(".zip"):
                 base_name = el.replace('.zip', '')
-                if [x for x in os.listdir(jalc_json_dir) if
-                    x.startswith(base_name) and x.endswith("decompr_zip_dir")]:
+                if [x for x in os.listdir(jalc_json_dir) if x.startswith(base_name) and x.endswith("decompr_zip_dir")]:
                     els_to_be_skipped.append(os.path.join(jalc_json_dir, el))
 
     if not os.path.exists(output_dir):
@@ -80,7 +78,7 @@ def preprocessing(jalc_json_dir: str, output_dir:str, max_workers:int = 1):
     print("Zipping the output directory")
     shutil.make_archive(output_dir, 'zip', output_dir)
     print("Removing output directory")
-    shutil.rmtree(output_dir)  # Delete the original directory'''
+    shutil.rmtree(output_dir)  # Delete the original directory
 
 
 def process_zip(zip_file, output_dir2):
@@ -89,7 +87,6 @@ def process_zip(zip_file, output_dir2):
         shutil.copy(zip_file, output_dir2)
 
     else:
-
         # manage the resizing
         # Full path to the zip file
         zip_file_path = zip_file
@@ -105,7 +102,41 @@ def process_zip(zip_file, output_dir2):
             extra_file_names = [x for x in all_files_in_zip if "doiList" in x or x.endswith(".out")]
             if len(file_names) <= 100:
                 print("less than 100")
-                shutil.copy(zip_file_path, output_dir2)
+                zip_file_name = os.path.basename(zip_file_path).replace(".zip", "")
+                dir_to_zip = os.path.join(output_dir2, zip_file_name)
+                os.makedirs(dir_to_zip, exist_ok=True)
+                for non_zip in extra_file_names:
+                    if not os.path.isdir(non_zip) and 'doiList' in non_zip:
+                        '''We use os.path.basename(file_info.filename) to extract just the filename
+                        without the folder structure. We create a new file in the destination folder 
+                        with the extracted filename and write the content of the file from the ZIP archive into it.'''
+                        file_info = zip_ref.getinfo(non_zip)
+                        extracted_file_path = os.path.join(dir_to_zip, os.path.basename(file_info.filename))
+                        with open(extracted_file_path, 'wb') as extracted_file:
+                            extracted_file.write(zip_ref.read(non_zip))
+                for fs in file_names:
+                    file_info = zip_ref.getinfo(fs)
+                    extracted_file_path = os.path.join(dir_to_zip,
+                                                       os.path.basename(file_info.filename))
+                    with open(extracted_file_path, 'wb') as extracted_file:
+                        extracted_file.write(zip_ref.read(fs))
+
+                # Parent directory
+                parent_directory = os.path.dirname(dir_to_zip)
+                # Name the zip file
+                zip_file_name = dir_to_zip + ".zip"
+                # Full path to the destination zip file
+                zip_file_path = os.path.join(parent_directory, zip_file_name)
+
+                with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for foldername, subfolders, filenames in os.walk(dir_to_zip):
+                        for filename in filenames:
+                            file_path = os.path.join(foldername, filename)
+                            relative_path = os.path.relpath(file_path, dir_to_zip)
+                            zipf.write(file_path, relative_path)
+                # After creating the zip, delete the original directory
+                shutil.rmtree(dir_to_zip)
+                print("Just Completed zip:", zip_file_path)
 
             else:
                 # if there are more than 100 jsons, they should be divided as many zips as the total number of jsons/ 100.
@@ -113,8 +144,6 @@ def process_zip(zip_file, output_dir2):
                 print("more than 100: ", len(file_names))
                 zip_basename = zip_file_path.replace(".zip", "").replace(first_level_path, "").replace("/", "").replace(
                 "\\", "")
-
-
                 zip_part_counter = 0
 
                 while len(file_names):
@@ -125,16 +154,17 @@ def process_zip(zip_file, output_dir2):
                     # creare la cartella
                     os.makedirs(sliced_out_name, exist_ok=True)
                     # copiare nella cartella tutti i files extra che non sono json con informazioni sulle citazioni
-                    for non_zip in extra_file_names:
-                        if not os.path.isdir(non_zip) and 'doiList' in non_zip:
-                            '''We use os.path.basename(file_info.filename) to extract just the filename
-                            without the folder structure. We create a new file in the destination folder 
-                            with the extracted filename and write the content of the file from the ZIP archive into it.'''
-                            file_info = zip_ref.getinfo(non_zip)
-                            extracted_file_path = os.path.join(sliced_out_name,
-                                                                   os.path.basename(file_info.filename))
-                            with open(extracted_file_path, 'wb') as extracted_file:
-                                extracted_file.write(zip_ref.read(non_zip))
+
+                    if zip_part_counter == 0:
+                        for non_zip in extra_file_names:
+                            if not os.path.isdir(non_zip) and 'doiList' in non_zip:
+                                '''We use os.path.basename(file_info.filename) to extract just the filename
+                                without the folder structure. We create a new file in the destination folder 
+                                with the extracted filename and write the content of the file from the ZIP archive into it.'''
+                                file_info = zip_ref.getinfo(non_zip)
+                                extracted_file_path = os.path.join(sliced_out_name, os.path.basename(file_info.filename))
+                                with open(extracted_file_path, 'wb') as extracted_file:
+                                    extracted_file.write(zip_ref.read(non_zip))
 
                     # se i files rimasti da processare sono più di cento
                     if len(file_names) > 100:
@@ -150,8 +180,6 @@ def process_zip(zip_file, output_dir2):
                                                                os.path.basename(file_info.filename))
                             with open(extracted_file_path, 'wb') as extracted_file:
                                 extracted_file.write(zip_ref.read(fs))
-
-
                     else:
                         print("last", len(file_names), "jsons to be processed")
                         files_slice = file_names
@@ -186,7 +214,7 @@ def process_zip(zip_file, output_dir2):
         zip_ref.close()
 
 
-
+#preprocessing(r"C:\Users\marta\Desktop\oc_ds_converter\test\preprocessing_jalc\ZIP_JOCI_TEST", r"C:\Users\marta\Desktop\oc_ds_converter\test\preprocessing_jalc\OUT_DIR")
 
 if __name__ == '__main__':
     arg_parser = ArgumentParser('jalc.py', description='''This script does the preprocessing of the initial JALC dump, in particular it splits the original zip files in smaller ones if they contain more than 100 JSON files 

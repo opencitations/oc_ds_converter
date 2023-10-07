@@ -6,7 +6,7 @@ from os.path import sep
 
 from oc_ds_converter.preprocessing.jalc import preprocessing
 import zipfile
-import io
+
 
 
 BASE = os.path.join('test', 'preprocessing_jalc')
@@ -31,7 +31,7 @@ class TestJalcPreprocessing(unittest.TestCase):
 
 
         def count_files(dir_with_dump_to_ckeck):
-            count= 0
+            count = 0
 
             all_unzipped_files = []
             for zip_lev0 in os.listdir(dir_with_dump_to_ckeck):
@@ -70,7 +70,7 @@ class TestJalcPreprocessing(unittest.TestCase):
                     elif len(file_names) < 100:
                         number_of_zip = 1
                     count += number_of_zip
-                    number_extra_files = len(extra_file_names) * number_of_zip
+                    number_extra_files = len(extra_file_names)
                     count += number_extra_files
                     count += len(file_names)
             return count
@@ -96,10 +96,10 @@ class TestJalcPreprocessing(unittest.TestCase):
                         os.remove(nested_zip_path)
             return element_count
 
-        real_count = count_elements_in_zip(OUT_DIR+'.zip')
+        real_count = count_elements_in_zip(OUT_DIR+".zip")
         self.assertEqual(expected_count, real_count)
 
-        os.remove(OUT_DIR +'.zip')
+        os.remove(OUT_DIR + '.zip')
 
         for el in os.listdir(JALC_DIR):
             if el.endswith("decompr_zip_dir"):
