@@ -70,7 +70,7 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
         print(f'[INFO: jalc_process] Getting all files from {jalc_json_dir}')
 
     req_type = ".zip"
-    all_input_zip= []
+    all_input_zip = []
     if not testing:
         els_to_be_skipped_cont = [x for x in els_to_be_skipped if x.endswith(".zip")]
 
@@ -112,6 +112,7 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
 
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for zip_file in all_input_zip:
+                print(zip_file)
 
                 future: ProcessFuture = executor.schedule(
                     function=get_citations_and_metadata,
@@ -121,6 +122,7 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
 
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for zip_file in all_input_zip:
+                print(zip_file)
                 future: ProcessFuture = executor.schedule(
                     function=get_citations_and_metadata,
                     args=(
@@ -423,7 +425,7 @@ if __name__ == '__main__':
                             required=False,
                             help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
                                  'value is set to false, which means that -unless it is differently stated- the storage manager used is'
-                                 'the one chosen as value of the parametr --storage_manager. The redis db used by the storage manager is the n.2')
+                                 'the one chosen as value of the parameter --storage_manager. The redis db used by the storage manager is the n.2')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int,
                             help='Workers number')
     args = arg_parser.parse_args()
