@@ -21,7 +21,7 @@ This repository contains scripts for converting scholarly bibliographic metadata
     <li><a href="#about-the-project">About The Project</a></li>
     <li><a href="#components">Software Components</a></li>
     <li><a href="#validation">ID Validation Process</a></li>
-    <li><a href="#run">How to Run the Softwares</a></li>
+    <li><a href="#run">How to Run the Software</a></li>
     <li><a href="#extend">How to Extend the Software</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -111,11 +111,59 @@ For each encountered identifier to be validated, an ordered list of checks shoul
 3. Search for the identifier in the OpenCitations databases, containing data of all the datasets ever ingested in OpenCitations.
 4. Use ID-schema specific API services to retrieve the validity information of the ID. 
 
+<!-- HOW TO RUN THE SOFTWARE -->
+## How to Run the Software
+To produce the citations and metadata CSV output from a data source, it is possible to execute its specific process by selecting the correct source from `oc_ds_converter/run/` directory. For example, the oc_ds_converter process for **JaLC** data source can be launched as follows:
+
+```
+python oc_ds_converter/run/jalc_process.py -ja /Volumes/my_disk/JALC_INPUT -out /Volumes/my_disk/JALC_OUTPUT -ca /Volumes/my_disk/JOCI_CACHE.json -r -m 3
+```
+This command launches a process of data conversion from the input data dump (located at `/Volumes/my_disk/JALC_INPUT`) into metadata CSV tables (stored at `/Volumes/my_disk/JALC_OUTPUT`) and citation CSV tables (stored in a directory automatically generated at `/Volumes/my_disk/JALC_OUTPUT_citations`), using up to 3 workers for the process parallelization (`-m 3`) and Redis as storage system (`-r`) . While the process is being executed, a cache file at `/Volumes/my_disk/JOCI_CACHE.json` is created and updated. 
+
+More in detail, each data source run script has a set of arguments that can be adapted to meet the peculiarities of the dataset. However, all the sources should accept a similar list of arguments: 
+- **'--config'**: The path to a configuration file, where the other arguments can be declared;
+- **'--input_location'**: The path to the input data;
+- **'--output_location'**: The path to the output directory where the metadata CSV files will be stored. From the name of this directory, the name of the directory where to store the citation CSV files will be derived automatically.
+- **'--publishers'**: The path to an optional support CSV file containing additional information about publishers, their crossref members and the DOI prefix they are associated with (id, name, prefix), used to enrich the metadata.
+- **'--orcid'**: The path to an optional support table mapping DOIs to ORCIDs of the publications' authors, used to enrich the metadata.
+- **'--wanted'**: The path to an optional CSV filepath containing a list of DOIs to process.
+- **'--cache'**: The cache file path, that will be automatically deleted at the end of the process.
+- **'--verbose'**: Argument which allows to declare whether a verbose description of the process execution is required. 
+- **'--storage_path'**: An argument to optionally choose the path of the file where to store data concerning validated IDs information, in case the process is executed using either an In-Memory or a Sqlite storage manager. Pay attention to specify a ".db" file in case a SqliteStorageManager is chosen and a ".json" file otherwise.
+- **'--testing'**: The parameter to define whether or not the script is to be run in testing mode.
+- **'--redis_storage_manager'**: A parameter to define whether or not to use redis as storage manager. In case Redis is not used, the storage manager type is derived by the storage path type (i.e. : In Memory storage in case the file is a JSON file, Sqlite in case of a .db file)
+- **'--max_workers'**: The integer number of workers used to run the process in parallel executions. 
+
+
+<!-- HOW TO EXTEND THE SOFTWARE -->
+## How to Extend the Software
+
+### Manage a new Data Source
+In order to manage a new data source, two main software components need to be developed: 
+1. a script for reading the data source, extract the bibliographic entities' metadata, and produce the output tables;
+2. a script for reshaping the metadata of each bibliographic entity according to the OpenCitation data model.
+
+In addition to that, if the data source uses persistent identifiers not managed by OpenCitations yet, a new identifier manager should be developed too. 
+
+#### Data Source Reader Script 
+For each new data source, a python file should be added to the directory `oc_ds_converter/run/`. The file should be named after the data source, and perform the following tasks: 
+1. decopress and read the source dataset;
+2. manage the identifiers' validation process;
+3. extract from the source data a data structure representing each bibliographic resource;
+4. call a source-specific metadata crosswalk method to convert this data structure into an OCDM-compliant dictionary representing the bibliographic resource, to be stored as a CSV row;
+5. produce the output tables (citations and metadata)
+
+#### Metadata Crosswalk Script
+All source represents bibliographic records according to a specific data model, which has to be mapped into OCDM. To do so, we implement a source-specific child class of the class `RaProcessor` (defined in `oc_ds_converter/ra_processor.py`) for each new data source. The main method of all `RaProcessor` children classes is `csv_creator`, which is aimed at producing a row for an OpenCitations metadata table from a data structure representing a bibliographic entry according the source data model. As an example, see `OpenaireProcessing(RaProcessor)` class (in `oc_ds_converter/openaire/openaire_processing.py`). 
+
+
+### Add a new ID Manager
+### Add a new Storage Manager
+
 <!-- LICENSE -->
 ## License
 
 Distributed under the ISC License. See `LICENSE` for more information.
-
 
 <!-- CONTACTS -->
 ## Contacts
