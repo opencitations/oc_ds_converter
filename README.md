@@ -7,12 +7,12 @@
 # OpenCitations Data Sources Converter
 
 This repository contains scripts for converting scholarly bibliographic metadata from various data sources into the format accepted by OpenCitations Meta. The data sources currently supported are:
-- Crossref
-- DataCite
-- PubMed
-- OpenAIRE
-- JaLC
-- mEDRA
+- [Crossref](https://github.com/opencitations/oc_ds_converter/blob/658342c1921126515bc4330b8e6cfce0ead2ba48/oc_ds_converter/crossref/crossref_processing.py)
+- [DataCite](https://github.com/opencitations/oc_ds_converter/blob/658342c1921126515bc4330b8e6cfce0ead2ba48/oc_ds_converter/datacite/datacite_processing.py)
+- [PubMed](https://github.com/opencitations/oc_ds_converter/blob/658342c1921126515bc4330b8e6cfce0ead2ba48/oc_ds_converter/pubmed/pubmed_processing.py)
+- [OpenAIRE](https://github.com/opencitations/oc_ds_converter/blob/658342c1921126515bc4330b8e6cfce0ead2ba48/oc_ds_converter/openaire/openaire_processing.py)
+- [JaLC](https://github.com/opencitations/oc_ds_converter/blob/658342c1921126515bc4330b8e6cfce0ead2ba48/oc_ds_converter/jalc/jalc_processing.py)
+- [mEDRA](https://github.com/opencitations/oc_ds_converter/blob/658342c1921126515bc4330b8e6cfce0ead2ba48/oc_ds_converter/medra/medra_processing.py)
 
 
 <!-- TABLE OF CONTENTS -->
@@ -61,39 +61,35 @@ Here, a diagram of the OpenCitations ingestion workflow:
 <h2 id="components"> Software Components </h2>
 
 The software is built upon three fundamental components, each addressing specific needs: 
-1. Metadata Crosswalk (oc_ds_converter) 
-2. Identifier Validation (oc_ds_converter/oc_idmanager) 
-3. Data Storage Management (oc_ds_converter/oc_idmanager/oc_data_storage) 
-### Metadata Crosswalk (oc_ds_converter)
+1. <a href="#mdc"> Metadata Crosswalk</a> ([oc_ds_converter](https://github.com/opencitations/oc_ds_converter/tree/297c71577232459a69ca1662011419d452971095/oc_ds_converter)) 
+2. <a href="#idv">Identifier Validation</a> ([oc_ds_converter/oc_idmanager](https://github.com/opencitations/oc_ds_converter/tree/297c71577232459a69ca1662011419d452971095/oc_ds_converter/oc_idmanager)) 
+3. <a href="#dsm">Data Storage Management</a> ([oc_ds_converter/oc_idmanager/oc_data_storage](https://github.com/opencitations/oc_ds_converter/tree/297c71577232459a69ca1662011419d452971095/oc_ds_converter/oc_idmanager/oc_data_storage))
+
+<h3 id="mdc">Metadata Crosswalk</h3>
 Within this layer, there is a specific plugin for each data source, which, in turn, contains a Python file (usually named after the data source + "_ processing.py," e.g., oc_ds_converter/datacite/datacite_processing.py). In this file, a class is defined to convert metadata provided by the specific source into metadata compliant with OCDM. For example, in the file datacite_processing.py, the class DataciteProcessing(RaProcessor) is defined, which contains the method `csv_creator(self, item: dict) -> dict`. This method is responsible for producing a dictionary of metadata representing a bibliographic entity extracted from the dump provided by DataCite. 
-### Identifier Validation (oc_ds_converter/oc_idmanager)
-This software validates all identifiers not provided by the identifier registration agency itself. Currently, the identifiers handled by OpenCitations are: 
-1. [DOI](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/doi.py)
-2. [PMID](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/pmid.py)
-3. [PMC](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/pmcid.py)
-4. [VIAF](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/viaf.py)
-5. [WIKIDATA](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/wikidata.py)
-6. [WIKIPEDIA](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/wikipedia.py)
-7. [ROR](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/ror.py)
-8. [ORCID](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/orcid.py)
-9. [ARXIV](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/arxiv.py)
-10. [JID](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/jid.py)
-11. [ISSN](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/issn.py)
-12. [ISBN](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/isbn.py)
-13. [URL](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/url.py)
+<h3 id="idv"> Identifier Validation</h3>
+This software validates all identifiers not provided by the identifier registration agency itself. Currently, the identifiers handled by OpenCitations are: <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/doi.py">DOI</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/pmid.py">PMID</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/pmcid.py">PMC</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/viaf.py">VIAF</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/wikidata.py">WIKIDATA</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/wikipedia.py">WIKIPEDIA</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/ror.py">ROR</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/orcid.py">ORCID</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/arxiv.py">ARXIV</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/jid.py">JID</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/issn.py">ISSN</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/isbn.py">ISBN</a>; <a href="https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/url.py">URL</a>. 
 
-Each identifier schema has its own class (e.g.: PMIDManager(IdentifierManager), defined in oc_ds_converter/oc_idmanager/pmid.py), instantiated according to the model provided by the abstract class IdentifierManager(metaclass=ABCMeta), in oc_ds_converter/oc_idmanager/base.py. 
-Each class provides methods for normalising the id string, checking the correctness of the id syntax, and verifying its existence using its specific API service. 
-### Data Storage Management (oc_ds_converter/oc_idmanager/oc_data_storage) 
+Each identifier schema has its own class (e.g.: `PMIDManager(IdentifierManager)`, defined in `oc_ds_converter/oc_idmanager/pmid.py`), instantiated according to the model provided by the abstract class `IdentifierManager(metaclass=ABCMeta)`, defined in oc_ds_converter/oc_idmanager/base.py. 
+Each class provides methods for:
+<ol>
+  <li>normalising the id string</li>
+  <li>checking the correctness of the id syntax</li>
+  <li>verifying its existence using specific API services (if available)</li>
+</ol>
+
+<h3 id="dsm"> Data Storage Management </h3> 
 OpenCitations ds_converter currently offers three storage systems, which can be alternatively used: 
-1. In Memory (class InMemoryStorageManager(StorageManager), defined in oc_ds_converter/oc_idmanager/oc_data_storage/in_memory_manager.py)
-2. Redis (class RedisStorageManager(StorageManager), defined in oc_ds_converter/oc_idmanager/oc_data_storage/redis_manager.py)
-3. Sqlite (class SqliteStorageManager(StorageManager), defined in oc_ds_converter/oc_idmanager/oc_data_storage/sqlite_manager.py). 
-Each of these classes is defined as an instance of the abstract class StorageManager(metaclass=ABCMeta), defined in oc_ds_converter/oc_idmanager/oc_data_storage/storage_manager.py. 
 
-The type of storage manager used for a specific data source process can be chosen by the user (however, we suggest using the Redis Storage Manager). 
+* In Memory (class `InMemoryStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/in_memory_manager.py)`
+* Redis (class `RedisStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/redis_manager.py`)
+* Sqlite (class `SqliteStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/sqlite_manager.py`). 
+
+Each of these classes is defined as an instance of the abstract class `StorageManager(metaclass=ABCMeta)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/storage_manager.py`. 
+
+The type of storage manager used for a specific data source process can be chosen by the user (however, we suggest using the Redis storage manager). 
 An instance of the chosen storage manager will be used by all the ID Managers instantiated in the process to store validation data at the end of each data chunk management. 
-The temporary storage manager used while processing a data chunk is instead always an instance of the In-Memory storage manager (which is based on the use of a JSON dictionary). The reason for this choice lies in the fact that, in case of a run stop, the execution would restart processing from the beginning of the chunk that was being managed at the time of the interruption, and thus the data already memorized by a redis or sqlite storage manager would be duplicated, while the data memorized in an instance of an in-memory storage manager are just lost and reprocessed. 
+The temporary storage manager used while processing a data chunk is instead always an instance of the In-Memory storage manager (which is based on the use of a python dictionary). The reason for this choice lies in the fact that, in case of a run stop, the execution would restart processing from the beginning of the chunk that was being managed at the time of the interruption, and thus the data already memorized by a redis or sqlite storage manager would be duplicated, while the data memorized in an instance of an in-memory storage manager are just lost and reprocessed. 
 
 <!-- ID VALIDATION PROCESS -->
 <h2 id="validation">ID Validation Process</h2>
@@ -107,13 +103,15 @@ Subsequently, we perform another full iteration, validating all identifiers not 
 
 Note that, to manage the large amount of data provided by each data source, the input dataset is generally divided into data chunks. As mentioned above, in order to avoid data duplication in case of a process interruption and restart, data concerning each chunk are temporarily stored in an instance of the in-memory storage manager (see InMemoryStorageManager(StorageManager) in oc_ds_converter/oc_idmanager/oc_data_storage/in_memory_manager.py). The data stored in the temporary storage manager is transferred to the main storage manager (containing the ID validation data of the full input dataset) at the end of the chunk's process, when both the CSV tables concerning bibliographic metadata and citations are produced.
 For each encountered identifier to be validated, an ordered list of checks should be performed, stopping as soon as the validity value can be assessed:
-1. Search for the identifier in the in-memory storage manager, containing data concerning the current data chunk; 
+
+1. Search for the identifier in the in-memory storage manager, containing data concerning the current data chunk;
 2. Search for the identifier in the main storage manager, containing data concerning the whole dataset; 
 3. Search for the identifier in the OpenCitations databases, containing data of all the datasets ever ingested in OpenCitations.
 4. Use ID-schema specific API services to retrieve the validity information of the ID. 
 
 <!-- HOW TO RUN THE SOFTWARE -->
-<h2 id="run">How to Run the Software</h2>
+<h2 id="run"> How to Run the Software </h2>
+
 To produce the citations and metadata CSV output from a data source, it is possible to execute its specific process by selecting the correct source from `oc_ds_converter/run/` directory. For example, the oc_ds_converter process for **JaLC** data source can be launched as follows:
 
 ```
@@ -123,6 +121,7 @@ python oc_ds_converter/run/jalc_process.py -ja /Volumes/my_disk/JALC_INPUT -out 
 This command launches a process of data conversion from the input data dump (located at `/Volumes/my_disk/JALC_INPUT`) into metadata CSV tables (stored at `/Volumes/my_disk/JALC_OUTPUT`) and citation CSV tables (stored in a directory automatically generated at `/Volumes/my_disk/JALC_OUTPUT_citations`), using up to 3 workers for the process parallelization (`-m 3`) and Redis as storage system (`-r`) . While the process is being executed, a cache file at `/Volumes/my_disk/JOCI_CACHE.json` is created and updated. 
 
 More in detail, each data source run script has a set of arguments that can be adapted to meet the peculiarities of the dataset. However, all the sources should accept a similar list of arguments: 
+
 - **'--config'**: The path to a configuration file, where the other arguments can be declared;
 - **'--input_location'**: The path to the input data;
 - **'--output_location'**: The path to the output directory where the metadata CSV files will be stored. From the name of this directory, the name of the directory where to store the citation CSV files will be derived automatically.
@@ -138,7 +137,8 @@ More in detail, each data source run script has a set of arguments that can be a
 
 
 <!-- HOW TO EXTEND THE SOFTWARE -->
-<h2 id="extend">How to Extend the Software</h2>
+<h2 id="extend"> How to Extend the Software </h2>
+
 ### Manage a new Data Source
 In order to manage a new data source, two main software components need to be developed: 
 1. a script for reading the data source, extract the bibliographic entities' metadata, and produce the output tables;
@@ -147,7 +147,9 @@ In order to manage a new data source, two main software components need to be de
 In addition to that, if the data source uses persistent identifiers not managed by OpenCitations yet, a new identifier manager should be developed too. 
 
 #### Data Source Reader Script 
+
 For each new data source, a python file should be added to the directory `oc_ds_converter/run/`. The file should be named after the data source, and perform the following tasks: 
+
 1. decopress and read the source dataset;
 2. manage the identifiers' validation process;
 3. extract from the source data a data structure representing each bibliographic resource;
@@ -155,10 +157,12 @@ For each new data source, a python file should be added to the directory `oc_ds_
 5. produce the output tables (citations and metadata)
 
 #### Metadata Crosswalk Script
+
 All source represents bibliographic records according to a specific data model, which has to be mapped into OCDM. To do so, we implement a source-specific child class of the class `RaProcessor` (defined in `oc_ds_converter/ra_processor.py`) for each new data source. The main method of all `RaProcessor` children classes is `csv_creator`, which is aimed at producing a row for an OpenCitations metadata table from a data structure representing a bibliographic entry according the source data model. As an example, see `OpenaireProcessing(RaProcessor)` class (in `oc_ds_converter/openaire/openaire_processing.py`). 
 
 
 ### Add a new ID Manager
+
 For adding a new ID Manager:
 1. create a python file at `oc_ds_converter/oc_idmanager`, named after the id schema, e.g. `oc_ds_converter/oc_idmanager/viaf.py`.
 2. create a new class as an instance of the abstract class `IdentifierManager` (defined in `oc_ds_converter/oc_idmanager/base.py`), e.g.: `ViafManager(IdentifierManager)`, thus following the provided template. In particular:
@@ -166,6 +170,11 @@ For adding a new ID Manager:
 4. if possible, add additional ID-schema specific methods. For example, some ID schemas (such as ORCID and ISSN) are formed by following a specific check-digit mechanism, which provides a further control system to verify the ID validity: in these cases, it is possible to add also a `check_digit` method. 
 
 ### Add a new Storage Manager
+
+For adding a new type of Storage Manager, i.e. relying on another storage system:
+1. create a python file at `oc_ds_converter/oc_idmanager/oc_data_storage` named after the storage system, e.g.: `oc_ds_converter/oc_idmanager/oc_data_storage/redis_manager.py`.
+2. create a new class as an instance of the abstract class `StorageManager` (defined in `oc_ds_converter/oc_idmanager/oc_data_storage/storage_manager.py`), e.g.: `RedisStorageManager(StorageManager)`, thus following the provided template. In particular:
+3. define all the storage-type-specific required methods, i.e.: `set_value`, to add a single key-value pair to the storage, `set_multi_value`, to store a list of key-value tuple pairs all at once,  `get_value`, to retrieve the value associated to a specific key, `del_value`, to delete a key-value pair, `delete_storage`, to delete all the data previously saved in the storage system, and `get_all_keys`, to retrieve the list of all the keys in the storage. 
 
 
 <!-- LICENSE -->
@@ -188,13 +197,17 @@ Project Link: [https://github.com/opencitations/oc_ds_converter](https://github.
 
 <!-- ACKNOWLEDGEMENTS -->
 <h2 id="acknowledgements">Acknowledgements</h2>
+
 This project has been developed under the supervision of Prof. Silvio Peroni.
+
 - Silvio Peroni - [@essepuntato](https://github.com/essepuntato) - silvio.peroni@unibo.it
 
 <!-- REFERENCES -->
 <h2 id="references">References</h2>
+
 - [The OpenCitations Data Model](https://link.springer.com/chapter/10.1007/978-3-030-62466-8_28)
 - [OpenCitations Meta](https://doi.org/10.48550/arXiv.2306.16191)
+- [Metadata crosswalk for citation data production in OpenCitations](https://marketplace.sshopencloud.eu/workflow/MHwO4l)
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
