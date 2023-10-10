@@ -24,14 +24,14 @@ This repository contains scripts for converting scholarly bibliographic metadata
     <li><a href="#run">How to Run the Software</a></li>
     <li><a href="#extend">How to Extend the Software</a></li>
     <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
+    <li><a href="#contacts">Contacts</a></li>
     <li><a href="#acknowledgements">Acknowledgements</a></li>
     <li><a href="#references">References</a></li>
   </ol>
 
 
 <!-- ABOUT THE PROJECT -->
-## About The Project
+<h2 id="about-the-project"> About The Project </h2>
 
 The main function of this software is to perform a metadata crosswalk between the data sources providing bibliographic and citation data and the [OpenCitations Data Model (OCDM)](https://opencitations.net/model). At the same time, the software also handles the normalization and validation of the identifiers provided by the data source in all cases where it is not also the registration agency for those identifiers. The software generates **two main output datasets**, based on the data provided by a specific source:
 
@@ -58,7 +58,8 @@ Here, a diagram of the OpenCitations ingestion workflow:
 ![OpenCitations Ingestion Workflow](https://github.com/ariannamorettj/OC_documents/blob/5115cf039b4baa2319c6c22cc270647861ae2f5a/ingestion_workflow_overview.jpg)
 
 <!-- SOFTWARE COMPONENTS -->
-## Software Components
+<h2 id="components"> Software Components </h2>
+
 The software is built upon three fundamental components, each addressing specific needs: 
 1. Metadata Crosswalk (oc_ds_converter) 
 2. Identifier Validation (oc_ds_converter/oc_idmanager) 
@@ -67,19 +68,19 @@ The software is built upon three fundamental components, each addressing specifi
 Within this layer, there is a specific plugin for each data source, which, in turn, contains a Python file (usually named after the data source + "_ processing.py," e.g., oc_ds_converter/datacite/datacite_processing.py). In this file, a class is defined to convert metadata provided by the specific source into metadata compliant with OCDM. For example, in the file datacite_processing.py, the class DataciteProcessing(RaProcessor) is defined, which contains the method `csv_creator(self, item: dict) -> dict`. This method is responsible for producing a dictionary of metadata representing a bibliographic entity extracted from the dump provided by DataCite. 
 ### Identifier Validation (oc_ds_converter/oc_idmanager)
 This software validates all identifiers not provided by the identifier registration agency itself. Currently, the identifiers handled by OpenCitations are: 
-1. [DOI]()
-2. PMID
-3. PMC
-4. VIAF
-5. WIKIDATA
-6. WIKIPEDIA
-7. ROR
-8. ORCID
-9. ARXIV
-10. JID
-11. ISSN
-12. ISBN
-13. URL
+1. [DOI](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/doi.py)
+2. [PMID](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/pmid.py)
+3. [PMC](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/pmcid.py)
+4. [VIAF](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/viaf.py)
+5. [WIKIDATA](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/wikidata.py)
+6. [WIKIPEDIA](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/wikipedia.py)
+7. [ROR](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/ror.py)
+8. [ORCID](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/orcid.py)
+9. [ARXIV](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/arxiv.py)
+10. [JID](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/jid.py)
+11. [ISSN](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/issn.py)
+12. [ISBN](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/isbn.py)
+13. [URL](https://github.com/opencitations/oc_ds_converter/blob/3bf5b93edf88c3f6cb1fe1860490533b5b9d1186/oc_ds_converter/oc_idmanager/url.py)
 
 Each identifier schema has its own class (e.g.: PMIDManager(IdentifierManager), defined in oc_ds_converter/oc_idmanager/pmid.py), instantiated according to the model provided by the abstract class IdentifierManager(metaclass=ABCMeta), in oc_ds_converter/oc_idmanager/base.py. 
 Each class provides methods for normalising the id string, checking the correctness of the id syntax, and verifying its existence using its specific API service. 
@@ -95,7 +96,7 @@ An instance of the chosen storage manager will be used by all the ID Managers in
 The temporary storage manager used while processing a data chunk is instead always an instance of the In-Memory storage manager (which is based on the use of a JSON dictionary). The reason for this choice lies in the fact that, in case of a run stop, the execution would restart processing from the beginning of the chunk that was being managed at the time of the interruption, and thus the data already memorized by a redis or sqlite storage manager would be duplicated, while the data memorized in an instance of an in-memory storage manager are just lost and reprocessed. 
 
 <!-- ID VALIDATION PROCESS -->
-## ID Validation Process 
+<h2 id="validation">ID Validation Process</h2>
 In order to avoid redundant API checks, we rely on an ad-hoc data storage system. More in detail, in case the data source is also the id registration agency of at least a part of the identifiers provided in a data dump, we perform a full preliminary iteration of the data to store these identifiers as valid, without any further check. 
 
 ![Perliminary data dump iteration](https://github.com/ariannamorettj/OC_documents/blob/5115cf039b4baa2319c6c22cc270647861ae2f5a/id_validation_pre_process_dump_iteration_diagram.png) 
@@ -112,12 +113,13 @@ For each encountered identifier to be validated, an ordered list of checks shoul
 4. Use ID-schema specific API services to retrieve the validity information of the ID. 
 
 <!-- HOW TO RUN THE SOFTWARE -->
-## How to Run the Software
+<h2 id="run">How to Run the Software</h2>
 To produce the citations and metadata CSV output from a data source, it is possible to execute its specific process by selecting the correct source from `oc_ds_converter/run/` directory. For example, the oc_ds_converter process for **JaLC** data source can be launched as follows:
 
 ```
 python oc_ds_converter/run/jalc_process.py -ja /Volumes/my_disk/JALC_INPUT -out /Volumes/my_disk/JALC_OUTPUT -ca /Volumes/my_disk/JOCI_CACHE.json -r -m 3
 ```
+
 This command launches a process of data conversion from the input data dump (located at `/Volumes/my_disk/JALC_INPUT`) into metadata CSV tables (stored at `/Volumes/my_disk/JALC_OUTPUT`) and citation CSV tables (stored in a directory automatically generated at `/Volumes/my_disk/JALC_OUTPUT_citations`), using up to 3 workers for the process parallelization (`-m 3`) and Redis as storage system (`-r`) . While the process is being executed, a cache file at `/Volumes/my_disk/JOCI_CACHE.json` is created and updated. 
 
 More in detail, each data source run script has a set of arguments that can be adapted to meet the peculiarities of the dataset. However, all the sources should accept a similar list of arguments: 
@@ -136,8 +138,7 @@ More in detail, each data source run script has a set of arguments that can be a
 
 
 <!-- HOW TO EXTEND THE SOFTWARE -->
-## How to Extend the Software
-
+<h2 id="extend">How to Extend the Software</h2>
 ### Manage a new Data Source
 In order to manage a new data source, two main software components need to be developed: 
 1. a script for reading the data source, extract the bibliographic entities' metadata, and produce the output tables;
@@ -158,15 +159,22 @@ All source represents bibliographic records according to a specific data model, 
 
 
 ### Add a new ID Manager
+For adding a new ID Manager:
+1. create a python file at `oc_ds_converter/oc_idmanager`, named after the id schema, e.g. `oc_ds_converter/oc_idmanager/viaf.py`.
+2. create a new class as an instance of the abstract class `IdentifierManager` (defined in `oc_ds_converter/oc_idmanager/base.py`), e.g.: `ViafManager(IdentifierManager)`, thus following the provided template. In particular:
+3. define all the id-schema specific required methods, i.e.: `syntax_ok`, to check whether the ID is compliant to its own schema syntax, `exists`, to check the ID's existence using the ID-specific API, `normalise`, to normalise the identifier string (for example by removing unexpected character and turing the uppercase into lowercase characters), and `is_valid`, for assessing the overall validity of the identifier.
+4. if possible, add additional ID-schema specific methods. For example, some ID schemas (such as ORCID and ISSN) are formed by following a specific check-digit mechanism, which provides a further control system to verify the ID validity: in these cases, it is possible to add also a `check_digit` method. 
+
 ### Add a new Storage Manager
 
+
 <!-- LICENSE -->
-## License
+<h2 id="license">License</h2>
 
 Distributed under the ISC License. See `LICENSE` for more information.
 
 <!-- CONTACTS -->
-## Contacts
+<h2 id="contacts">Contacts</h2>
 
 #### Authors and Current maintainers of the repository
 
@@ -179,12 +187,12 @@ Project Link: [https://github.com/opencitations/oc_ds_converter](https://github.
 
 
 <!-- ACKNOWLEDGEMENTS -->
-## Acknowledgements
+<h2 id="acknowledgements">Acknowledgements</h2>
 This project has been developed under the supervision of Prof. Silvio Peroni.
 - Silvio Peroni - [@essepuntato](https://github.com/essepuntato) - silvio.peroni@unibo.it
 
 <!-- REFERENCES -->
-## References
+<h2 id="references">References</h2>
 - [The OpenCitations Data Model](https://link.springer.com/chapter/10.1007/978-3-030-62466-8_28)
 - [OpenCitations Meta](https://doi.org/10.48550/arXiv.2306.16191)
 
