@@ -449,7 +449,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('-r', '--redis_storage_manager', dest='redis_storage_manager', action='store_true', required=False,
                             help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
                                  'value is set to false, which means that -unless it is differently stated- the storage manager used is'
-                                 'the one chosen as value of the parametr --storage_manager. The redis db used by the storage manager is the n.2')
+                                 'derived by the storage filepath type (i.e.: .db or .json). The redis db used by the storage manager is the n.2')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int, help='Workers number')
     args = arg_parser.parse_args()
     config = args.config
