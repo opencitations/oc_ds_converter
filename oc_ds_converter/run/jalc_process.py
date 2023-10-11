@@ -207,6 +207,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
     filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
     pathoo(filepath)
     pathoo(filepath_citations)
+
     def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par:bool):
         all_br = []
         for entity in sli_da:
@@ -452,6 +453,7 @@ if __name__ == '__main__':
     testing = settings['testing'] if settings else args.testing
     redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
     max_workers = settings['max_workers'] if settings else args.max_workers
+
     preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
                redis_storage_manager=redis_storage_manager, max_workers=max_workers)
 

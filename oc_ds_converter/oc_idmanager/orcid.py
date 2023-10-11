@@ -78,8 +78,9 @@ class ORCIDManager(IdentifierManager):
     def normalise(self, id_string, include_prefix=False):
         try:
             orcid_string = sub("[^X0-9]", "", id_string.upper())
+
             return "%s%s-%s-%s-%s" % (
-                self._p if include_prefix else "",
+                self._p if (include_prefix and not orcid_string.startswith(self._p)) else "",
                 orcid_string[:4],
                 orcid_string[4:8],
                 orcid_string[8:12],
