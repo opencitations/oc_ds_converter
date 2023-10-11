@@ -174,7 +174,25 @@ For adding a new ID Manager:
 For adding a new type of Storage Manager, i.e. relying on another storage system:
 1. create a python file at `oc_ds_converter/oc_idmanager/oc_data_storage` named after the storage system, e.g.: `oc_ds_converter/oc_idmanager/oc_data_storage/redis_manager.py`.
 2. create a new class as an instance of the abstract class `StorageManager` (defined in `oc_ds_converter/oc_idmanager/oc_data_storage/storage_manager.py`), e.g.: `RedisStorageManager(StorageManager)`, thus following the provided template. In particular:
-3. define all the storage-type-specific required methods, i.e.: `set_value`, to add a single key-value pair to the storage, `set_multi_value`, to store a list of key-value tuple pairs all at once,  `get_value`, to retrieve the value associated to a specific key, `del_value`, to delete a key-value pair, `delete_storage`, to delete all the data previously saved in the storage system, and `get_all_keys`, to retrieve the list of all the keys in the storage. 
+3. define all the storage-type-specific required methods, i.e.: `set_value`, to add a single key-value pair to the storage, `set_multi_value`, to store a list of key-value tuple pairs all at once,  `get_value`, to retrieve the value associated to a specific key, `del_value`, to delete a key-value pair, `delete_storage`, to delete all the data previously saved in the storage system, and `get_all_keys`, to retrieve the list of all the keys in the storage.
+
+### Test
+The repository is managed with [poetry](https://python-poetry.org/docs/). To activate the virtual environment:
+```
+poetry shell
+```
+To add a package as a dependency to the project:
+```
+poetry add <package>
+```
+To run all tests with poetry: 
+```
+poetry run test
+```
+To run specific tests:
+```
+python -m unittest discover -s test -p "*.py" 
+```
 
 
 <!-- LICENSE -->
