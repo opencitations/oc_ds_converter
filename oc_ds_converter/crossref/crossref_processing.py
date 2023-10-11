@@ -89,25 +89,6 @@ class CrossrefProcessing(RaProcessor):
         self._redis_values_br = []
         self._redis_values_ra = []
 
-        if not publishers_filepath:
-            # we have removed the creation of the file if it is not passed as input
-            self.publishers_filepath = None
-        else:
-            self.publishers_filepath = publishers_filepath
-
-            if os.path.exists(self.publishers_filepath):
-                pfp = dict()
-                csv_headers = ("id", "name", "prefix")
-                if self.publishers_filepath.endswith(".csv"):
-                    with open(self.publishers_filepath, encoding="utf8") as f:
-                        csv_reader = csv.DictReader(f, csv_headers)
-                        for row in csv_reader:
-                            pfp[row["prefix"]] = {"name": row["name"], "crossref_member": row["id"]}
-                    self.publishers_filepath = self.publishers_filepath.replace(".csv", ".json")
-                elif self.publishers_filepath.endswith(".json"):
-                    with open(self.publishers_filepath, encoding="utf8") as f:
-                        pfp = json.load(f)
-                self.publishers_mapping = pfp
 
     def update_redis_values(self, br, ra):
         self._redis_values_br = br
@@ -319,6 +300,7 @@ class CrossrefProcessing(RaProcessor):
         member = data['member']
         prefix = data['prefix']
         relevant_member = False
+
         if self.publishers_mapping and member:
             if member in self.publishers_mapping:
                 relevant_member = True
@@ -336,7 +318,8 @@ class CrossrefProcessing(RaProcessor):
         else:
             name_and_id = f'{publisher} [crossref:{member}]' if member else publisher
         return name_and_id
-    
+
+
     def get_venue_name(self, item:dict, row:dict) -> str:
         '''
         This method deals with generating the venue's name, followed by id in square brackets, separated by spaces. 
