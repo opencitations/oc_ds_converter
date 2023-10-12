@@ -99,11 +99,14 @@ def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                 if filename.startswith("._"):
                     continue
 
-            future: ProcessFuture = executor.schedule(
-                function=get_citations_and_metadata,
-                args=(
-                filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                publishers_filepath, storage_path, redis_storage_manager, testing, cache, True))
+                future: ProcessFuture = executor.schedule(
+                    function=get_citations_and_metadata,
+                    args=(
+                    filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
+                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, True))
+
+
+        print("End of FIRST iteration: all the citing entities csv tables should have been produced by now")
 
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for filename in all_files:
@@ -111,12 +114,13 @@ def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                 if filename.startswith("._"):
                     continue
 
-            future: ProcessFuture = executor.schedule(
-                    function=get_citations_and_metadata,
-                    args=(
-                    filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, False))
+                future: ProcessFuture = executor.schedule(
+                        function=get_citations_and_metadata,
+                        args=(
+                        filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
+                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, False))
 
+        print("End of SECOND iteration: all the cited entities csv tables + all the citations tables should have been produced by now")
 
     # DELETE CACHE AND .LOCK FILE
     if cache:
@@ -238,6 +242,8 @@ def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_
                 dict_writer.writeheader()
                 dict_writer.writerows(ent_list)
             ent_list = []
+        crossref_csv.memory_to_storage()
+
         if not is_first_iteration_par:
             if citation_list:
                 filename_cit_str = filepath_citations_ne + ".csv"
@@ -311,13 +317,21 @@ def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_
             #pbar.update()
             if entity:
                 #per i citanti la validazione non serve, se è normalizzabile va direttamente alla crezione tabelle Meta
-                norm_source_id = crossref_csv.doi_m.normalise(entity['DOI'], include_prefix=True)
-                if norm_source_id:
-                    source_tab_data = crossref_csv.csv_creator(entity)
-                    if source_tab_data:
-                        processed_source_id = source_tab_data["id"]
-                        if processed_source_id:
-                            data_citing.append(source_tab_data)
+                norm_source_id = crossref_csv.tmp_doi_m.normalise(entity['DOI'], include_prefix=True)
+
+                # if the id is not in the redis database, it means that it was not processed and that it is not in the csv output tables yet.
+
+                if not crossref_csv.doi_m.storage_manager.get_value(norm_source_id):
+                    # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
+                    # time of the csv files creation process) and create a meta csv row for the entity in this case only
+                    crossref_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
+
+                    if norm_source_id:
+                        source_tab_data = crossref_csv.csv_creator(entity)
+                        if source_tab_data:
+                            processed_source_id = source_tab_data["id"]
+                            if processed_source_id:
+                                data_citing.append(source_tab_data)
 
         save_files(data_citing, index_citations_to_csv, True)
         #pbar.close()
