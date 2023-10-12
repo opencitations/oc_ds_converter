@@ -133,7 +133,8 @@ class CrossrefProcessing(RaProcessor):
         self.storage_manager.set_multi_value(kv_in_memory)
         self.temporary_manager.delete_storage()
 
-    def validated_as(self, id):
+
+    def validated_as(self, id_dict):
         # Check if the validity was already retrieved and thus
         # a) if it is now saved either in the in-memory database, which only concerns data validated
         # during the current file processing;
@@ -142,11 +143,28 @@ class CrossrefProcessing(RaProcessor):
         # In memory db is checked first because the dimension is smaller and the check is faster and
         # Because we assume that it is more likely to find the same ids in close positions, e.g.: same
         # citing id in several citations with different cited ids.
-        validity_value = self.tmp_doi_m.validated_as_id(id)
-        if validity_value is None:
-            validity_value = self.doi_m.validated_as_id(id)
-        return validity_value
-        # se incontro l'identificativo qua vuol dire che è già stato trovato all'interno del mio stesso dump
+
+        schema = id_dict["schema"].strip().lower()
+        id = id_dict["identifier"]
+
+        if schema == "orcid":
+            tmp_id_m = self.tmp_orcid_m
+            validity_value = tmp_id_m.validated_as_id(id)
+
+            if validity_value is None:
+                id_m = self.orcid_m
+                validity_value = id_m.validated_as_id(id)
+            return validity_value
+
+        elif schema == "doi":
+            validity_value = self.tmp_doi_m.validated_as_id(id)
+            if validity_value is None:
+                validity_value = self.doi_m.validated_as_id(id)
+            return validity_value
+        else:
+            print("invalid schema in ", id_dict, ". schema should be either doi or orcid.")
+            return None
+
 
     def get_id_manager(self, schema_or_id, id_man_dict):
         """Given as input the string of a schema (e.g.:'pmid') and a dictionary mapping strings of
@@ -547,7 +565,9 @@ class CrossrefProcessing(RaProcessor):
         if isinstance(identifier, str):
             norm_orcid = self.orcid_m.normalise(identifier, include_prefix =True)
             ## Check orcid presence in memory and storage before validating the id
-            validity_value_orcid = self.validated_as(norm_orcid)
+            norm_orcid_dict = {"schema":"orcid"}
+            norm_orcid_dict["identifier"] = norm_orcid
+            validity_value_orcid = self.validated_as(norm_orcid_dict)
 
             if validity_value_orcid is True:
                 orcid = norm_orcid

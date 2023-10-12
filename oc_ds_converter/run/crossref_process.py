@@ -349,7 +349,9 @@ def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_
                             # / START: BR ID VALIDATION
                             norm_id = crossref_csv.doi_m.normalise(cited_entity, include_prefix=True)
                             if norm_id:
-                                stored_validity = crossref_csv.validated_as(norm_id)
+                                norm_id_dict_to_val = {"schema":"doi"}
+                                norm_id_dict_to_val["identifier"] = norm_id
+                                stored_validity = crossref_csv.validated_as(norm_id_dict_to_val)
                                 if stored_validity is None:
                                     norm_id_dict = {"id": norm_id, "schema":"doi"}
                                     if norm_id in crossref_csv.to_validated_id_list(norm_id_dict):
