@@ -217,7 +217,7 @@ def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_
                 has_doi_references = True if [x for x in entity["reference"] if x.get("DOI")] else False
                 if has_doi_references:
                     if is_first_iteration_par:
-                        ent_all_br, ent_all_ra  = crossref_csv.extract_all_ids(entity, True)
+                        ent_all_br, ent_all_ra = crossref_csv.extract_all_ids(entity, True)
                     else:
                         ent_all_br, ent_all_ra = crossref_csv.extract_all_ids(entity, False)
                     all_br.extend(ent_all_br)

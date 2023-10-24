@@ -179,11 +179,6 @@ class CrossrefProcessing(RaProcessor):
         id_man = id_man_dict.get(schema)
         return id_man
 
-    def normalise_any_id(self, id_with_prefix):
-        id_man = self.doi_m
-        id_no_pref = ":".join(id_with_prefix.split(":")[1:])
-        norm_id_w_pref = id_man.normalise(id_no_pref, include_prefix=True)
-        return norm_id_w_pref
 
     def dict_to_cache(self, dict_to_be_saved, path):
         path = Path(path)
