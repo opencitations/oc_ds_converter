@@ -80,8 +80,8 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
                     continue
                 base_name_el_to_skip = el_to_skip.replace('.zip', '')
                 for el in os.listdir(jalc_json_dir):
-                    if el == base_name_el_to_skip + "decompr_zip_dir":
-                    #if el.startswith(base_name_el_to_skip) and el.endswith("decompr_zip_dir"):
+                    if el == base_name_el_to_skip + "_decompr_zip_dir":
+                    # if el.startswith(base_name_el_to_skip) and el.endswith("decompr_zip_dir"):
                         all_input_zip = [os.path.join(jalc_json_dir, el, file) for file in os.listdir(os.path.join(jalc_json_dir, el)) if not file.endswith(".json") and not file.startswith("._")]
 
 
@@ -90,6 +90,7 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
             for zip_lev0 in os.listdir(jalc_json_dir):
                 all_input_zip, targz_fd = get_all_files_by_type(os.path.join(jalc_json_dir, zip_lev0), req_type, cache)
 
+    # in test files the decompressed directory, at the end of each execution of the process, is always deleted
     else:
         all_input_zip = os.listdir(jalc_json_dir)
         for zip in all_input_zip:
@@ -112,8 +113,6 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
 
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for zip_file in all_input_zip:
-                print(zip_file)
-
                 future: ProcessFuture = executor.schedule(
                     function=get_citations_and_metadata,
                     args=(
@@ -122,7 +121,6 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
 
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             for zip_file in all_input_zip:
-                print(zip_file)
                 future: ProcessFuture = executor.schedule(
                     function=get_citations_and_metadata,
                     args=(
@@ -208,23 +206,22 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
     pathoo(filepath)
     pathoo(filepath_citations)
 
-    def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par:bool):
+    def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par: bool):
         all_br = []
         for entity in sli_da:
             if entity:
-                d = entity.get("data")
+                d = entity["data"]
                 # filtering out entities without citations
-                if "citation_list" in d:
+                if d.get("citation_list"):
                     cit_list = d["citation_list"]
                     cit_list_doi = [x for x in cit_list if x.get("doi")]
                     # filtering out entities with citations without dois
                     if cit_list_doi:
-                        if is_first_iteration_par:
-                            ent_all_br = jalc_csv.extract_all_ids(entity, True)
-                        else:
+                        '''if is_first_iteration_par:
+                            ent_all_br = jalc_csv.extract_all_ids(entity, True)'''
+                        if not is_first_iteration_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, False)
-                        all_br.extend(ent_all_br)
-
+                            all_br.extend(ent_all_br)
         redis_validity_values_br = jalc_csv.get_reids_validity_list(all_br)
         jalc_csv.update_redis_values(redis_validity_values_br)
 
@@ -308,20 +305,24 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
             print(e)
 
     if is_first_iteration:
-        get_all_redis_ids_and_save_updates(source_dict, is_first_iteration_par=True)
         # prima l'ultimo file va processato
         for entity in tqdm(source_dict):
-            #pbar.update()
             if entity:
                 d = entity.get("data")
                 #per i citanti la validazione non serve, se è normalizzabile va direttamente alla crezione tabelle Meta
                 norm_source_id = jalc_csv.doi_m.normalise(d['doi'], include_prefix=True)
-                if norm_source_id:
-                    source_tab_data = jalc_csv.csv_creator(d)
-                    if source_tab_data:
-                        processed_source_id = source_tab_data["id"]
-                        if processed_source_id:
-                            data_citing.append(source_tab_data)
+
+                if not jalc_csv.doi_m.storage_manager.get_value(norm_source_id):
+                    # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
+                    # time of the csv files creation process) and create a meta csv row for the entity in this case only
+                    jalc_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
+
+                    if norm_source_id:
+                        source_tab_data = jalc_csv.csv_creator(d)
+                        if source_tab_data:
+                            processed_source_id = source_tab_data["id"]
+                            if processed_source_id:
+                                data_citing.append(source_tab_data)
 
         save_files(data_citing, index_citations_to_csv, True)
         #pbar.close()

@@ -1437,46 +1437,6 @@ class TestJalcProcessing(unittest.TestCase):
         venue_name = jalc_processor.get_venue(item_dict)
         self.assertEqual(venue_name, 'The Journal of Space Technology and Science [issn:0911-551X issn:2186-4772 jid:jsts]')
 
-    def test_to_validated_venue_id_list(self):
-        id_dict_list_1 = [{
-            "journal_id": "1880-3016",
-            "type": "ISSN",
-            "issn_type": "print"
-        },
-            {
-                "journal_id": "1880-3024",
-                "type": "ISSN",
-                "issn_type": "online"
-            },
-            {
-                "journal_id": "jdsa",
-                "type": "JID"
-            }]
-        id_dict_list_2 = [{
-            "journal_id": "1880-3016",
-            "type": "ISSN",
-            "issn_type": "print"
-        },
-            {
-                "journal_id": "1880-3024",
-                "type": "ISSN",
-                "issn_type": "online"
-            },
-            {
-                "journal_id": "jdsa1623",
-                "type": "JID"
-            }]
-
-        expected1 = ["issn:1880-3016", "issn:1880-3024", "jid:jdsa"]
-        expected2 = ["issn:1880-3016", "issn:1880-3024"]
-
-        jalc_processor = JalcProcessing()
-        outp = jalc_processor.to_validated_venue_id_list(id_dict_list_1)
-        # the JID id is not valid
-        outp2 = jalc_processor.to_validated_venue_id_list(id_dict_list_2)
-
-        self.assertEqual(outp, expected1)
-        self.assertEqual(outp2, expected2)
 
     def test_get_venue_without_full(self):
         item_dict = {
@@ -4509,6 +4469,15 @@ class TestJalcProcessing(unittest.TestCase):
         en = jalc_processor.get_ja(list_input)
         expected_out = [{"lang": "en", "title": "Ozone Measurement by MT-135 Rocket"}]
         self.assertEqual(en, expected_out)
+
+    def test_to_validated_id_list(self):
+        inp_1 = 'doi:10.13039/100005522'
+        j_p = JalcProcessing()
+        # CASE1_1: No already validated ids + 1 id to be validated, which is valid
+        out_1 = j_p.to_validated_id_list(inp_1)
+        exp_1 = ['doi:10.13039/100005522']
+        self.assertEqual(out_1, exp_1)
+        j_p.storage_manager.delete_storage()
 
 
 if __name__ == '__main__':
