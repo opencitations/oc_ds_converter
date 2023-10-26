@@ -18,6 +18,7 @@
 import csv
 import os
 import sys
+import tarfile
 from argparse import ArgumentParser
 from tarfile import TarInfo
 from pathlib import Path
@@ -67,7 +68,7 @@ def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepat
 
     if verbose:
         print(f'[INFO: crossref_process] Getting all files from {crossref_json_dir}')
-    all_files, targz_fd = get_all_files_by_type(crossref_json_dir,".json", cache)
+    all_files, targz_fd = get_all_files_by_type(crossref_json_dir, ".json", cache)
     if verbose:
         pbar = tqdm(total=len(all_files))
 
@@ -76,16 +77,16 @@ def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     if not redis_storage_manager or max_workers == 1:
         for filename in all_files:
             # skip elements starting with ._
-            if filename.startswith("._"):
-                continue
+            #if filename.startswith("._"):
+               # continue
             get_citations_and_metadata(filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        wanted_doi_filepath, publishers_filepath, storage_path,
                                        redis_storage_manager,
                                        testing, cache, is_first_iteration=True)
         for filename in all_files:
             # skip elements starting with ._
-            if filename.startswith("._"):
-                continue
+            #if filename.startswith("._"):
+            #    continue
             get_citations_and_metadata(filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        wanted_doi_filepath, publishers_filepath, storage_path,
                                        redis_storage_manager,
@@ -132,13 +133,14 @@ def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepat
     pbar.close() if verbose else None
 
 
-
-
-def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_dir: str, csv_dir: str,
+def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str,
                                doi_csv: str, publishers_filepath: str, storage_path: str,
                                redis_storage_manager: bool,
                                testing: bool, cache: str, is_first_iteration:bool):
+    if isinstance(file_name, tarfile.TarInfo):
+        file_tarinfo = file_name
+        file_name = file_name.name
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
         if not cache.endswith(".json"):
@@ -151,6 +153,7 @@ def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_
 
     lock = FileLock(cache + ".lock")
     cache_dict = dict()
+    file_name = file_name
     write_new = False
     if os.path.exists(cache):
         with lock:
@@ -262,7 +265,9 @@ def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_
         return ent_list, citation_list
 
     def task_done(is_first_iteration_par: bool) -> None:
+
         try:
+
 
             if is_first_iteration_par and "first_iteration" not in cache_dict.keys():
                 cache_dict["first_iteration"] = set()
@@ -334,7 +339,7 @@ def get_citations_and_metadata(file_name: str, targz_fd, preprocessed_citations_
                                 data_citing.append(source_tab_data)
 
         save_files(data_citing, index_citations_to_csv, True)
-        #pbar.close()
+
 
     '''cited entities:
     - look for the DOI in the temporary manager and in the storage manager:

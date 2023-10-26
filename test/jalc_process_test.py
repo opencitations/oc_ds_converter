@@ -82,7 +82,7 @@ class TestJalcProcess(unittest.TestCase):
 
         citations_files_n = len(list(os.listdir(citations_output_path)))
 
-        shutil.rmtree(citations_output_path)
+        #shutil.rmtree(citations_output_path)
 
         meta_files_n = len(list(os.listdir(self.output_dir)))
 
@@ -104,7 +104,7 @@ class TestJalcProcess(unittest.TestCase):
         self.assertTrue(meta_files_n == 2*input_files_n == 4)
         self.assertTrue(citations_files_n == input_files_n)
 
-        shutil.rmtree(self.output_dir)
+       # shutil.rmtree(self.output_dir)
 
         for el in os.listdir(self.sample_dump_dir):
             if el.endswith("decompr_zip_dir"):
@@ -147,7 +147,7 @@ class TestJalcProcess(unittest.TestCase):
         expected_citations_in_output = 1
 
         expected_entities_in_output = 2
-        '''3 cited:
+        ''''3 cited:
          - 10.5100/jje.30.40: doi not found,
          - 10.5100/jje.33.1: https://www.jstage.jst.go.jp/article/jje1965/33/1/33_1_1/_article/-char/ja/,
          - 10.1539/joh1959.5.56: doi not found'''

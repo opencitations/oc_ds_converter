@@ -129,9 +129,9 @@ class CrossrefProcessing(RaProcessor):
 
     def memory_to_storage(self):
         kv_in_memory = self.temporary_manager.get_validity_list_of_tuples()
-        #if kv_in_memory:
-        self.storage_manager.set_multi_value(kv_in_memory)
-        self.temporary_manager.delete_storage()
+        if kv_in_memory:
+            self.storage_manager.set_multi_value(kv_in_memory)
+            self.temporary_manager.delete_storage()
 
 
     def validated_as(self, id_dict):
