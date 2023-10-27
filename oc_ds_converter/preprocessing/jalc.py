@@ -10,16 +10,16 @@ from pebble import ProcessPool, ProcessFuture
 def preprocessing(jalc_json_dir:str, output_dir:str, max_workers:int = 1):
     """This function preprocesses the original JALC zipped dump. The original dump has the following structure:
     - jalc_dump.zip
-        -jalc_dump
+        -jalc_dataset_dir
             -prefixes.json
             -prefix1.zip
-                -prefix1
+                -prefix1_dir
                     -doiList1.json
                     -doi1A.json
                     -doi1B.json
                     -etc.
             -prefix2.zip
-                -prefix2
+                -prefix2_dir
                     -doiList2.json
                     -doi2A.json
                     -etc.
