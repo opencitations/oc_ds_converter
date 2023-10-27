@@ -339,32 +339,33 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         for entity in tqdm(source_dict):
             if entity:
                 d = entity.get("data")
-                norm_source_id = jalc_csv.doi_m.normalise(d['doi'], include_prefix=True)
-                if norm_source_id:
-                    cit_list_entities = [x for x in d["citation_list"] if x.get("doi")]
-                    # filtering out entities with citations without dois
-                    if cit_list_entities:
-                        valid_target_ids = []
-                        for cited_entity in cit_list_entities:
-                            norm_id = jalc_csv.doi_m.normalise(cited_entity["doi"], include_prefix=True)
-                            if norm_id:
-                                stored_validity = jalc_csv.validated_as(norm_id)
-                                if stored_validity is None:
-                                    if norm_id in jalc_csv.to_validated_id_list(norm_id):
-                                        target_tab_data = jalc_csv.csv_creator(cited_entity)
-                                        if target_tab_data:
-                                            processed_target_id = target_tab_data.get("id")
-                                            if processed_target_id:
-                                                data_cited.append(target_tab_data)
-                                                valid_target_ids.append(norm_id)
-                                elif stored_validity is True:
-                                    valid_target_ids.append(norm_id)
+                if d.get("citation_list"):
+                    norm_source_id = jalc_csv.doi_m.normalise(d['doi'], include_prefix=True)
+                    if norm_source_id:
+                        cit_list_entities = [x for x in d["citation_list"] if x.get("doi")]
+                        # filtering out entities with citations without dois
+                        if cit_list_entities:
+                            valid_target_ids = []
+                            for cited_entity in cit_list_entities:
+                                norm_id = jalc_csv.doi_m.normalise(cited_entity["doi"], include_prefix=True)
+                                if norm_id:
+                                    stored_validity = jalc_csv.validated_as(norm_id)
+                                    if stored_validity is None:
+                                        if norm_id in jalc_csv.to_validated_id_list(norm_id):
+                                            target_tab_data = jalc_csv.csv_creator(cited_entity)
+                                            if target_tab_data:
+                                                processed_target_id = target_tab_data.get("id")
+                                                if processed_target_id:
+                                                    data_cited.append(target_tab_data)
+                                                    valid_target_ids.append(norm_id)
+                                    elif stored_validity is True:
+                                        valid_target_ids.append(norm_id)
 
-                        for target_id in valid_target_ids:
-                            citation = dict()
-                            citation["citing"] = norm_source_id
-                            citation["cited"] = target_id
-                            index_citations_to_csv.append(citation)
+                            for target_id in valid_target_ids:
+                                citation = dict()
+                                citation["citing"] = norm_source_id
+                                citation["cited"] = target_id
+                                index_citations_to_csv.append(citation)
         save_files(data_cited, index_citations_to_csv, False)
 def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
     if not redis_storage_manager:

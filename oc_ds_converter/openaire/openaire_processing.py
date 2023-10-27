@@ -135,8 +135,8 @@ class OpenaireProcessing(RaProcessor):
         }
 
         if testing:
-            self.BR_redis= fakeredis.FakeStrictRedis()
-            self.RA_redis= fakeredis.FakeStrictRedis()
+            self.BR_redis = fakeredis.FakeStrictRedis()
+            self.RA_redis = fakeredis.FakeStrictRedis()
 
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
@@ -535,7 +535,7 @@ class OpenaireProcessing(RaProcessor):
         # with the v1 version of the arxiv id. If it is not possible to retrieve an arxiv id from the only id which is
         # either declared as an arxiv id or starts with the arxiv doi prefix, return None and interrupt the process
         if len(valid_id_set) == 0:
-            if len(to_be_processed_input)==1 :
+            if len(to_be_processed_input) == 1:
                 single_id_dict_list = self.manage_arxiv_single_id(to_be_processed_input)
                 if single_id_dict_list:
                     to_be_processed_id_dict_list = single_id_dict_list

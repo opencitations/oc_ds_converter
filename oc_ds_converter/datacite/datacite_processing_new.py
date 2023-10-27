@@ -1,21 +1,43 @@
 import html
 import re
 import warnings
+import os
+import fakeredis
+import csv
+import json
 
 from bs4 import BeautifulSoup
 from oc_ds_converter.oc_idmanager.doi import DOIManager
+from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.lib.master_of_regex import *
-
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.issn import ISSNManager
+from oc_ds_converter.oc_idmanager.isbn import ISBNManager
+from oc_ds_converter.datasource.redis import RedisDataSource
 from oc_ds_converter.preprocessing.datacite import DatacitePreProcessing
 from oc_ds_converter.ra_processor import RaProcessor
+from typing import Dict, List, Tuple, Optional, Type, Callable
+from pathlib import Path
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class DataciteProcessing(RaProcessor):
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath: str = None):
-        super(DataciteProcessing, self).__init__(orcid_index, doi_csv, publishers_filepath)
+    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_dc: str = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing=True):
+        super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
         # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
+        if storage_manager is None:
+            self.storage_manager = SqliteStorageManager()
+        else:
+            self.storage_manager = storage_manager
+
+        self.temporary_manager = InMemoryStorageManager('../memory.json')
+
+        self._needed_info = ["relationType", "relatedIdentifierType", "relatedIdentifier"]
+        self._filter = ["references", "isreferencedby", "cites", "iscitedby"]
+
         self.RIS_types_map = {'abst': 'abstract',
   'news': 'newspaper article',
   'slide': 'presentation',
@@ -126,12 +148,120 @@ class DataciteProcessing(RaProcessor):
   'workflow': 'workflow'}
 
     # def input_preprocessing(self):
-    #     self.preprocessor.split_input()
+    # self.preprocessor.split_input()
 
+        self.doi_m = DOIManager(storage_manager=self.storage_manager)
+        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager)
+        self.issn_m = ISSNManager()
+        self.isbn_m = ISBNManager()
+        self.venue_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
+        # Temporary storage managers : all data must be stored in tmp storage manager and passed all together to the
+        # main storage_manager  only once the full file is processed. Checks must be done both on tmp and in
+        # storage_manager, so that in case the process breaks while processing a file which does not complete (so
+        # without writing the final file) all the data concerning the ids are not stored. Otherwise, the ids saved in
+        # a storage_manager db would be considered to have been processed and thus would be ignored by the process
+        # and lost.
+
+        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
+        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager)
+        self.venue_tmp_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
+
+        if testing:
+            self.BR_redis = fakeredis.FakeStrictRedis()
+            self.RA_redis = fakeredis.FakeStrictRedis()
+
+        else:
+            self.BR_redis = RedisDataSource("DB-META-BR")
+            self.RA_redis = RedisDataSource("DB-META-RA")
+
+        self._redis_values_ra = []
+        self._redis_values_br = []
+
+        if not publishers_filepath_dc:
+            self.publishers_filepath = None
+        else:
+            self.publishers_filepath = publishers_filepath_dc
+
+            if os.path.exists(self.publishers_filepath):
+                pfp = dict()
+                csv_headers = ("id", "name", "prefix")
+                if self.publishers_filepath.endswith(".csv"):
+                    with open(self.publishers_filepath, encoding="utf8") as f:
+                        csv_reader = csv.DictReader(f, csv_headers)
+                        for row in csv_reader:
+                            pfp[row["prefix"]] = {"name": row["name"], "crossref_member": row["id"]}
+                    self.publishers_filepath = self.publishers_filepath.replace(".csv", ".json")
+                elif self.publishers_filepath.endswith(".json"):
+                    with open(self.publishers_filepath, encoding="utf8") as f:
+                        pfp = json.load(f)
+                self.publishers_mapping = pfp
+    #added
+    def update_redis_values(self, br, ra):
+        self._redis_values_br = br
+        self._redis_values_ra = ra
+
+    #added
+    def validated_as(self, id_dict):
+        # Check if the validity was already retrieved and thus
+        # a) if it is now saved either in the in-memory database, which only concerns data validated
+        # during the current file processing;
+        # b) or if it is now saved in the storage_manager database, which only concerns data validated
+        # during the previous files processing.
+        # In memory db is checked first because the dimension is smaller and the check is faster and
+        # Because we assume that it is more likely to find the same ids in close positions, e.g.: same
+        # citing id in several citations with different cited ids.
+
+        schema = id_dict["schema"].strip().lower()
+        id = id_dict["identifier"]
+
+        if schema != "orcid":
+            validity_value = self.tmp_doi_m.validated_as_id(id)
+            if validity_value is None:
+                validity_value = self.doi_m.validated_as_id(id)
+            return validity_value
+        else:
+            validity_value = self.tmp_orcid_m.validated_as_id(id)
+            if validity_value is None:
+                validity_value = self.orcid_m.validated_as_id(id)
+            return validity_value
+
+    #added(probably unuseful)
+
+    def get_id_manager(self, schema_or_id, id_man_dict):
+        """Given as input the string of a schema (e.g.:'pmid') and a dictionary mapping strings of
+        the schemas to their id managers, the method returns the correct id manager. Note that each
+        instance of the Preprocessing class needs its own instances of the id managers, in order to
+        avoid conflicts while validating data"""
+        if ":" in schema_or_id:
+            split_id_prefix = schema_or_id.split(":")
+            schema = split_id_prefix[0]
+        else:
+            schema = schema_or_id
+        id_man = id_man_dict.get(schema)
+        return id_man
+
+    #added (probably unuseful)
+    def normalise_any_id(self, id_with_prefix):
+        id_man = self.doi_m
+        id_no_pref = ":".join(id_with_prefix.split(":")[1:])
+        norm_id_w_pref = id_man.normalise(id_no_pref, include_prefix=True)
+        return norm_id_w_pref
+
+    #added
+    def dict_to_cache(self, dict_to_be_saved, path):
+        path = Path(path)
+        parent_dir_path = path.parent.absolute()
+        if not os.path.exists(parent_dir_path):
+            Path(parent_dir_path).mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fd:
+            json.dump(dict_to_be_saved, fd, ensure_ascii=False, indent=4)
+
+    #no modified(look at the part of the venues)
     def csv_creator(self, item: dict) -> dict:
         row = dict()
-        doi = DOIManager().normalise(str(item['id']))
+        doi = str(item['id'])
         if (doi and self.doi_set and doi in self.doi_set) or (doi and not self.doi_set):
+            norm_id = self.doi_m.normalise(doi, include_prefix=True)
             # create empty row
             keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
                     'publisher', 'editor']
@@ -143,7 +273,7 @@ class DataciteProcessing(RaProcessor):
             # row['type']
             if attributes.get('types') is not None:
                 types_dict = attributes['types']
-                for k,v in types_dict.items():
+                for k, v in types_dict.items():
                     if k.lower() == 'ris':
                         if type(v) is str:
                             norm_v = v.strip().lower()
@@ -178,7 +308,7 @@ class DataciteProcessing(RaProcessor):
 
             # row['id']
             ids_list = list()
-            ids_list.append(str('doi:' + doi))
+            ids_list.append(norm_id)
 
             if attributes.get('identifiers'):
                 for other_id in attributes.get('identifiers'):
@@ -196,8 +326,6 @@ class DataciteProcessing(RaProcessor):
                             if row['type'] in {'book series', 'book set', 'journal', 'proceedings series', 'series',
                                                'standard series', 'report series'}:
                                 self.id_worker(o_id, ids_list, self.issn_worker)
-
-
 
 
             row['id'] = ' '.join(ids_list)
@@ -291,6 +419,20 @@ class DataciteProcessing(RaProcessor):
                 print(row)
                 raise(TypeError)
 
+    #added
+    def to_validated_id_list(self, norm_id):
+        valid_id_list = []
+        if norm_id in self._redis_values_br:
+            self.tmp_doi_m.storage_manager.set_value(norm_id,True)  # In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
+            # preso in considerazione negli step successivi
+            valid_id_list.append(norm_id)
+        # if the id is not in redis db, validate it before appending
+        elif self.tmp_doi_m.is_valid(norm_id):  # In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
+            # preso in considerazione negli step successivi
+            valid_id_list.append(norm_id)
+        return valid_id_list
+
+    #no modified
     def get_datacite_pages(self, item: dict) -> str:
         '''
         This function returns the pages interval.
@@ -323,6 +465,7 @@ class DataciteProcessing(RaProcessor):
         page_list = related_pages_list if len(related_pages_list)> len(container_pages_list) else container_pages_list
         return self.get_pages(page_list)
 
+    #no modified
     def get_publisher_name(self, doi: str, item: dict) -> str:
         '''
         This function aims to return a publisher's name and id. If a mapping was provided,
@@ -360,6 +503,8 @@ class DataciteProcessing(RaProcessor):
             name_and_id = publisher
 
         return name_and_id
+
+    #no modified
 
     def get_venue_name(self, item: dict, row: dict) -> str:
         '''
@@ -441,6 +586,7 @@ class DataciteProcessing(RaProcessor):
 
         return name_and_id
 
+    #added the call to find_datacite_orcid
     def add_editors_to_agent_list(self, item: dict, ag_list: list) -> list:
         '''
         This function returns the the agents list updated with the editors dictionaries, in the correct format.
@@ -466,7 +612,9 @@ class DataciteProcessing(RaProcessor):
                         orcid_ids = [x.get("nameIdentifier") for x in ed.get("nameIdentifiers") if
                                      x.get("nameIdentifierScheme") == "ORCID"]
                         if orcid_ids:
-                            agent["orcid"] = orcid_ids
+                            orcid_id = self.find_datacite_orcid(orcid_ids)
+                            if orcid_id:
+                                agent["orcid"] = orcid_id
 
                 missing_names = [x for x in ["family", "given", "name"] if x not in agent]
                 for mn in missing_names:
@@ -474,6 +622,7 @@ class DataciteProcessing(RaProcessor):
                 agent_list.append(agent)
         return agent_list
 
+    # added the call to find_datacite_orcid
     def add_authors_to_agent_list(self, item: dict, ag_list: list) -> list:
         '''
         This function returns the agents list updated with the authors dictionaries, in the correct format.
@@ -481,7 +630,7 @@ class DataciteProcessing(RaProcessor):
         :params item: the item's dictionary (attributes), ag_list: the
         :type item: dict, ag_list: list
 
-        :returns: listthe agents list updated with the authors dictionaries, in the correct format.
+        :returns: list the agents list updated with the authors dictionaries, in the correct format.
         '''
         agent_list = ag_list
         if item.get("creators"):
@@ -498,9 +647,125 @@ class DataciteProcessing(RaProcessor):
                         orcid_ids = [x.get("nameIdentifier") for x in c.get("nameIdentifiers") if
                                      x.get("nameIdentifierScheme") == "ORCID"]
                         if orcid_ids:
-                            agent["orcid"] = orcid_ids
+                            orcid_id = self.find_datacite_orcid(orcid_ids)
+                            if orcid_id:
+                                agent["orcid"] = orcid_id
                 missing_names = [x for x in ["family", "given", "name"] if x not in agent]
                 for mn in missing_names:
                     agent[mn] = ""
                 agent_list.append(agent)
         return agent_list
+
+    #added
+    def find_datacite_orcid(self, all_author_ids):
+        orcid = ""
+        if all_author_ids:
+            for identifier in all_author_ids:
+                norm_orcid = self.orcid_m.normalise(identifier, include_prefix = True)
+                ## Check orcid presence in memory and storage before validating the id
+                validity_value_orcid = self.validated_as({"identifier": norm_orcid, "schema": "orcid"})
+                if validity_value_orcid is True:
+                    orcid = norm_orcid
+                elif validity_value_orcid is None:
+                    #if self.RA_redis.get(norm_orcid):
+                    if norm_orcid in self._redis_values_ra:
+                        orcid = norm_orcid
+                    # if the id is not in redis db, validate it before appending
+                    elif self.tmp_orcid_m.is_valid(norm_orcid):
+                        orcid = norm_orcid
+        return orcid
+    # added
+    def memory_to_storage(self):
+        kv_in_memory = self.temporary_manager.get_validity_list_of_tuples()
+        self.storage_manager.set_multi_value(kv_in_memory)
+        self.temporary_manager.delete_storage()
+
+    # added (division in first and second iteration)
+    def extract_all_ids(self, citation, is_first_iteration: bool):
+
+        if is_first_iteration:
+            all_br = set()
+            all_ra = set()
+
+            subject_id = citation['id']
+            norm_id = self.doi_m.normalise(subject_id, include_prefix=True)
+            if norm_id:
+                # if it was possible to normalise the id according to one of the schemas accepted in oc, add
+                # the id to the set of retrieved br ids for the citation.
+                all_br.add(norm_id)
+
+            attributes = citation.get("attributes")
+            if attributes:
+                creators = attributes.get("creators")
+                if creators:
+                    for c in creators:
+                        c_ids = c.get("nameIdentifiers")
+                        if c_ids:
+                            norm_c_orcids = {self.orcid_m.normalise(x.get("nameIdentifier"), include_prefix=True) for x in c.get("nameIdentifiers") if
+                                         x.get("nameIdentifierScheme") == "ORCID"}
+                            if norm_c_orcids:
+                                # if it was possible to normalise any id according to orcid schema, add
+                                # the norm_orcids to the set of retrieved ra ids for the citation.
+                                all_ra.update(norm_c_orcids)
+
+                if attributes.get("contributors"):
+                    editors = [contributor for contributor in citation .get("contributors") if
+                               contributor.get("contributorType") == "Editor"]
+                    for ed in editors:
+                        if ed.get("nameIdentifiers"):
+                            norm_ed_orcids = {self.orcid_m.normalise(x.get("nameIdentifier"), include_prefix=True) for x in ed.get("nameIdentifiers") if
+                                                x.get("nameIdentifierScheme") == "ORCID"}
+                            if norm_ed_orcids:
+                                all_ra.update(norm_ed_orcids)
+
+            all_br = list(all_br)
+            for x in all_br:
+                if x is None:
+                    all_br.remove(x)
+            all_ra = list(all_ra)
+            for y in all_ra:
+                if y is None:
+                    all_ra.remove(y)
+            return all_br, all_ra
+
+        #all the objects doi
+        else:
+            all_br = set()
+            attributes = citation["attributes"]
+            rel_ids = attributes.get("relatedIdentifiers")
+            if rel_ids:
+                for ref in rel_ids:
+                    if all(elem in ref for elem in self._needed_info):
+                        relatedIdentifierType = (str(ref["relatedIdentifierType"])).lower()
+                        relationType = str(ref["relationType"]).lower()
+                        if relatedIdentifierType == "doi":
+                            if relationType in self._filter:
+                                rel_id = self.doi_m.normalise(ref["relatedIdentifier"], include_prefix=True)
+                                if rel_id:
+                                    all_br.add(rel_id)
+            all_br = list(all_br)
+            return all_br
+
+
+    #added
+    def get_reids_validity_list(self, id_list, redis_db):
+        if redis_db == "ra":
+            valid_ra_ids = []
+            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
+            validity_list_ra = self.RA_redis.mget(id_list)
+            for i, e in enumerate(id_list):
+                if validity_list_ra[i]:
+                    valid_ra_ids.append(e)
+            return valid_ra_ids
+
+        elif redis_db == "br":
+            valid_br_ids = []
+            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
+            validity_list_br = self.BR_redis.mget(id_list)
+            for i, e in enumerate(id_list):
+                if validity_list_br[i]:
+                    valid_br_ids.append(e)
+            return valid_br_ids
+        else:
+            raise ValueError("redis_db must be either 'ra' for responsible agents ids "
+                             "or 'br' for bibliographic resources ids")

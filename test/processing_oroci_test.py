@@ -12,7 +12,7 @@ from fakeredis import FakeStrictRedis
 BASE = os.path.join('test', 'openaire_processing')
 DATA = os.path.join(BASE, 'jSonFile_1.json')
 DATA_DIR = BASE
-TMP_SUPPORT_MATERIAL = os.path.join(BASE,"tmp_support")
+TMP_SUPPORT_MATERIAL = os.path.join(BASE, "tmp_support")
 OUTPUT = os.path.join(BASE, 'meta_input')
 MULTIPROCESS_OUTPUT = os.path.join(BASE, 'multi_process_test')
 MEMO_JSON_PATH = "test/openaire_processing/tmp_support/memo.json"
@@ -125,7 +125,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         opp.RA_redis.delete('orcid:0000-0002-8090-6886')
 
     def test_validated_as_default(self):
-        '''
+        """
         Check that, given an ID dict with keys "schema" (value: string of the schema) and "identifier" (value:
         string of the identifier, the method "validated_as" returns:
         - True if the id was already validated as valid
@@ -133,7 +133,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         - None if the id was not validated before
         The procedure is tested
         - With default storage manager (sqlite) without a pre-existent db associated
-        '''
+        """
 
         opp = OpenaireProcessing()
         validate_as_none = opp.validated_as({"schema":"pmid", "identifier": "pmid:23483834"})
@@ -471,7 +471,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         if os.path.exists(MEMO_JSON_PATH):
             os.remove(MEMO_JSON_PATH)
         self.assertFalse(os.path.exists(MEMO_JSON_PATH))
-        op.dict_to_cache(sample_dict,MEMO_JSON_PATH)
+        op.dict_to_cache(sample_dict, MEMO_JSON_PATH)
         self.assertTrue(os.path.exists(MEMO_JSON_PATH))
         self.delete_storege(specific_path=MEMO_JSON_PATH)
         self.assertFalse(os.path.exists(MEMO_JSON_PATH))
