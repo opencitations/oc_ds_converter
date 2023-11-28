@@ -262,8 +262,9 @@ class JalcProcessing(RaProcessor):
                             venue_id = v.get("journal_id")
                             tmp_id_man = self.get_id_manager(schema, self.venue_tmp_id_man_dict)
                             if tmp_id_man:
-                                norm_id = tmp_id_man.normalise(venue_id, include_prefix=True)
-                                journal_ids.append(norm_id)
+                                if tmp_id_man.is_valid(venue_id):
+                                    norm_id = tmp_id_man.normalise(venue_id, include_prefix=True)
+                                    journal_ids.append(norm_id)
         return f"{venue_name} [{' '.join(journal_ids)}]" if journal_ids else venue_name
 
 
