@@ -1,6 +1,8 @@
 import unittest
-from oc_ds_converter.conta import CountMetadataLang
+from scripts_analysis.jalc_languages_metadata.jalc_languages_metadata_count import *
 import csv
+from os.path import join
+import shutil
 
 # data are not real, they are created for testing purposes
 source_dict_publisher_citing = [{"status":"OK","apiType":"doi","apiVersion":"1.0.0","message":{"total":1,"rows":1,"totalPages":1,"page":1},"data":{"siteId":"SI/JST.JSTAGE","content_type":"JA","doi":"10.57383/brontesocietyjapan.5.4_69","url":"https://doi.org/10.57383/brontesocietyjapan.5.4_69","ra":"JaLC","prefix":"10.57383","site_name":"J-STAGE","publisher_list":[{"publisher_name":"The Brontë Society of Japan","lang":"en"},{"publisher_name":"日本ブロンテ協会","lang":"ja"}],"title_list":[{"lang":"ja","title":"アン・ブロンテのスカーバラ体験ー","subtitle":"ロビンソン家令嬢と梨園の御曹司の駆け落ち結婚"},{"lang":"en","title":"Anne Brontë's Scarborough:","subtitle":"Cultural Activities in the Age of the Railway, and Lydia Robinson's Elopement with the Scion of the      Famous Theatrical Family"}],"creator_list":[{"sequence":"1","type":"person","names":[{"lang":"ja","first_name":"大田　美和"},{"lang":"en","first_name":"Miwa OTA"}]}],"publication_date":{"publication_year":"2012","publication_month":"12","publication_day":"01"},"relation_list":[{"content":"https://www.jstage.jst.go.jp/article/brontesocietyjapan/5/4/5_69/_pdf","type":"URL","relation":"fullTextPdf"}],"content_language":"ja","updated_date":"2022-08-29","article_type":"pub","journal_id_list":[{"journal_id":"0913-8617","type":"ISSN","issn_type":"print"},{"journal_id":"2758-2264","type":"ISSN","issn_type":"online"},{"journal_id":"brontesocietyjapan","type":"JID"}],"journal_title_name_list":[{"journal_title_name":"ブロンテ・スタディーズ","type":"full","lang":"ja"},{"journal_title_name":"Bront&euml; Studies","type":"full","lang":"en"}],"journal_classification":"01","recorded_year":"2000","volume":"5","issue":"4","first_page":"69","last_page":"84","date":"2022-08-30"}},
@@ -93,9 +95,12 @@ source_dict_creators = [{'status': 'OK', 'apiType': 'doi', 'apiVersion': '1.0.0'
                                                      'publication_date': {'publication_year': '2001'},
                                                      'original_text': '4. Senghor J, Sy MH, Ndiaye A, Dansokho AV, Seye SI. [Trochanteric fractures in elderly patients: management and prognosis of 68 cases] Dakar Med. 2001; 46(2): 102-4. French.'}]}},
                         ]
-DIR = "D:\JOCI\JOCI_PRE_SAMPLE"
-CSV_FILE = "D:\JOCI\sample_count.csv"
+
 class CountMetadataLangTest(unittest.TestCase):
+    def setUp(self):
+        self.test_dir = join("test", "jalc")
+        self.sample_dump_dir = join(self.test_dir, "JOCI_PRE_SAMPLE")
+        self.csv_file = join(self.test_dir, "sample_count.csv")
 
     def test_count_publisher_lang(self):
         my_dict = CountMetadataLang()
@@ -166,9 +171,12 @@ class CountMetadataLangTest(unittest.TestCase):
         self.assertEqual(3, ja_cited)
 
     def test_call_functions_for_all_zips(self):
+        for el in os.listdir(self.sample_dump_dir):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_dump_dir, el))
         my_dict = CountMetadataLang()
-        all_zips = my_dict.find_zip_subfiles(DIR)
-        my_dict.call_functions_for_all_zips(all_zips, [my_dict.count_publisher_lang, my_dict.count_title_lang, my_dict.count_journal_title_lang, my_dict.count_creator_names_lang], CSV_FILE, True, True)
+        all_zips = my_dict.find_zip_subfiles(self.sample_dump_dir)
+        my_dict.call_functions_for_all_zips(all_zips, [my_dict.count_publisher_lang, my_dict.count_title_lang, my_dict.count_journal_title_lang, my_dict.count_creator_names_lang], self.csv_file, True, True)
         publisher_count = ['3', '0', '0', '0', '0', '0']
         target_row0 = 0
         title = ['1', '2', '0', '0', '3', '3']
@@ -177,7 +185,7 @@ class CountMetadataLangTest(unittest.TestCase):
         target_row2 = 2
         creators = ['12', '4', '0', '11', '5', '6']
         target_row3 = 3
-        with open(CSV_FILE, 'r') as csv_file:
+        with open(self.csv_file, 'r') as csv_file:
             csvreader = csv.reader(csv_file)
             next(csvreader)
             for idx, row in enumerate(csvreader, start=0):
@@ -189,10 +197,12 @@ class CountMetadataLangTest(unittest.TestCase):
                     self.assertEqual(journal_title, row)
                 elif idx == target_row3:
                     self.assertEqual(creators, row)
+        for el in os.listdir(self.sample_dump_dir):
+            if el.endswith("decompr_zip_dir"):
+                shutil.rmtree(os.path.join(self.sample_dump_dir, el))
 
-
-
-
+if __name__ == '__main__':
+    unittest.main()
 
 
 
