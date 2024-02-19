@@ -3,6 +3,7 @@ import json
 import os.path
 from pathlib import Path
 from zipfile import ZipInfo
+import shutil
 
 from filelock import FileLock
 import re
@@ -32,11 +33,11 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
                testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
 
     els_to_be_skipped=[]
-    #check if in the input folder the zipped folder has already been decompressed
+    # check if in the input folder the zipped folder has already been decompressed
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(jalc_json_dir)
         # for element in the list of elements in jalc_json_dir (input)
-        for el in input_dir_cont: #should be one (the input dir contains 1 zip)
+        for el in input_dir_cont: # should be one (the input dir contains 1 zip)
             if el.startswith("._"):
                 # skip elements starting with ._
                 els_to_be_skipped.append(os.path.join(jalc_json_dir, el))
@@ -227,7 +228,6 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
 
     def save_files(ent_list, citation_list, is_first_iteration_par: bool):
         if ent_list:
-            # qua il filename sarà quello della cartella zippata, tipo “105834_citing” o "105834_cited"
             if is_first_iteration_par:
                 filename_str = filepath_ne+"_citing.csv"
             else:
@@ -285,8 +285,6 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                         elif cache_dict[k] != v:
                             zip_files_processed_values_list = cache_dict[k]
                             cur_zip_files_processed_values_list = cur_cache_dict[k]
-
-                            #unione set e poi lista
                             list_updated = list(cur_zip_files_processed_values_list.union(zip_files_processed_values_list))
                             cache_dict[k] = list_updated
 
@@ -309,23 +307,28 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         for entity in tqdm(source_dict):
             if entity:
                 d = entity.get("data")
-                #per i citanti la validazione non serve, se è normalizzabile va direttamente alla crezione tabelle Meta
-                norm_source_id = jalc_csv.doi_m.normalise(d['doi'], include_prefix=True)
 
-                if not jalc_csv.doi_m.storage_manager.get_value(norm_source_id):
-                    # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
-                    # time of the csv files creation process) and create a meta csv row for the entity in this case only
-                    jalc_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
+                #filtering out entities without citations
+                if d.get("citation_list"):
+                    cit_list_entities = [x for x in d["citation_list"] if x.get("doi")]
+                    if cit_list_entities:
+                        # since JaLC is a doi registration agency, the id validation for citing entities is not needed.
+                        norm_source_id = jalc_csv.doi_m.normalise(d['doi'], include_prefix=True)
 
-                    if norm_source_id:
-                        source_tab_data = jalc_csv.csv_creator(d)
-                        if source_tab_data:
-                            processed_source_id = source_tab_data["id"]
-                            if processed_source_id:
-                                data_citing.append(source_tab_data)
+                        if not jalc_csv.doi_m.storage_manager.get_value(norm_source_id):
+                            # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
+                            # time of the csv files creation process) and create a meta csv row for the entity in this case only
+                            jalc_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
+
+                            if norm_source_id:
+                                source_tab_data = jalc_csv.csv_creator(d)
+                                if source_tab_data:
+                                    processed_source_id = source_tab_data["id"]
+                                    if processed_source_id:
+                                        data_citing.append(source_tab_data)
 
         save_files(data_citing, index_citations_to_csv, True)
-        #pbar.close()
+
 
     '''cited entities:
     - look for the DOI in the temporary manager and in the storage manager:
@@ -397,7 +400,7 @@ def pathoo(path:str) -> None:
 
 
 if __name__ == '__main__':
-    arg_parser = ArgumentParser('jalc_process.py', description='This script creates CSV files from JALC original dump, enriching data through of a DOI-ORCID index')
+    '''arg_parser = ArgumentParser('jalc_process.py', description='This script creates CSV files from JALC original dump, enriching data through of a DOI-ORCID index')
     arg_parser.add_argument('-c', '--config', dest='config', required=False,
                             help='Configuration file path')
     required = not any(arg in sys.argv for arg in {'--config', '-c'})
@@ -457,5 +460,8 @@ if __name__ == '__main__':
     max_workers = settings['max_workers'] if settings else args.max_workers
 
     preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
-               redis_storage_manager=redis_storage_manager, max_workers=max_workers)
+               redis_storage_manager=redis_storage_manager, max_workers=max_workers)'''
 
+    preprocess(jalc_json_dir="D:\JOCI\without_citations", publishers_filepath=r"C:\Users\marta\Desktop\oc_ds_converter\test\jalc_processing\publishers.csv",
+               orcid_doi_filepath=r"C:\Users\marta\Desktop\oc_ds_converter\test\jalc_processing\iod", csv_dir="D:\JOCI\out_dir_without_citations",
+               cache="D:\JOCI\cache1.json", storage_path=r"D:\JOCI\anydb.db", testing=True)

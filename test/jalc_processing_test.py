@@ -1429,6 +1429,31 @@ class TestJalcProcessing(unittest.TestCase):
         publisher_name = jalc_processor.get_publisher_name(item_dict)
         self.assertEqual(publisher_name, '')
 
+    def test_get_publisher_name_citing(self):
+        item_dict = {
+            'status': 'OK', 'apiType': 'doi', 'apiVersion': '1.0.0',
+             'message': {'total': 1, 'rows': 1, 'totalPages': 1, 'page': 1},
+             'data': {'siteId': 'SI/NII.JAIRO', 'content_type': 'JA', 'doi': '10.15002/00006806',
+                      'url': 'https://doi.org/10.15002/00006806', 'ra': 'JaLC', 'prefix': '10.15002',
+                      'site_name': '機関リポジトリ／Institutional Repository',
+                      'publisher_list': [{'publisher_name': '法政大学社会学部学会'}],
+                      'title_list': [{'lang': 'ja', 'title': '幕府オランダ留学生 : 職方・大野弥三郎'}], 'creator_list': [
+                     {'sequence': '1', 'type': 'person', 'names': [{'last_name': '宮永', 'first_name': '孝'}]}],
+                      'publication_date': {'publication_year': '1985', 'publication_month': '03',
+                                           'publication_day': '15'}, 'edition': {'variation': 'VoR'},
+                      'alternate_identifier_list': [
+                          {'alternate_identifier': 'oai:irdb.nii.ac.jp:01357:0002217886', 'type': 'OAIPMH'}],
+                      'content_language': 'ja', 'updated_date': '2022-07-18', 'article_type': 'pub',
+                      'journal_id_list': [{'journal_id': 'AN00111224', 'type': 'NCID'}],
+                      'journal_title_name_list': [{'journal_title_name': '社会労働研究 = Society and labour'}],
+                      'volume': '31', 'issue': '3･4', 'first_page': '37', 'last_page': '65', 'date': '1985-03-15'}}
+        jalc_processor = JalcProcessing(citing=True)
+        publisher_name = jalc_processor.get_publisher_name(item_dict["data"])
+        print(publisher_name)
+        self.assertEqual(publisher_name, '法政大学社会学部学会')
+
+
+
     def test_get_venue(self):
         with open(DATA, "r", encoding="utf-8") as content:
             data = json.load(content)

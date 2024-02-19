@@ -29,6 +29,8 @@ self = "^2020.12.3"
 update = "^0.0.1"
 filelock = "^3.12.2"
 six = "^1.16.0"
+textblob = "^0.17.1"
+googletrans = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 wget = "^3.2"
