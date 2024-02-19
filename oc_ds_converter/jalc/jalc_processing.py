@@ -207,6 +207,7 @@ class JalcProcessing(RaProcessor):
         If yes, it returns the linked publisher's name, otherwise an empty string. """
         if self.citing:
             publisher = self.get_ja(item['publisher_list'])[0]['publisher_name'] if 'publisher_list' in item else ''
+
         elif not self.citing and self.publishers_mapping:
             publisher=''
             doi = item['doi']
@@ -351,3 +352,4 @@ class JalcProcessing(RaProcessor):
             if validity_list_br[i]:
                 valid_br_ids.append(e)
         return valid_br_ids
+

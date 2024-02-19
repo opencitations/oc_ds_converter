@@ -29,6 +29,7 @@ from oc_ds_converter.lib.master_of_regex import orcid_pattern
 
 
 class RaProcessor(object):
+
     def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath: str = None, citing_entities: str = None):
         self.doi_set = CSVManager.load_csv_column_as_set(doi_csv, 'id') if doi_csv else None
         self.publishers_mapping = self.load_publishers_mapping(publishers_filepath) if publishers_filepath else None
