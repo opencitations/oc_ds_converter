@@ -66,3 +66,4 @@ class MedraProcessingTest(unittest.TestCase):
         output = medra_processing.csv_creator(item)
         expected_output = {'id': 'doi:10.2357/9783739880303-105', 'title': 'Kapitel 11: Sturmwarndienst und Seenotrettung', 'author': 'Wassermann, Matthias', 'issue': '', 'volume': '', 'venue': 'Bodenseeschifferpatent kompakt', 'pub_date': '2020', 'pages': '', 'type': 'book chapter', 'publisher': '', 'editor': ''}
         self.assertEqual(output, expected_output)
+
