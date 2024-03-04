@@ -179,7 +179,7 @@ class TestJalcProcess(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, max_workers=2, redis_storage_manager=True, storage_path=self.any_db1, cache=self.cache_test)
+        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, redis_storage_manager=True, storage_path=self.any_db1, cache=self.cache_test)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -263,8 +263,7 @@ class TestJalcProcess(unittest.TestCase):
                 rsm.delete_storage()
 
             else:
-                #print("get_all_keys()", rsm.get_all_keys())
-                #rsm.delete_storage()
+
                 print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
 
     def test_cache(self):
@@ -328,4 +327,3 @@ class TestJalcProcess(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-#python -m unittest discover -s test -p "jalc_process_test.py"

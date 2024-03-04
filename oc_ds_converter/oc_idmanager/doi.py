@@ -31,7 +31,7 @@ from oc_ds_converter.metadata_manager import MetadataManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from typing import Optional, Type
+from typing import Optional, Type, Tuple
 
 
 class DOIManager(IdentifierManager):
@@ -63,6 +63,47 @@ class DOIManager(IdentifierManager):
         self._isbnm = ISBNManager()
         self._om = ORCIDManager()
 
+        # ISC License (ISC)
+        # ==================================
+        # Copyright 2021 Arcangelo Massari, Cristian Santini, Ricarda Boente, Deniz Tural
+
+        # Permission to use, copy, modify, and/or distribute this software for any purpose with or
+        # without fee is hereby granted, provided that the above copyright notice and this permission
+        # notice appear in all copies.
+
+        # THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS
+        # SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL
+        # THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+        # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+        # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+        prefix_dx = r"HTTP:\/\/DX\.D[0|O]I\.[0|O]RG\/"
+        prefix_doi = r"HTTPS:\/\/D[0|O]I\.[0|O]RG\/"
+        suffix_dcsupplemental = r"\/-\/DCSUPPLEMENTAL"
+        suffix_suppinfo = r"SUPPINF[0|O](\.)?"
+        suffix_pmid1 = r"[\.|\(|,|;]?PMID:\d+.*?"
+        suffix_pmid2 = r"[\.|\(|,|;]?PMCID:PMC\d+.*?"
+        suffix_epub = r"[\(|\[]EPUBAHEADOFPRINT[\)\]]"
+        suffix_published_online = r"[\.|\(|,|;]?ARTICLEPUBLISHEDONLINE.*?\d{4}"
+        suffix_http = r"[\.|\(|,|;]*HTTP:\/\/.*?"
+        suffix_subcontent = r"\/(META|ABSTRACT|FULL|EPDF|PDF|SUMMARY)([>|\)](LAST)?ACCESSED\d+)?"
+        suffix_accessed = r"[>|\)](LAST)?ACCESSED\d+"
+        suffix_sagepub = r"[\.|\(|,|;]?[A-Z]*\.?SAGEPUB.*?"
+        suffix_dotted_line = r"\.{5}.*?"
+        suffix_delimiters = r"[\.|,|<|&|\(|;]+"
+        suffix_doi_mark = r"\[DOI\].*?"
+        suffix_year = r"\(\d{4}\)?"
+        suffix_query = r"\?.*?=.*?"
+        suffix_hash = r"#.*?"
+
+        self.suffix_regex_lst = [suffix_dcsupplemental, suffix_suppinfo, suffix_pmid1, suffix_pmid2, suffix_epub,
+                            suffix_published_online, suffix_http, suffix_subcontent, suffix_accessed, suffix_sagepub,
+                            suffix_dotted_line, suffix_delimiters, suffix_doi_mark, suffix_year,
+                            suffix_query, suffix_hash]
+        self.prefix_regex_lst = [prefix_dx, prefix_doi]
+        self.prefix_regex = r"(.*?)(?:\.)?(?:" + "|".join(self.prefix_regex_lst) + r")(.*)"
+        self.suffix_regex = r"(.*?)(?:" + "|".join(self.suffix_regex_lst) + r")$"
+
     def validated_as_id(self, id_string):
         doi_vaidation_value = self.storage_manager.get_value(id_string)
         if isinstance(doi_vaidation_value, bool):
@@ -87,18 +128,65 @@ class DOIManager(IdentifierManager):
                 self.storage_manager.set_value(doi, validity_check)
                 return validity_check
 
-    def normalise(self, id_string, include_prefix=False):
+    def base_normalise(self, id_string):
         try:
-            doi_string = sub(
+            id_string = sub(
                 "\0+", "", sub("\s+", "", unquote(id_string[id_string.index("10.") :]))
             )
-            return "%s%s" % (
-                self._p if include_prefix else "",
-                doi_string.lower().strip(),
-            )
+            return id_string.lower().strip() if id_string else None
         except:
             # Any error in processing the DOI will return None
             return None
+
+    def normalise(self, id_string, include_prefix=False):
+        try:
+            id_string = self.clean_doi(id_string)[0]
+            return "%s%s" % (
+                self._p if include_prefix else "",
+                id_string.lower().strip(),
+            ) if id_string else None
+
+        except:
+            # Any error in processing the DOI will return None
+            return None
+
+    def clean_doi(self, doi:str) -> Tuple[str, dict]:
+        # ISC License (ISC)
+        # ==================================
+        # Copyright 2021 Arcangelo Massari, Cristian Santini, Ricarda Boente, Deniz Tural
+
+        # Permission to use, copy, modify, and/or distribute this software for any purpose with or
+        # without fee is hereby granted, provided that the above copyright notice and this permission
+        # notice appear in all copies.
+
+        # THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS
+        # SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL
+        # THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+        # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+        # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+        doi = self.base_normalise(doi)
+        tmp_doi = doi.replace(" ", "")
+        prefix_match = re.search(self.prefix_regex, tmp_doi, re.IGNORECASE)
+        classes_of_errors = {
+            "prefix": 0,
+            "suffix": 0,
+            "other-type": 0
+        }
+        if prefix_match:
+            tmp_doi = prefix_match.group(1)
+            classes_of_errors["prefix"] = 1
+        suffix_match = re.search(self.suffix_regex, tmp_doi, re.IGNORECASE)
+        if suffix_match:
+            tmp_doi = suffix_match.group(1)
+            classes_of_errors["suffix"] = 1
+        new_doi = re.sub("\\\\", "", tmp_doi)
+        new_doi = re.sub("__", "_", new_doi)
+        new_doi = re.sub("\\.\\.", ".", new_doi)
+        new_doi = re.sub("<.*?>.*?</.*?>", "", new_doi)
+        new_doi = re.sub("<.*?/>", "", new_doi)
+        if new_doi != tmp_doi:
+            classes_of_errors["other-type"] = 1
+        return new_doi, classes_of_errors
 
     def syntax_ok(self, id_string):
         if not id_string.startswith(self._p):
