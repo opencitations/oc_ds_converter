@@ -15,24 +15,32 @@
 # SOFTWARE.
 
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from re import sub, match
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 from json import loads
 from time import sleep
+from typing import Optional
 
 
 class OpenAlexManager(IdentifierManager):
     """This class implements an identifier manager for openalex identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager: Optional[StorageManager] = None):
         """OpenAlex manager constructor."""
         super(OpenAlexManager, self).__init__()
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
         self._api = "https://api.openalex.org/"
+        self._api_works_route = r"https://api.openalex.org/works/"
+        self._api_sources_route = r"https://api.openalex.org/sources/"
         self._use_api_service = use_api_service
         self._p = "openalex:"
         self._url_id_pref = "https://openalex.org/"
-        self._data = data
         self._headers = {
             "User-Agent": "Identifier Manager / OpenCitations Indexes "
                           "(http://opencitations.net; mailto:contact@opencitations.net)"
@@ -44,17 +52,18 @@ class OpenAlexManager(IdentifierManager):
         if oal_id is None:
             return False
         else:
-            if oal_id not in self._data or self._data[oal_id] is None:
+            id_validation_value = self.storage_manager.get_value(oal_id)
+            if isinstance(id_validation_value, bool):
+                return id_validation_value
+            else:
                 if get_extra_info:
                     info = self.exists(oal_id, get_extra_info=True)
-                    self._data[oal_id] = info[1]
+                    self.storage_manager.set_full_value(oal_id,info[1])
                     return (info[0] and self.syntax_ok(oal_id)), info[1]
-                self._data[oal_id] = dict()
-                self._data[oal_id]["valid"] = True if (self.exists(oal_id) and self.syntax_ok(oal_id)) else False
-                return self._data[oal_id].get("valid")
-            if get_extra_info:
-                return self._data[oal_id].get("valid"), self._data[oal_id]
-            return self._data[oal_id].get("valid")
+                validity_check = self.exists(oal_id) and self.syntax_ok(oal_id)
+                self.storage_manager.set_value(oal_id, validity_check)
+
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         try:
@@ -63,9 +72,14 @@ class OpenAlexManager(IdentifierManager):
             else:
                 oal_string = id_string
 
-            oal_string = sub(self._url_id_pref, '', oal_string)
-            oal_string = sub(self._api, '', oal_string)
-            oal_string = sub("\0+", "", sub("[^WS0-9]", "", oal_string.upper()))
+            oal_string = sub("\0+", "", (sub("\s+", "", oal_string)))
+
+            oal_string = oal_string.removeprefix(self._api_works_route)
+            oal_string = oal_string.removeprefix(self._api_sources_route)
+            oal_string = oal_string.removeprefix(self._api)
+            oal_string = oal_string.removeprefix(self._url_id_pref)
+
+            oal_string = oal_string.upper()
             return "%s%s" % (
                 self._p if include_prefix else "",
                 oal_string.strip(),
@@ -82,9 +96,11 @@ class OpenAlexManager(IdentifierManager):
 
     def exists(self, openalex_id_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True
+        openalex_id_full = self._p + openalex_id_full if not openalex_id_full.startswith(self._p) else openalex_id_full
         if self._use_api_service:
-            oal_id = self.normalise(openalex_id_full)
-            if oal_id is not None:
+            oal_id = self.normalise(openalex_id_full) # returns None or unprefixed ID (include_prefix is set to False)
+            pref_oalid = self._p + oal_id if oal_id else None
+            if pref_oalid is not None:
                 tentative = 3
                 while tentative:
                     tentative -= 1
@@ -94,13 +110,13 @@ class OpenAlexManager(IdentifierManager):
                             r.encoding = "utf-8"
                             json_res = loads(r.text)
                             if get_extra_info:
-                                extra_info_result = {}
+                                extra_info_result = {'id': pref_oalid}
                                 try:
                                     result = True if json_res['id'] == (self._url_id_pref + oal_id) else False
                                     extra_info_result['valid'] = result
                                     return result, extra_info_result
                                 except KeyError:
-                                    extra_info_result["valid"] = False
+                                    extra_info_result['valid'] = False
                                     return False, extra_info_result
                             try:
                                 return True if json_res['id'] == (self._url_id_pref + oal_id) else False
@@ -110,7 +126,7 @@ class OpenAlexManager(IdentifierManager):
                             sleep(1)  # only handles per-second rate limits (not per-day rate limits)
                         elif 400 <= r.status_code < 500:
                             if get_extra_info:
-                                return False, {"valid": False}
+                                return False, {'id': pref_oalid, 'valid': False}
                             return False
                     except ReadTimeout:
                         # Do nothing, just try again
@@ -121,11 +137,11 @@ class OpenAlexManager(IdentifierManager):
                 valid_bool = False
             else:
                 if get_extra_info:
-                    return False, {"valid": False}
+                    return False, {'id': pref_oalid, 'valid': False}
                 return False
 
         if get_extra_info:
-            return valid_bool, {"valid": valid_bool}
+            return valid_bool, {'id': openalex_id_full, 'valid': valid_bool}
         return valid_bool
 
     def extra_info(self, api_response, choose_api=None, info_dict={}):
