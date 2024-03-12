@@ -133,11 +133,13 @@
 
     "viaf:5604148947771454950004": {"id": "viaf:5604148947771454950004","valid": true},
 
-    "viaf:5604148947771454953333": {"id":"viaf:5604148947771454953333","valid": false}
+    "viaf:5604148947771454953333": {"id":"viaf:5604148947771454953333","valid": false},
 
+    "openalex:W2013228336": {"id": "openalex:W2013228336", "valid": true},
 
+    "openalex:W7836728310": {"id": "openalex:W7836728310", "valid": false},
 
-
+    "openalex:S4263287381": {"id": "openalex:S4263287381", "valid": false}
 
 
 }

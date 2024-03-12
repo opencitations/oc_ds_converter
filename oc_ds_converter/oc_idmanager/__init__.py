@@ -27,3 +27,5 @@ from oc_ds_converter.oc_idmanager.url import URLManager
 from oc_ds_converter.oc_idmanager.viaf import ViafManager
 from oc_ds_converter.oc_idmanager.wikidata import WikidataManager
 from oc_ds_converter.oc_idmanager.wikipedia import WikipediaManager
+from oc_ds_converter.oc_idmanager.openalex import OpenAlexManager
+
