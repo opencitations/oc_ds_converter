@@ -74,10 +74,10 @@ class OpenAlexManager(IdentifierManager):
 
             oal_string = sub("\0+", "", (sub("\s+", "", oal_string)))
 
-            oal_string = oal_string.removeprefix(self._api_works_route)
-            oal_string = oal_string.removeprefix(self._api_sources_route)
-            oal_string = oal_string.removeprefix(self._api)
-            oal_string = oal_string.removeprefix(self._url_id_pref)
+            oal_string = oal_string.replace(self._api_works_route, '', 1)
+            oal_string = oal_string.replace(self._api_sources_route, '', 1)
+            oal_string = oal_string.replace(self._api, '', 1)
+            oal_string = oal_string.replace(self._url_id_pref, '', 1)
 
             oal_string = oal_string.upper()
             return "%s%s" % (
