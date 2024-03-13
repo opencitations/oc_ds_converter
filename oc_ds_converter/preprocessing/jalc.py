@@ -162,7 +162,7 @@ def process_zip(zip_file, output_dir2):
                             zipf.write(file_path, relative_path)
                 # After creating the zip, delete the original directory
                 shutil.rmtree(dir_to_zip)
-                print("Just Completed zip:", zip_file_path)
+                #print("Just Completed zip:", zip_file_path)
 
             else:
                 # if there are more than 100 jsons, they should be divided as many zips as the total number of jsons/ 100.
@@ -234,7 +234,7 @@ def process_zip(zip_file, output_dir2):
                                 zipf.write(file_path, relative_path)
                     # After creating the zip, delete the original directory
                     shutil.rmtree(directory_to_zip)
-                    print("Just Completed zip:", zip_file_path)
+                    #print("Just Completed zip:", zip_file_path)
         zip_ref.close()
 
 

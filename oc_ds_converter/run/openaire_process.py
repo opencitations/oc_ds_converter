@@ -93,6 +93,11 @@ def preprocess(
     if os.path.exists(lock_file):
         os.remove(lock_file)
 
+    # added to avoid order-releted issues in sequential tests runs
+    if testing:
+        storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+        storage_manager.delete_storage()
+
 
 def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str, doi_csv: str, publishers_filepath_openaire: str, storage_path: str, redis_storage_manager: bool, testing: bool, cache:str, target=50000):
 

@@ -258,7 +258,8 @@ class OpenAireProcessTest(unittest.TestCase):
         for el in os.listdir(self.sample_dupl):
             if el.endswith("decompr_zip_dir"):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
-        os.remove(self.any_db)
+        if os.path.exists(self.any_db):
+            os.remove(self.any_db)
 
     def test_preprocess_duplicates_management_redis(self):
         """Test functionalities of the OROCI processor for producing META csv tables and INDEX tables, when multiple

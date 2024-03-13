@@ -29,7 +29,7 @@ class DataciteProcessTest(unittest.TestCase):
         """
 
         for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zip_dir"):
+            if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
 
         if os.path.exists(self.output_dir):
@@ -38,6 +38,7 @@ class DataciteProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
+
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
                    orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=False,
                    storage_path=self.db, cache=self.cache)
@@ -72,7 +73,7 @@ class DataciteProcessTest(unittest.TestCase):
         shutil.rmtree(self.output_dir)
 
         for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zip_dir"):
+            if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
         if os.path.exists(self.db):
             os.remove(self.db)
@@ -85,7 +86,7 @@ class DataciteProcessTest(unittest.TestCase):
         """
 
         for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zip_dir"):
+            if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
 
         if os.path.exists(self.output_dir):
@@ -94,6 +95,7 @@ class DataciteProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
+
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
                    orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=True,
                    storage_path=self.db, cache=self.cache)
@@ -128,10 +130,11 @@ class DataciteProcessTest(unittest.TestCase):
         shutil.rmtree(self.output_dir)
 
         for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zip_dir"):
+            if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
         if os.path.exists(self.db):
             os.remove(self.db)
+
     def test_any_db_creation_redis_no_testing(self):
         try:
             rsm = RedisStorageManager(testing=False)
@@ -149,7 +152,7 @@ class DataciteProcessTest(unittest.TestCase):
                            storage_path=self.db, cache=self.cache)
 
                 for el in os.listdir(self.zst_input_folder):
-                    if el.endswith("decompr_zip_dir"):
+                    if el.endswith("decompr_zst_dir"):
                         shutil.rmtree(os.path.join(self.zst_input_folder, el))
                 rsm.delete_storage()
 
@@ -158,11 +161,12 @@ class DataciteProcessTest(unittest.TestCase):
                 print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
         if os.path.exists(self.db):
             os.remove(self.db)
+
     def test_cache(self):
         'Nothing should be produced in output, since the cache file reports that all the files in input were completed'
 
         for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zip_dir"):
+            if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
 
         if os.path.exists(self.output_dir):
@@ -210,7 +214,7 @@ class DataciteProcessTest(unittest.TestCase):
         shutil.rmtree(self.output_dir)
 
         for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zip_dir"):
+            if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
 
         if os.path.exists(self.db):

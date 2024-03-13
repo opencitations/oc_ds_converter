@@ -363,5 +363,11 @@ class TestPubmedProcessing(unittest.TestCase):
         tabular_data_w_redis_data = pubmed_processor.csv_creator(inp_ent_fake_doi)
         self.assertEqual(tabular_data_w_redis_data['id'], 'pmid:5 doi:10.1016/a_fake_doi')
 
+        pubmed_processor.doi_m.storage_manager.delete_storage()
+        pubmed_processor.BR_redis.flushall()
+        pubmed_processor.RA_redis.flushall()
+
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -109,7 +109,8 @@ class TestJalcProcess(unittest.TestCase):
         for el in os.listdir(self.sample_dump_dir):
             if el.endswith("decompr_zip_dir"):
                 shutil.rmtree(os.path.join(self.sample_dump_dir, el))
-        os.remove(self.any_db)
+        if os.path.exists(self.any_db):
+            os.remove(self.any_db)
 
     def test_preprocess_wrong_doi_cited(self):
         for el in os.listdir(self.sample_fake_dump_dir):

@@ -116,7 +116,8 @@ class CrossrefProcessTest(unittest.TestCase):
         self.assertTrue(citations_files_n == 1)
 
         shutil.rmtree(self.output)
-        os.remove(self.db)
+        if os.path.exists(self.db):
+            os.remove(self.db)
 
     def test_preprocess_base_and_decompress_with_cited_redis(self):
         """CASE2: compressed input with cited entities"""
@@ -215,8 +216,8 @@ class CrossrefProcessTest(unittest.TestCase):
         shutil.rmtree(self.output)
         shutil.rmtree(citations_output_path)
 
-
-        os.remove(self.db)
+        if os.path.exists(self.db):
+            os.remove(self.db)
 
     def test_any_db_creation_redis_no_testing(self):
         try:

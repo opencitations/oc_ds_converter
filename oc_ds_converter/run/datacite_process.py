@@ -129,6 +129,11 @@ def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filep
     if os.path.exists(lock_file):
         os.remove(lock_file)
 
+    # added to avoid order-releted issues in sequential tests runs
+    if testing:
+        storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+        storage_manager.delete_storage()
+
 
 def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citations_dir: str, csv_dir: str, chunk_to_save:str,
                                orcid_index: str,

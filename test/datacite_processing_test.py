@@ -61,7 +61,7 @@ class TestDataciteProcessing(unittest.TestCase):
                 all_br.update(set(allids[0]))
                 all_ra.update(set(allids[1]))
         self.assertTrue({"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25", "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"} == all_br)
-       
+
     def test_get_redis_validity_list_br(self):
         dcp = DataciteProcessing()
         br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25", "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
@@ -1072,33 +1072,3 @@ class TestDataciteProcessing(unittest.TestCase):
                                                                              agents_list)
         expected_authors_list = ['Viorel, Cojocaru', 'Cojocaru, John', 'Ciprian, Panait']
         self.assertEqual(authors_strings_list, expected_authors_list)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
