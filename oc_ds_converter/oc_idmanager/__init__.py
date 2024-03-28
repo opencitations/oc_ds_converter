@@ -28,4 +28,5 @@ from oc_ds_converter.oc_idmanager.viaf import ViafManager
 from oc_ds_converter.oc_idmanager.wikidata import WikidataManager
 from oc_ds_converter.oc_idmanager.wikipedia import WikipediaManager
 from oc_ds_converter.oc_idmanager.openalex import OpenAlexManager
+from oc_ds_converter.oc_idmanager.crossref import CrossrefManager
 
