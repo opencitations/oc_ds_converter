@@ -75,7 +75,7 @@ class orcidIdentifierManagerTest(unittest.TestCase):
         with self.subTest(msg="get_extra_info=True, allow_extra_api=None"):
             orcid_manager = ORCIDManager()
             output = orcid_manager.exists(self.valid_orcid_2, get_extra_info=True, allow_extra_api=None)
-            expected_output = (True, {'id': '0000-0001-5506-523X', 'valid': True, 'family_name': 'Shotton', 'given_name': 'David', 'email': "", 'external_identifiers': {}, 'submission_date': '2012-10-31', 'update_date': '2023-09-23'})
+            expected_output = (True, {'id': '0000-0001-5506-523X', 'valid': True, 'family_name': 'Shotton', 'given_name': 'David', 'email': "", 'external_identifiers': {}, 'submission_date': '2012-10-31', 'update_date': '2024-03-19'})
             self.assertEqual(output, expected_output)
         with self.subTest(msg="get_extra_info=False, allow_extra_api=None"):
             orcid_manager = ORCIDManager()

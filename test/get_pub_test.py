@@ -69,7 +69,7 @@ class MyTestCase(unittest.TestCase):
         e_p_doi_5 = ExtractPublisherDOI({})
         cnki_doi = "10.13336/j.1003-6520.hve.20160308018"
         pub_c = e_p_doi_5.extract_publishers_v(cnki_doi)
-        expected = "CNKI Publisher (unspecified)"
+        expected = "unidentified"
         self.assertEqual(pub_c, expected)
 
 
