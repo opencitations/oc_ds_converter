@@ -367,6 +367,33 @@ class TestPubmedProcessing(unittest.TestCase):
         pubmed_processor.BR_redis.flushall()
         pubmed_processor.RA_redis.flushall()
 
+    def test_get_citations(self):
+        inp_ent = {'pmid': '5', 'doi': '10.1016/0006-291x(75)90508-2',
+             'title': 'Atomic models for the polypeptide backbones of myohemerythrin and hemerythrin.',
+             'authors': 'W A Hendrickson, K B Ward', 'year': '1975', 'journal': 'Biochem Biophys Res Commun',
+             'cited_by': '7118409 6768892 2619971 2190210 3380793 20577584 8372226 7012375 856811 678527 33255345 33973855 402092 7012894 1257769 861288 1061139 3681996', 'references': '4882249 5059118 14834145 1056020 5509841'}
+
+        pubmed_processor = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER,
+                                            journals_filepath=JOURNALS_DICT)
+
+        citation_list = pubmed_processor.get_citations("pmid:5", inp_ent)
+        exp_citation_list = [('pmid:5', 'pmid:1056020'), ('pmid:5', 'pmid:4882249'), ('pmid:5', 'pmid:14834145'), ('pmid:5', 'pmid:5509841'), ('pmid:5', 'pmid:5059118')]
+
+        self.assertEqual(set(citation_list), set(exp_citation_list))
+
+
+    def test_get_citing_pmid(self):
+        inp_ent_meta = {'id': 'pmid:5 doi:10.1016/0006-291x(75)90508-2', 'title': 'Atomic models for the polypeptide backbones of myohemerythrin and hemerythrin.',
+             'author': 'W A Hendrickson; K B Ward', 'pub_date': '1975', 'venue': 'Biochemical and biophysical research communications [issn:0006-291X issn:1090-2104]',
+             'volume': '', 'issue': '', 'page': '', 'type': 'journal article', 'publisher': 'Elsevier BV', 'editor': ''}
+
+        pubmed_processor = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER,
+                                            journals_filepath=JOURNALS_DICT)
+
+        out_citing_pmid = pubmed_processor.get_citing_pmid((inp_ent_meta))
+        exp_out_citing_pmid = 'pmid:5'
+
+        self.assertEqual(out_citing_pmid, exp_out_citing_pmid)
 
 
 if __name__ == '__main__':

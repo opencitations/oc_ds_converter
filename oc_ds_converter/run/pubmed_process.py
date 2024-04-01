@@ -31,7 +31,6 @@ from oc_ds_converter.pubmed.pubmed_processing import *
 
 
 def to_meta_file(cur_n, lines, interval, csv_dir):
-
     if int(cur_n) != 0 and int(cur_n) % int(interval) == 0:
         filename = "CSVFile_" + str(cur_n // interval)
         filepath = os.path.join(csv_dir, f'{os.path.basename(filename)}.csv')
@@ -52,7 +51,9 @@ def to_meta_file(cur_n, lines, interval, csv_dir):
         return lines
 
 
-def preprocess(pubmed_csv_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, journals_filepath:str, wanted_doi_filepath:str=None, verbose:bool=False, interval = 1000, testing=True, cache: str = None) -> None:
+def preprocess(pubmed_csv_dir: str, publishers_filepath: str, orcid_doi_filepath: str, csv_dir: str,
+               journals_filepath: str, wanted_doi_filepath: str = None, verbose: bool = False, interval=1000,
+               testing=True, cache: str = None) -> None:
     if not interval:
         interval = 1000
     else:
@@ -63,7 +64,7 @@ def preprocess(pubmed_csv_dir:str, publishers_filepath:str, orcid_doi_filepath:s
 
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
-    
+
     filter = ["pmid", "doi", "title", "authors", "year", "journal", "references"]
     if verbose:
         if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
@@ -77,10 +78,11 @@ def preprocess(pubmed_csv_dir:str, publishers_filepath:str, orcid_doi_filepath:s
             log = '[INFO: pubmed_process] Processing: ' + '; '.join(what)
             print(log)
 
-    pubmed_csv = PubmedProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath, publishers_filepath_pubmed=publishers_filepath, journals_filepath=journals_filepath, testing=testing)
+    pubmed_csv = PubmedProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath,
+                                  publishers_filepath_pubmed=publishers_filepath, journals_filepath=journals_filepath,
+                                  testing=testing)
     if verbose:
         print(f'[INFO: pubmed_process] Getting all files from {pubmed_csv_dir}')
-
 
     all_files, targz_fd = get_all_files_by_type(pubmed_csv_dir, ".csv")
     lines = []
@@ -93,7 +95,7 @@ def preprocess(pubmed_csv_dir:str, publishers_filepath:str, orcid_doi_filepath:s
                 f.write('0')
         with open(cache, 'r', encoding='utf8') as f:
             count = f.read().splitlines()[0]
-    dtype={'pmid': str, 'doi': str, 'title': str, 'authors': str, 'year': str, 'journal': str, 'references': str}
+    dtype = {'pmid': str, 'doi': str, 'title': str, 'authors': str, 'year': str, 'journal': str, 'references': str}
     for file in all_files:
         chunksize = 100000
         with open(file, 'r', encoding='utf8') as f:
@@ -126,12 +128,14 @@ def preprocess(pubmed_csv_dir:str, publishers_filepath:str, orcid_doi_filepath:s
         pubmed_csv.save_updated_pref_publishers_map()
 
 
-def pathoo(path:str) -> None:
+def pathoo(path: str) -> None:
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
 
+
 if __name__ == '__main__':
-    arg_parser = ArgumentParser('pubmed_process.py', description='This script creates meta CSV files from pubmed preprocessed dump, enriching data through of a DOI-ORCID index')
+    arg_parser = ArgumentParser('pubmed_process.py',
+                                description='This script creates meta CSV files from pubmed preprocessed dump, enriching data through of a DOI-ORCID index')
     arg_parser.add_argument('-c', '--config', dest='config', required=False,
                             help='Configuration file path')
     required = not any(arg in sys.argv for arg in {'--config', '-c'})
@@ -149,7 +153,7 @@ if __name__ == '__main__':
                             help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
                             help='Show a loading bar, elapsed time and estimated time')
-    arg_parser.add_argument('-int', '--interval', dest='interval',type=int, required=False, default=1000,
+    arg_parser.add_argument('-int', '--interval', dest='interval', type=int, required=False, default=1000,
                             help='int number of lines for each output csv. If nothing is declared, the default is 1000')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
                             help='testing flag to define what to use for data validation (fakeredis instance or real redis DB)')
@@ -177,4 +181,7 @@ if __name__ == '__main__':
     verbose = settings['verbose'] if settings else args.verbose
     testing = settings['testing'] if settings else args.testing
     print("Data Preprocessing Phase: started")
-    preprocess(pubmed_csv_dir=pubmed_csv_dir, publishers_filepath=publishers_filepath, journals_filepath=journals_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, verbose=verbose, interval=interval, testing=testing, cache=args.cache)
+    preprocess(pubmed_csv_dir=pubmed_csv_dir, publishers_filepath=publishers_filepath,
+               journals_filepath=journals_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir,
+               wanted_doi_filepath=wanted_doi_filepath, verbose=verbose, interval=interval, testing=testing,
+               cache=args.cache)
