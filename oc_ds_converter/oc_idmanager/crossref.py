@@ -17,13 +17,13 @@
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.support import call_api
 from re import sub, match
 from typing import Optional
-from support import call_api
 
 
 class CrossrefManager(IdentifierManager):
-    """This class implements an identifier manager for openalex identifier"""
+    """This class implements an identifier manager for Crossref member identifier"""
 
     def __init__(self, use_api_service=True, storage_manager: Optional[StorageManager] = None):
         """Crossref member ID manager constructor."""
