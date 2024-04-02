@@ -28,6 +28,7 @@ class PubmedProcessing(RaProcessor):
         super(PubmedProcessing, self).__init__(orcid_index, doi_csv)
         self.nihrf = NIHResourceFinder()
         self.doi_m = DOIManager()
+        self.pmid_m = PMIDManager()
         if testing:
             self.BR_redis= fakeredis.FakeStrictRedis()
             self.RA_redis= fakeredis.FakeStrictRedis()
@@ -93,7 +94,7 @@ class PubmedProcessing(RaProcessor):
     def csv_creator(self, item: dict) -> dict:
         row = dict()
         doi = ""
-        pmid = PMIDManager().normalise(str(item['pmid']))
+        pmid = self.pmid_m.normalise(str(item['pmid']))
         if (pmid and self.doi_set and pmid in self.doi_set) or (pmid and not self.doi_set):
             # create empty row
             keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
@@ -608,6 +609,45 @@ class PubmedProcessing(RaProcessor):
         ''' NO INFO IN DUMP: to be updated with API DATA'''
         return agent_list
 
+    def get_citing_pmid(self, meta_dict:dict) -> str:
+        citing_pmid = ""
+        id_string = meta_dict.get("id")
+        if id_string:
+            id_list = id_string.split()
+            pmid_list = [x for x in id_list if x.startswith("pmid:")]
+            if len(pmid_list) == 1:
+                citing_pmid = pmid_list[0] # we expect only one pmid for each entity
+        return citing_pmid
+
+    def get_citations(self, validated_pmid, item:dict) -> list:
+        addressed_citations = set()
+
+        citing = validated_pmid
+        if not citing.startswith("pmid:"):
+            try:
+                int_pmid = int(citing)
+                citing = "pmid:" + str(int_pmid)
+            except:
+                return []
+
+        references_string = item.get("references")
+        cited_ids = references_string.split()
+
+        for cited_id in cited_ids:
+            try:
+                id_n = int(cited_id)
+
+                if id_n:
+                    norm_cited = self.pmid_m.normalise(str(id_n), include_prefix=True)
+
+                    if norm_cited:
+                        addressed_citations.add((citing, norm_cited))
+            except:
+                pass
+
+        addressed_citations_list = list(addressed_citations)
+
+        return addressed_citations_list
 
 
     def get_best_match(self, target_agent_dict, report_dicts):
