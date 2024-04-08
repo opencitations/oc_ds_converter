@@ -153,18 +153,19 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
 
 
 def find_missing_chuncks(list_of_tuples, interval):
+    # GESTIRE LA SITUAZIONE IN CUI IL CHUNCK MISSING è IL PRIMO (PRIMA ROW DA PROCESSARE - PRIMA PROCESSATA) !!!
     all_missing_chunks = []
     first_row_to_be_processed = 0
 
     if len(list_of_tuples) < 1:
         pass
 
-    elif len(list_of_tuples) == 1:
+    elif len(list_of_tuples) == 1 and list_of_tuples[0] == 0:
         # se contiene un solo elemento, iniziare la distribuzione dall'ultimo elemento + 1
         # per definizione, non ci sono missing chunks
         first_row_to_be_processed = list_of_tuples[0][1] + 1
     else:
-        past_interval = list_of_tuples[0][1] - list_of_tuples[0][0]
+        past_interval = list_of_tuples[0][1] - list_of_tuples[0][0] +1
         if past_interval != interval:
             return None
         tuple_0s = [x[0] for x in list_of_tuples if x[0] != 0]
@@ -175,9 +176,21 @@ def find_missing_chuncks(list_of_tuples, interval):
         if missing_tuple_1s:
             all_missing_chunks = []
             while missing_tuple_1s:
-                missing_chunks = [(x - interval, x) for x in missing_tuple_1s]
+                span = interval -1
+                missing_chunks = [(x - span, x) for x in missing_tuple_1s]
                 all_missing_chunks.extend(missing_chunks)
-                all_chunks = set(all_missing_chunks + list_of_tuples)
+
+                # lists to tuples
+                all_missing_chunks_tuples = [tuple(chunk) for chunk in all_missing_chunks]
+                list_of_tuples_tuples = [tuple(item) for item in list_of_tuples]
+
+                # sets to remove duplicates
+                all_missing_chunks_set = set(all_missing_chunks_tuples)
+                list_of_tuples_set = set(list_of_tuples_tuples)
+
+                # combined sets
+                all_chunks = all_missing_chunks_set.union(list_of_tuples_set)
+
                 tuple_0s = [x[0] for x in all_chunks if x[0] != 0]
                 tuple_1s = [x[1] for x in all_chunks]
                 missing_tuple_1s = [num - 1 for num in tuple_0s if num - 1 not in tuple_1s]
@@ -188,9 +201,41 @@ def find_missing_chuncks(list_of_tuples, interval):
 
     return all_missing_chunks, first_row_to_be_processed
 
-def assign_chunks(cache, lock, n_processes, interval, n_total_rows) -> dict:
-    intervals_dict = {}
+
+def new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows):
+    row_ranges = []
+
+    list_of_rows_to_be_processed = list(range(first_row_to_be_processed, n_total_rows))
+
+    spare_processes_counter = n_spare_processes
+    for i in range(n_spare_processes):
+        while len(list_of_rows_to_be_processed) > interval and spare_processes_counter:
+            row_range_assinged = (list_of_rows_to_be_processed[0],
+                                  list_of_rows_to_be_processed[interval - 1])
+
+            row_ranges.append(row_range_assinged)
+
+            del list_of_rows_to_be_processed[:interval]
+            spare_processes_counter -= 1
+
+    if len(list_of_rows_to_be_processed) and spare_processes_counter:
+        last_chunk = (list_of_rows_to_be_processed[0], list_of_rows_to_be_processed[-1])
+        row_ranges.append(last_chunk)
+
+    return row_ranges
+
+
+def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (list, bool):
+    # NON è PREVISTO CHE NEL CASO IN CUI SIA STATA COMPLETATA LA PRIMA ITERAZIONE SI PASSI ALLA SECONDA. SONO DUE PROCESSI DISTINTI, IL SECONDO INIZIA QUANDO FINISCE IL PRIMO
+    # è FONDAMENTALE CHE ALLA FINE DI OGNI SINGOLO PROCESSO LA CACHE VENGA AGGIORNATA (RICORDA IN TASK DONE)
+    list_of_tuples_to_process = []
+    is_first_iteration = True
     # aprire la cache, strutturata come dizionario di liste di tuple, non più come stringa
+    # IS FIRST ITERATION SERVE A DETERMINARE SE TUTTE LE ROW DEL CSV SONO STATE PROCESSATE ALMENO UNA VOLTA (PER L'ESTRAZIONE DELLE ENTITà)
+    # IN CASO AFFERMATIVO, SI PASSA A PROCESSARE LE CITAZIONI ("second_iteration")
+    # PER VERIFICARE QUESTO, ALLA CHIAVE "FIRST_ITERATION" DEL DIZIONARIO DEVE ESSERE PRESENTE UNA LISTA DI TUPLE CHE COPRA GLI INTERVALLI
+    # DALLA PRIMA ALL'ULTIMA RIGA DEL CSV. QUINDI TRA GLI 1s DELLE TUPLE DEVE ESSERE PRESENTE IL NUMERO n_total_rows -1 E NON DEVONO ESSERCI INTERVALLI SCOPERTI
+
     if os.path.exists(cache):
         if not lock:
             lock = FileLock(cache + ".lock")
@@ -200,34 +245,73 @@ def assign_chunks(cache, lock, n_processes, interval, n_total_rows) -> dict:
                     cache_dict = json.load(c)
                 except:
                     cache_dict = dict()
-        # controllare se il file non è vuoto
-        if not cache_dict.get("first_iteration") and not cache_dict.get("second_iteration"):
-            # allo stato attuale, niente è stato processato. Si inizia l'assegnazione del primo processo (produzione tabelle meta) partendo dall'inizio del dump
-            starting_iteration = "first"
+    else:
+        cache_dict = dict()
 
-            firts_row_position_to_be_processed = 0
-            list_of_rows_to_be_processed = list(range(firts_row_position_to_be_processed, 15))
-            firts_row_to_be_processed = list_of_rows_to_be_processed[firts_row_position_to_be_processed]
-            process_to_be_assigned = 7
-            interval = 3
-            row_ranges = []
 
-            for i, n in enumerate(range(process_to_be_assigned)):
-                while len(list_of_rows_to_be_processed) > firts_row_position_to_be_processed + interval:
-                    last_row_position_to_be_processed = firts_row_position_to_be_processed + interval - 1
-                    row_range_assinged = (list_of_rows_to_be_processed[firts_row_position_to_be_processed],
-                                          list_of_rows_to_be_processed[last_row_position_to_be_processed])
-                    row_ranges.append(row_range_assinged)
-                    del list_of_rows_to_be_processed[
-                        firts_row_position_to_be_processed:last_row_position_to_be_processed + 1]
+    # VERIFICARE PUNTO DI PARTENZA
+    if not cache_dict.get("first_iteration") and not cache_dict.get("second_iteration"):
+        # CASO 0 : inizio del processo, nessuna iterazione è stata iniziata.
+        is_first_iteration = True
+        first_row_to_be_processed = 0
+        list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval, n_total_rows)
 
-            pass
-        elif cache_dict.get("first_iteration") and not cache_dict.get("second_iteration"):
-            pass
-        elif cache_dict.get("first_iteration") and cache_dict.get("second_iteration"):
-            pass
+        return list_of_tuples_to_process, is_first_iteration
 
-    return intervals_dict
+    elif not cache_dict.get("first_iteration") and cache_dict.get("second_iteration"):
+        # CASO 1: risulta iniziata la seconda iterazione ma non la prima: comportamento anomalo, return None
+        return None
+
+    elif cache_dict.get("second_iteration") and cache_dict.get("first_iteration"):
+        # CASO 2: Seconda iterazione iniziata
+        is_first_iteration = False
+
+        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("second_iteration"),
+                                                                             interval)
+        if len(all_missing_chunks) == 0:
+            # CASO 2.1: Seconda iterazione iniziata, nessun chunk saltato
+
+            if first_row_to_be_processed == n_total_rows:
+                # CASO 2.1.1 Seconda iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
+                return list_of_tuples_to_process, is_first_iteration
+            else:
+                # CASO 2.1.2 Seconda iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
+                list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval, n_total_rows)
+                return list_of_tuples_to_process, is_first_iteration
+        else:
+            # CASO 2.2: Seconda iterazione iniziata, con chunk saltati
+            list_of_tuples_to_process.extend(all_missing_chunks)
+            n_processes = n_processes - len(all_missing_chunks)
+            extra_list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval,
+                                                                n_total_rows)
+            list_of_tuples_to_process.extend(extra_list_of_tuples_to_process)
+            return list_of_tuples_to_process, is_first_iteration
+
+    elif not cache_dict.get("second_iteration") and cache_dict.get("first_iteration"):
+        # CASO 3: Prima iterazione iniziata
+        is_first_iteration = True
+        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("first_iteration"),
+                                                                             interval)
+        if len(all_missing_chunks) == 0:
+            # CASO 3.1: Prima iterazione iniziata, nessun chunk saltato
+
+            if first_row_to_be_processed == n_total_rows:
+                # CASO 3.1.1 Prima iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
+                return list_of_tuples_to_process, is_first_iteration
+            else:
+                # CASO 3.1.2 Prima iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
+                list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval,
+                                                                    n_total_rows)
+                return list_of_tuples_to_process, is_first_iteration
+        else:
+            # CASO 3.2: Prima iterazione iniziata, con chunk saltati
+            list_of_tuples_to_process.extend(all_missing_chunks)
+            n_processes = n_processes - len(all_missing_chunks)
+            extra_list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval,
+                                                                      n_total_rows)
+            list_of_tuples_to_process.extend(extra_list_of_tuples_to_process)
+            return list_of_tuples_to_process, is_first_iteration
+
 
 def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str,

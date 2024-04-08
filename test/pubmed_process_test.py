@@ -54,34 +54,166 @@ class PubMedProcess(unittest.TestCase):
         self.processing_csv_row_base = os.path.join('test', 'pubmed_processing')
         self._id_orcid_data = os.path.join(self.processing_csv_row_base, 'iod')
 
+        self.cache1 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache1.json')
+        self.cache2 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache2.json')
+        self.cache3 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache3.json')
+        self.cache4 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache4.json')
+        self.cache5 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache5.json')
+        self.cache6 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache6.json')
+        self.cache7 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache7.json')
+        self.cache8 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache8.json')
+        self.cache9 = os.path.join('test', 'pubmed_process', 'support_mat', 'cache9.json')
+
     def test_find_missing_chuncks(self):
+
+        output = find_missing_chuncks([(7,13)], 7)
+        expected = ([(0, 6)], 14)
+
+        self.assertEqual(output, expected)
 
         output = find_missing_chuncks([], 5)
         expected = ([], 0)
 
         self.assertEqual(output, expected)
 
-        output = find_missing_chuncks([(0,6), (7,13)], 5)
+        output = find_missing_chuncks([(0,6), (7,13)], 6)
         expected = (None)
 
         self.assertEqual(output, expected)
 
-        output = find_missing_chuncks([(0,6), (7,13)], 6)
+        output = find_missing_chuncks([(0,6), (7,13)], 7)
         expected = ([], 14)
 
         self.assertEqual(output, expected)
 
-        output = find_missing_chuncks([(0,6), (14,20)], 6)
+        output = find_missing_chuncks([(0,6), (14,20)], 7)
         expected = ([(7,13)], 21)
 
         self.assertEqual(output, expected)
 
-        output = find_missing_chuncks([(0,6), (21,27)], 6)
+        output = find_missing_chuncks([(0,6), (21,27)], 7)
         expected = ([(7,13), (14, 20)], 28)
 
         self.assertTrue(all(x in output[0] for x in expected[0]))
         self.assertTrue(all(x in expected[0] for x in output[0]))
         self.assertEqual(output[1], expected[1])
+
+    def test_new_chunks_distribution(self):
+        n_spare_processes = 5
+        first_row_to_be_processed = 0
+        interval = 10
+        n_total_rows = 50
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = [(0, 9), (10, 19), (20, 29), (30, 39), (40, 49) ]
+        self.assertEqual(result, expected)
+
+        n_spare_processes = 6
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = [(0, 9), (10, 19), (20, 29), (30, 39), (40, 49)]
+        self.assertEqual(result, expected)
+
+        first_row_to_be_processed = 5
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = [(5, 14), (15, 24), (25, 34), (35, 44), (45, 49)]
+        self.assertEqual(result, expected)
+
+        first_row_to_be_processed = 6
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = [(6, 15), (16, 25), (26, 35), (36, 45), (46, 49)]
+        self.assertEqual(result, expected)
+
+        first_row_to_be_processed = 6
+        n_spare_processes = 1
+        interval = 3
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = [(6, 8)]
+        self.assertEqual(result, expected)
+
+        n_spare_processes = 3
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = [(6, 8), (9,11), (12,14)]
+        self.assertEqual(result, expected)
+
+        n_total_rows = 0
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = []
+        self.assertEqual(result, expected)
+
+        n_total_rows = 7
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = [(6, 6)]
+        self.assertEqual(result, expected)
+
+        n_total_rows = 6
+        result = new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interval, n_total_rows)
+        expected = []
+        self.assertEqual(result, expected)
+
+    def test_assign_chunks(self):
+
+        # CASO 0 : inizio del processo, nessuna iterazione è stata iniziata.
+        n_processes = 5
+        interval = 7
+        n_total_rows = 28
+
+        expected = ([(0, 6), (7, 13), (14, 20), (21, 27)], True)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache1, lock=None)
+        os.remove(self.cache1+".lock")
+        self.assertEqual(result, expected)
+
+        # CASO 1: risulta iniziata la seconda iterazione ma non la prima: comportamento anomalo, return None
+
+        expected = None
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache2, lock=None)
+        os.remove(self.cache2+".lock")
+        self.assertEqual(result, expected)
+
+        # CASO 2: Seconda iterazione iniziata
+        # CASO 2.1: Seconda iterazione iniziata, nessun chunk saltato
+        expected = ([(7, 13), (14, 20), (21, 27)], False)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache3, lock=None)
+        os.remove(self.cache3+".lock")
+        self.assertEqual(result, expected)
+
+        # CASO 2.1.1 Seconda iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
+        expected = ([], False)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache5, lock=None)
+        os.remove(self.cache5+".lock")
+        self.assertEqual(result, expected)
+
+        # CASO 2.1.2 Seconda iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
+        expected = ([(14, 20), (21, 27)], False)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache6, lock=None)
+        os.remove(self.cache6+".lock")
+        self.assertEqual(result, expected)
+
+        # CASO 2.2: Seconda iterazione iniziata, con chunk saltati
+        expected = ([(0, 6), (14, 20), (21, 27)], False)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache4, lock=None)
+        os.remove(self.cache4+".lock")
+        self.assertEqual(result, expected)
+
+
+        # CASO 3: Prima iterazione iniziata
+        # CASO 3.1: Prima iterazione iniziata, nessun chunk saltato
+        # CASO 3.1.1 Prima iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
+        expected = ([], True)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache8, lock=None)
+        os.remove(self.cache8+".lock")
+        self.assertEqual(result, expected)
+
+        # CASO 3.1.2 Prima iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
+        expected = ([(14, 20), (21, 27)], True)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache7, lock=None)
+        os.remove(self.cache7+".lock")
+        self.assertEqual(result, expected)
+
+        # CASO 3.2: Prima iterazione iniziata, con chunk saltati
+        expected = ([(0, 6), (21, 27)], True)
+        result = assign_chunks(n_processes, interval, n_total_rows, self.cache9, lock=None)
+        os.remove(self.cache9 + ".lock")
+        self.assertEqual(result, expected)
+
 
 
     # def test_preprocess_base(self):
