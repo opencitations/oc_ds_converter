@@ -139,7 +139,13 @@
 
     "openalex:W7836728310": {"id": "openalex:W7836728310", "valid": false},
 
-    "openalex:S4263287381": {"id": "openalex:S4263287381", "valid": false}
+    "openalex:S4263287381": {"id": "openalex:S4263287381", "valid": false},
 
+    "crossref:297": {"id": "crossref:297", "valid": true},
 
+    "crossref:4443": {"id": "crossref:4443", "valid": true},
+
+    "crossref:342427": {"id": "crossref:342427", "valid": false},
+
+    "crossref:0123": {"id": "crossref:0123", "valid": false}
 }
