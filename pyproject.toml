@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "oc-ds-converter"
-version = "1.0.0"
+version = "1.0.1"
 description = "A library for converting metadata provided by various data sources, e.g. Crossref, DataCite, JaLC, and mEDRA, into the format used by OpenCitations Meta."
 authors = ["arcangelo7 <arcangelomas@gmail.com>"]
 license = "ISC"
@@ -18,7 +18,7 @@ ndjson = "^0.3.1"
 zstandard = "^0.21.0"
 python-dateutil = "^2.8.2"
 validators = "^0.20.0"
-lxml = "^4.9.2"
+lxml = "^5.1.0"
 pandas = "^2.0.1"
 xmltodict = "^0.13.0"
 pebble = "^5.0.3"

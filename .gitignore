@@ -14,3 +14,4 @@ test/openaire_process/2_tar_sample/part1_decompr_zip_dir/
 cache.json
 .DS_Store*
 report_output_folder/
+dist/
