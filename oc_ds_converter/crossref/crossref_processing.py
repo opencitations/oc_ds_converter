@@ -37,7 +37,7 @@ from oc_ds_converter.datasource.redis import RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+#from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from typing import Dict, List, Tuple
 from oc_ds_converter.lib.cleaner import Cleaner
 
@@ -51,10 +51,10 @@ class CrossrefProcessing(RaProcessor):
         super(CrossrefProcessing, self).__init__(orcid_index, doi_csv, publishers_filepath)
         self.citing = citing
 
-        if storage_manager is None:
-            self.storage_manager = SqliteStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        #if storage_manager is None:
+        #    self.storage_manager = SqliteStorageManager()
+        #else:
+        self.storage_manager = storage_manager
 
         self.temporary_manager = InMemoryStorageManager('../memory.json')
 
@@ -272,15 +272,15 @@ class CrossrefProcessing(RaProcessor):
             if 'page' in item:
                 row['page'] = self.get_crossref_pages(item)
 
-            row['publisher'] = self.get_publisher_name(doi, item)                        
+            row['publisher'] = self.get_publisher_name(doi, item)
 
             if 'editor' in item:
                 row['editor'] = '; '.join(editors_string_list)
         return self.normalise_unicode(row)
-        
+
     def get_crossref_pages(self, item:dict) -> str:
         '''
-        This function returns the pages interval. 
+        This function returns the pages interval.
 
         :params item: the item's dictionary
         :type item: dict
@@ -288,11 +288,11 @@ class CrossrefProcessing(RaProcessor):
         '''
         pages_list = re.split(pages_separator, item['page'])
         return self.get_pages(pages_list)
-    
+
     def get_publisher_name(self, doi:str, item:dict) -> str:
         '''
-        This function aims to return a publisher's name and id. If a mapping was provided, 
-        it is used to find the publisher's standardized name from its id or DOI prefix. 
+        This function aims to return a publisher's name and id. If a mapping was provided,
+        it is used to find the publisher's standardized name from its id or DOI prefix.
 
         :params doi: the item's DOI
         :type doi: str
@@ -335,8 +335,8 @@ class CrossrefProcessing(RaProcessor):
 
     def get_venue_name(self, item:dict, row:dict) -> str:
         '''
-        This method deals with generating the venue's name, followed by id in square brackets, separated by spaces. 
-        HTML tags are deleted and HTML entities escaped. In addition, any ISBN and ISSN are validated. 
+        This method deals with generating the venue's name, followed by id in square brackets, separated by spaces.
+        HTML tags are deleted and HTML entities escaped. In addition, any ISBN and ISSN are validated.
         Finally, the square brackets in the venue name are replaced by round brackets to avoid conflicts with the ids enclosures.
 
         :params item: the item's dictionary
@@ -574,4 +574,3 @@ class CrossrefProcessing(RaProcessor):
 
 
         return orcid
-

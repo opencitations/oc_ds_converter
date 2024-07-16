@@ -12,7 +12,7 @@ from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.lib.master_of_regex import *
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+#from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from oc_ds_converter.oc_idmanager.issn import ISSNManager
 from oc_ds_converter.oc_idmanager.isbn import ISBNManager
 from oc_ds_converter.datasource.redis import RedisDataSource
@@ -28,10 +28,10 @@ class DataciteProcessing(RaProcessor):
     def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_dc: str = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing=True):
         super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
         # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
-        if storage_manager is None:
-            self.storage_manager = SqliteStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        #if storage_manager is None:
+        #    self.storage_manager = SqliteStorageManager()
+        #else:
+        self.storage_manager = storage_manager
 
         self.temporary_manager = InMemoryStorageManager('../memory.json')
 

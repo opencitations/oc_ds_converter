@@ -32,7 +32,7 @@ from oc_ds_converter.pubmed.get_publishers import ExtractPublisherDOI
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+#from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -40,10 +40,10 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 class OpenaireProcessing(RaProcessor):
     def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_openaire: str = None, testing:bool = True, storage_manager:Optional[StorageManager] = None):
         super(OpenaireProcessing, self).__init__(orcid_index, doi_csv)
-        if storage_manager is None:
-            self.storage_manager = SqliteStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        # if storage_manager is None:
+        #     self.storage_manager = SqliteStorageManager()
+        # else:
+        self.storage_manager = storage_manager
 
         self.temporary_manager = InMemoryStorageManager('../memory.json')
 
@@ -255,9 +255,9 @@ class OpenaireProcessing(RaProcessor):
         #self.update_redis_values(redis_br, redis_ra)
 
         row = dict()
-        
+
         doi = []
-        
+
         keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
                 'publisher', 'editor']
         for k in keys:
@@ -300,7 +300,7 @@ class OpenaireProcessing(RaProcessor):
             title_soup_strip = title_soup_space_replaced.strip()
             clean_tit = html.unescape(title_soup_strip)
             pub_title = clean_tit if clean_tit else p_title
-        
+
         row['title'] = pub_title
 
         # row['author'] √
@@ -335,7 +335,7 @@ class OpenaireProcessing(RaProcessor):
         if att_publ:
             publ = att_publ[0]
         publishers = self.get_publisher_name(doi, publ)
-                    
+
         row['publisher'] = publishers
 
         # row['editor']
@@ -606,7 +606,7 @@ class OpenaireProcessing(RaProcessor):
                 if orcid_id:
                     agent["orcid"] = orcid_id
                 agent_list.append(agent)
-        
+
         return agent_list
 
     def find_openaire_orcid(self, all_author_ids):
@@ -696,4 +696,3 @@ class OpenaireProcessing(RaProcessor):
         else:
             raise ValueError("redis_db must be either 'ra' for responsible agents ids "
                              "or 'br' for bibliographic resources ids")
-

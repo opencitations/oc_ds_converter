@@ -10,8 +10,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
     InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
     RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
+#from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from oc_ds_converter.openaire.openaire_processing import *
 from pebble import ProcessFuture, ProcessPool
 from tqdm import tqdm
@@ -19,8 +18,8 @@ from filelock import Timeout, FileLock
 
 
 def preprocess(
-        openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, 
-        csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None, 
+        openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str,
+        csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None,
         testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target=50000) -> None:
 
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
@@ -65,7 +64,7 @@ def preprocess(
             log = '[INFO: openaire_process] Processing: ' + '; '.join(what)
             print(log)
 
-    
+
     if verbose:
         print(f'[INFO: openaire_process] Getting all files from {openaire_json_dir}')
 
@@ -395,23 +394,24 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     pbar.close()
 
 def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
-    if not redis_storage_manager:
-        if storage_path:
-            if not os.path.exists(storage_path):
-            # if parent dir does not exist, it is created
-                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager(storage_path)
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager(storage_path)
-
-        if not storage_path and not redis_storage_manager:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-    elif redis_storage_manager:
+    # if not redis_storage_manager:
+    #     if storage_path:
+    #         if not os.path.exists(storage_path):
+    #         # if parent dir does not exist, it is created
+    #             if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+    #                 Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+    #         if storage_path.endswith(".db"):
+    #             storage_manager = SqliteStorageManager(storage_path)
+    #         elif storage_path.endswith(".json"):
+    #             storage_manager = InMemoryStorageManager(storage_path)
+    #
+    #     if not storage_path and not redis_storage_manager:
+    #         new_path_dir = os.path.join(os.getcwd(), "storage")
+    #         if not os.path.exists(new_path_dir):
+    #             os.makedirs(new_path_dir)
+    #         storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
+    storage_manager = None
+    if redis_storage_manager:
         if testing:
             storage_manager = RedisStorageManager(testing=True)
         else:
@@ -482,6 +482,6 @@ if __name__ == '__main__':
     max_workers = settings['max_workers'] if settings else args.max_workers
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
-               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, 
-               cache=cache, verbose=verbose, storage_path=storage_path, testing=testing, 
+               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath,
+               cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
                redis_storage_manager=redis_storage_manager, max_workers=max_workers)

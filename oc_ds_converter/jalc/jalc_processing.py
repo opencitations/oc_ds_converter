@@ -39,7 +39,7 @@ from oc_ds_converter.datasource.redis import RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+#from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -51,10 +51,10 @@ class JalcProcessing(RaProcessor):
         aimed at ingesting data from the sources."""
         super(JalcProcessing, self).__init__(orcid_index, doi_csv)
         self.citing = citing
-        if storage_manager is None:
-            self.storage_manager = SqliteStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        #if storage_manager is None:
+        #    self.storage_manager = SqliteStorageManager()
+        #else:
+        self.storage_manager = storage_manager
 
         self.temporary_manager = InMemoryStorageManager('../memory.json')
 
@@ -171,7 +171,7 @@ class JalcProcessing(RaProcessor):
             }
             return self.normalise_unicode(metadata)
 
-        
+
     @classmethod
     def get_ja(cls, field: list) -> list:
         """This method accepts as parameter a list containing dictionaries with the key "lang".
@@ -284,7 +284,7 @@ class JalcProcessing(RaProcessor):
             return br_type
         else:
             return ''
-    
+
     @classmethod
     def get_pub_date(cls, data) -> str:
         pub_date_dict = data['publication_date'] if 'publication_date' in data else ''

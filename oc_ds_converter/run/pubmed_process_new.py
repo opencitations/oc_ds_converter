@@ -32,8 +32,7 @@ from tqdm import tqdm
 
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
     RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
+#from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
     InMemoryStorageManager
 
@@ -522,23 +521,24 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         save_files(data_cited, index_citations_to_csv, False)
 
 def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
-    if not redis_storage_manager:
-        if storage_path:
-            if not os.path.exists(storage_path):
-            # if parent dir does not exist, it is created
-                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager(storage_path)
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager(storage_path)
-
-        if not storage_path and not redis_storage_manager:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-    elif redis_storage_manager:
+    # if not redis_storage_manager:
+    #     if storage_path:
+    #         if not os.path.exists(storage_path):
+    #         # if parent dir does not exist, it is created
+    #             if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+    #                 Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+    #         if storage_path.endswith(".db"):
+    #             storage_manager = SqliteStorageManager(storage_path)
+    #         elif storage_path.endswith(".json"):
+    #             storage_manager = InMemoryStorageManager(storage_path)
+    #
+    #     if not storage_path and not redis_storage_manager:
+    #         new_path_dir = os.path.join(os.getcwd(), "storage")
+    #         if not os.path.exists(new_path_dir):
+    #             os.makedirs(new_path_dir)
+    #         storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
+    storage_manager = None
+    if redis_storage_manager:
         if testing:
             storage_manager = RedisStorageManager(testing=True)
         else:
@@ -612,4 +612,3 @@ if __name__ == '__main__':
 
     preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
                redis_storage_manager=redis_storage_manager, max_workers=max_workers)
-
