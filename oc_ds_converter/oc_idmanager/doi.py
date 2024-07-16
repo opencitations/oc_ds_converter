@@ -30,7 +30,7 @@ from oc_ds_converter.oc_idmanager.support import call_api
 from oc_ds_converter.metadata_manager import MetadataManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+# from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from typing import Optional, Type, Tuple
 
 
@@ -220,4 +220,3 @@ class DOIManager(IdentifierManager):
             else:
                 return (False, {'id': None, 'valid': False, 'ra': 'unknown'}) if get_extra_info else False
         return (valid_bool, {'id': doi, 'valid': valid_bool, 'ra': 'unknown'}) if get_extra_info else valid_bool
-

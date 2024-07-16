@@ -8,7 +8,7 @@ from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+# from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from typing import Type, Optional
 
 
@@ -66,9 +66,9 @@ class JIDManager(IdentifierManager):
                 self.storage_manager.set_value(jid, validity_check)
 
                 return validity_check
-            
 
-    
+
+
     def normalise(self, id_string, include_prefix=False):
         """It returns the jid normalized.
 
@@ -89,14 +89,14 @@ class JIDManager(IdentifierManager):
         except:
             # Any error in processing the JID will return None
             return None
-    
+
     def syntax_ok(self, id_string):
         if not id_string.startswith(self._p):
             id_string = self._p+id_string
         return True if match("^jid:[a-z]+([12][0-9]{3}){0,1}[a-z]*$", id_string) else False
 
-       
-    
+
+
     def exists(self, jid_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True
         if self.use_api_service:
@@ -182,8 +182,8 @@ class JIDManager(IdentifierManager):
         if get_extra_info:
             return valid_bool, {"valid": valid_bool}
         return valid_bool
-    
-    
+
+
     def extra_info(self, api_response, choose_api=None, info_dict={}):
         result = {}
         result["valid"] = True
