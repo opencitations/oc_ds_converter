@@ -35,6 +35,7 @@ class ISBNManager(IdentifierManager):
             return False
         else:
             if isbn not in self._data or self._data[isbn] is None:
+                self._data[isbn] = {"valid":self.check_digit(isbn) and self.syntax_ok(isbn)}
                 return (
                     self.check_digit(isbn)
                     and self.syntax_ok(isbn)

@@ -1,0 +1,118 @@
+[
+	{
+		"id": "http://zotero.org/users/13128250/items/K584JHCE",
+		"type": "book",
+		"abstract": "On the literary reflection in antiquity, from Homer to Alexandrian philologists, and on the evolution of scholarly and critical ancient works",
+		"collection-title": "Biblioteca di Studi Antichi",
+		"event-place": "Pisa",
+		"ISBN": "978-88-427-1036-3",
+		"language": "Italian",
+		"number-of-pages": "276 p. 2 index",
+		"publisher": "Giardini",
+		"publisher-place": "Pisa",
+		"title": "Poeti, eruditi e biografi. Momenti della riflessione dei Greci sulla letteratura",
+		"title-short": "Poeti, eruditi e biografi",
+		"volume": "52",
+		"author": [
+			{
+				"family": "Arrighetti",
+				"given": "Graziano"
+			}
+		],
+		"issued": {
+			"date-parts": [
+				[
+					"1987"
+				]
+			]
+		}
+	},
+	{
+		"id": "http://zotero.org/users/13128250/items/JT2E5VCS",
+		"type": "paper-conference",
+		"abstract": "Proceedings of the conference held at the Accademia degli Agiati in Rovereto (20 October 2006) on issues related to ancient scholarly activity concerning Homer, Aristophanes, Plato, Aeschylus, Sophocles and Euripides",
+		"collection-title": "Memorie della Accademia Roveretana degli Agiati",
+		"event-place": "Rovereto",
+		"language": "Italian",
+		"page": "245 p. 2 index",
+		"publisher": "Accademia Roveretana degli Agiati",
+		"publisher-place": "Rovereto",
+		"title": "I classici greci e i loro commentatori. Dai papiri ai marginalia rinascimentali / Atti del convegno, Rovereto, 20 ottobre 2006",
+		"title-short": "I classici greci e i loro commentatori",
+		"URL": "https://agiati.org/memorie-classici-greci-commentatori",
+		"volume": "ser. 2ª, vol. 10",
+		"editor": [
+			{
+				"family": "Avezzù",
+				"given": "Guido"
+			},
+			{
+				"family": "Scattolin",
+				"given": "Paolo"
+			}
+		],
+		"issued": {
+			"date-parts": [
+				[
+					"2006"
+				]
+			]
+		}
+	},
+	{
+		"id": "http://zotero.org/users/13128250/items/WLNB64DE",
+		"type": "book",
+		"abstract": "Commented edition of SH 958 and 969, followed by a historical reconstruction of the relationship between Galatians and Hellenistic kingdoms, with an introduction on the historical-encomiastic elegy in the Hellenistic age and its classification by Alexandrian scholars",
+		"collection-title": "Biblioteca di Aevum antiquum",
+		"event-place": "Milano",
+		"ISBN": "88-343-0697-X",
+		"language": "Italian",
+		"number-of-pages": "XX-339 p. ill. 3 index",
+		"publisher": "Vita e Pensiero",
+		"publisher-place": "Milano",
+		"title": "Φάτις νικηφόρος. Frammenti di elegia encomiastica nell'età delle Guerre Galatiche: Supplementum Hellenisticum 958 e 969",
+		"title-short": "Φάτις νικηφόρος",
+		"volume": "15",
+		"author": [
+			{
+				"family": "Barbantani",
+				"given": "Silvia"
+			}
+		],
+		"issued": {
+			"date-parts": [
+				[
+					"2001"
+				]
+			]
+		}
+	},
+	{
+		"id": "http://zotero.org/users/13128250/items/ITRLAII9",
+		"type": "book",
+		"abstract": "Edition and commentary of fragments and ancient testimonies on the grammarian Philitas of Cos and his philological activity",
+		"collection-title": "Quaderni dei Seminari Romani di Cultura Greca",
+		"event-place": "Roma",
+		"ISBN": "978-88-7140-185-0",
+		"language": "Italian",
+		"number-of-pages": "236 p. 4 index",
+		"publisher": "Quasar",
+		"publisher-place": "Roma",
+		"title": "Filita grammatico. Testimonianze e frammenti. Introduzione, edizione e commento",
+		"title-short": "Filita grammatico",
+		"volume": "2",
+		"editor": [
+			{
+				"family": "Dettori",
+				"given": "Emanuele"
+			}
+		],
+		"issued": {
+			"date-parts": [
+				[
+					"2000"
+				]
+			]
+		}
+	}
+  ]

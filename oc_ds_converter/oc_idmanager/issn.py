@@ -36,6 +36,7 @@ class ISSNManager(IdentifierManager):
             return False
         else:
             if issn not in self._data or self._data[issn] is None:
+                self._data[issn] = {"valid":self.check_digit(issn) and self.syntax_ok(issn)}
                 return (
                     self.syntax_ok(issn)
                     and self.check_digit(issn)
