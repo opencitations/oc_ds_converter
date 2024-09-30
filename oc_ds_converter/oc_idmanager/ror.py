@@ -19,40 +19,49 @@ from json import loads
 from re import match, sub
 from time import sleep
 from urllib.parse import quote, unquote
-
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
+from typing import Type, Optional
 
 
 class RORManager(IdentifierManager):
     """This class implements an identifier manager for ROR identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager:Optional[StorageManager] = None): #, data={},
         """PMCID manager constructor."""
         super(RORManager, self).__init__()
         self._api = "https://api.ror.org/organizations/"
         self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
         self._p = "ror:"
-        self._data = data
 
     def is_valid(self, ror_id, get_extra_info=False):
         ror_id = self.normalise(ror_id, include_prefix=True)
 
         if ror_id is None:
+            if get_extra_info:
+                return False, {"id": ror_id, "valid": False}
             return False
         else:
-            if ror_id not in self._data or self._data[ror_id] is None:
+            ror_id_validation_value = self.storage_manager.get_value(ror_id)
+            if isinstance(ror_id_validation_value, bool):
+                if get_extra_info:
+                    return ror_id_validation_value, {"id": ror_id, "valid": ror_id_validation_value}
+                return ror_id_validation_value
+            else:
                 if get_extra_info:
                     info = self.exists(ror_id, get_extra_info=True)
-                    self._data[ror_id] = info[1]
+                    self.storage_manager.set_full_value(ror_id, info[1])
                     return (info[0] and self.syntax_ok(ror_id)), info[1]
-                self._data[ror_id] = dict()
-                self._data[ror_id]["valid"] = True if (self.exists(ror_id) and self.syntax_ok(ror_id)) else False
-                return self._data[ror_id].get("valid")
-            if get_extra_info:
-                return self._data[ror_id].get("valid"), self._data[ror_id]
-            return self._data[ror_id].get("valid")
+                validity_check = self.exists(ror_id) and self.syntax_ok(ror_id)
+                self.storage_manager.set_value(ror_id, validity_check)
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         try:
@@ -65,7 +74,7 @@ class RORManager(IdentifierManager):
 
             return "%s%s" % (
                 self._p if include_prefix else "",
-                ror_id_string.strip(),
+                ror_id_string.strip().lower(),
             )
         except:
             # Any error in processing the ROR ID will return None
@@ -74,8 +83,8 @@ class RORManager(IdentifierManager):
     def syntax_ok(self, id_string):
         if not id_string.startswith("ror:"):
             id_string = self._p + id_string
-        # the regex admits the identifier with or without the protocol and the domain name
-        return True if match(r"^ror:((https:\/\/)?ror\.org\/)?0[a-hj-km-np-tv-z|0-9]{6}[0-9]{2}$", id_string) else False
+        # the regex only admits the identifier without the protocol and the domain name
+        return True if match(r"^ror:0[a-hj-km-np-tv-z|0-9]{6}[0-9]{2}$", id_string) else False
 
     def exists(self, ror_id_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True

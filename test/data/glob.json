@@ -147,5 +147,11 @@
 
     "crossref:342427": {"id": "crossref:342427", "valid": false},
 
-    "crossref:0123": {"id": "crossref:0123", "valid": false}
+    "crossref:0123": {"id": "crossref:0123", "valid": false},
+
+    "ror:0138va192": {"valid": true},
+
+    "ror:00wb4mk85": {"valid":  true},
+
+    "ror:123vgd1234": {"valid": false}
 }
