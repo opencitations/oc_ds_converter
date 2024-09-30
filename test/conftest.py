@@ -612,7 +612,7 @@ def _register_jid_mocks(rsps: responses.RequestsMock) -> None:
 
 
 def _register_ror_mocks(rsps: responses.RequestsMock) -> None:
-    valid_rors = {"040jc3p57", "01111rn36"}
+    valid_rors = {"040jc3p57", "01111rn36", "0138va192", "00wb4mk85"}
 
     def ror_callback(request):
         url = request.url
