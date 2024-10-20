@@ -53,7 +53,7 @@ class CrossrefManager(IdentifierManager):
                     info = self.exists(cr_member_id, get_extra_info=True)
                     self.storage_manager.set_full_value(cr_member_id, info[1])
                     return (info[0] and self.syntax_ok(cr_member_id)), info[1]
-                validity_check = self.exists(cr_member_id) and self.syntax_ok(cr_member_id)
+                validity_check = self.syntax_ok(cr_member_id) and self.exists(cr_member_id) 
                 self.storage_manager.set_value(cr_member_id, validity_check)
 
                 return validity_check

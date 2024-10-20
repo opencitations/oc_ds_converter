@@ -48,7 +48,7 @@ class RORManager(IdentifierManager):
                     self._data[ror_id] = info[1]
                     return (info[0] and self.syntax_ok(ror_id)), info[1]
                 self._data[ror_id] = dict()
-                self._data[ror_id]["valid"] = True if (self.exists(ror_id) and self.syntax_ok(ror_id)) else False
+                self._data[ror_id]["valid"] = True if (self.syntax_ok(ror_id) and self.exists(ror_id)) else False
                 return self._data[ror_id].get("valid")
             if get_extra_info:
                 return self._data[ror_id].get("valid"), self._data[ror_id]
@@ -61,7 +61,7 @@ class RORManager(IdentifierManager):
             else:
                 ror_id_string = id_string
             #  normalize + remove protocol and domain name if they are included in the ID
-            ror_id_string = sub("\0+", "", sub("(https://)?ror\\.org/", "", sub('\s+', "", unquote(ror_id_string))))
+            ror_id_string = sub(r"\0+", "", sub(r"^(https?://)?(www\.)?(ror\.org/)?", "", sub(r'\s+', "", unquote(ror_id_string))))
 
             return "%s%s" % (
                 self._p if include_prefix else "",
@@ -70,12 +70,13 @@ class RORManager(IdentifierManager):
         except:
             # Any error in processing the ROR ID will return None
             return None
-
+    
     def syntax_ok(self, id_string):
         if not id_string.startswith("ror:"):
             id_string = self._p + id_string
-        # the regex admits the identifier with or without the protocol and the domain name
-        return True if match(r"^ror:((https:\/\/)?ror\.org\/)?0[a-hj-km-np-tv-z|0-9]{6}[0-9]{2}$", id_string) else False
+        
+        # Check if the ID matches the correct format without protocol or domain
+        return True if match(r"^ror:0[a-hj-km-np-tv-z|0-9]{6}[0-9]{2}$", id_string) else False
 
     def exists(self, ror_id_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True

@@ -60,7 +60,7 @@ class OpenAlexManager(IdentifierManager):
                     info = self.exists(oal_id, get_extra_info=True)
                     self.storage_manager.set_full_value(oal_id,info[1])
                     return (info[0] and self.syntax_ok(oal_id)), info[1]
-                validity_check = self.exists(oal_id) and self.syntax_ok(oal_id)
+                validity_check = self.syntax_ok(oal_id) and self.exists(oal_id) 
                 self.storage_manager.set_value(oal_id, validity_check)
 
                 return validity_check
@@ -72,7 +72,7 @@ class OpenAlexManager(IdentifierManager):
             else:
                 oal_string = id_string
 
-            oal_string = sub("\0+", "", (sub("\s+", "", oal_string)))
+            oal_string = sub(r"\0+", "", (sub(r"\s+", "", oal_string)))
 
             oal_string = oal_string.replace(self._api_works_route, '', 1)
             oal_string = oal_string.replace(self._api_sources_route, '', 1)

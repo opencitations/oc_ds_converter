@@ -1,20 +1,19 @@
-from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 import json
-import sqlite3
 import os.path
+import re
 import unittest
 from os import makedirs
 from os.path import exists, join
 
-import xmltodict
 from oc_ds_converter.oc_idmanager import *
-from oc_ds_converter.oc_idmanager.base import IdentifierManager
-from requests import ReadTimeout, get
-from requests.exceptions import ConnectionError
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
+    InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
+    RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
+    SqliteStorageManager
+from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
+
 
 class orcidIdentifierManagerTest(unittest.TestCase):
     """This class aim at testing identifiers manager."""
@@ -75,8 +74,18 @@ class orcidIdentifierManagerTest(unittest.TestCase):
         with self.subTest(msg="get_extra_info=True, allow_extra_api=None"):
             orcid_manager = ORCIDManager()
             output = orcid_manager.exists(self.valid_orcid_2, get_extra_info=True, allow_extra_api=None)
-            expected_output = (True, {'id': '0000-0001-5506-523X', 'valid': True, 'family_name': 'Shotton', 'given_name': 'David', 'email': "", 'external_identifiers': {}, 'submission_date': '2012-10-31', 'update_date': '2024-03-19'})
-            self.assertEqual(output, expected_output)
+            self.assertTrue(output[0])  # Check if exists
+            info = output[1]
+            self.assertEqual(info['id'], '0000-0001-5506-523X')
+            self.assertTrue(info['valid'])
+            self.assertEqual(info['family_name'], 'Shotton')
+            self.assertEqual(info['given_name'], 'David')
+            self.assertEqual(info['email'], "")
+            self.assertEqual(info['external_identifiers'], {})
+            self.assertEqual(info['submission_date'], '2012-10-31')
+            # Check if update_date is a valid date string and not earlier than submission_date
+            self.assertTrue(re.match(r'\d{4}-\d{2}-\d{2}', info['update_date']))
+            self.assertGreaterEqual(info['update_date'], info['submission_date'])
         with self.subTest(msg="get_extra_info=False, allow_extra_api=None"):
             orcid_manager = ORCIDManager()
             output = orcid_manager.exists(orcid_manager.normalise(self.valid_orcid_1), get_extra_info=False, allow_extra_api=None)

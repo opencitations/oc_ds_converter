@@ -65,7 +65,7 @@ class ISSNManager(IdentifierManager):
             issn = issn[spl:]
         issn = issn.replace('-', '')
         if len(issn) != 8:
-            raise ValueError('ISSN of len 8 or 9 required (e.g. 00000949 or 0000-0949)')
+            return False
         ss = sum([int(digit) * f for digit, f in zip(issn, range(8, 1, -1))])
         _, mod = divmod(ss, 11)
         checkdigit = 0 if mod == 0 else 11 - mod

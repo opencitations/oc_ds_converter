@@ -48,7 +48,7 @@ class WikidataManager(IdentifierManager):
                     self._data[wikidata_id] = info[1]
                     return (info[0] and self.syntax_ok(wikidata_id)), info[1]
                 self._data[wikidata_id] = dict()
-                self._data[wikidata_id]["valid"] = True if (self.exists(wikidata_id) and self.syntax_ok(wikidata_id)) else False
+                self._data[wikidata_id]["valid"] = True if (self.syntax_ok(wikidata_id) and self.exists(wikidata_id)) else False
                 return self._data[wikidata_id].get("valid")
             if get_extra_info:
                 return self._data[wikidata_id].get("valid"), self._data[wikidata_id]

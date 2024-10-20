@@ -62,7 +62,7 @@ class JIDManager(IdentifierManager):
                     info = self.exists(jid, get_extra_info=True)
                     self.storage_manager.set_full_value(jid, info[1])
                     return (info[0] and self.syntax_ok(jid)), info[1]
-                validity_check = self.exists(jid) and self.syntax_ok(jid)
+                validity_check = self.syntax_ok(jid) and self.exists(jid) 
                 self.storage_manager.set_value(jid, validity_check)
 
                 return validity_check

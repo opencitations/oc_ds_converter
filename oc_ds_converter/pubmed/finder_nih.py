@@ -69,7 +69,7 @@ class NIHResourceFinder():
                          re.IGNORECASE,
                          ).group(1)
         re_search = re.search(
-            "(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+((3[0-1])|([1-2][0-9])|([0]?[1-9]))",
+            r"(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+((3[0-1])|([1-2][0-9])|([0]?[1-9]))",
             date,
             re.IGNORECASE,
         )
@@ -79,7 +79,7 @@ class NIHResourceFinder():
             pmid_date = datetime.strftime(datetime_object, "%Y-%m-%d")
         else:
             re_search = re.search(
-                "(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)",
+                r"(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)",
                 date,
                 re.IGNORECASE,
             )
@@ -88,9 +88,9 @@ class NIHResourceFinder():
                 datetime_object = datetime.strptime(src, "%Y %b")
                 pmid_date = datetime.strftime(datetime_object, "%Y-%m")
             else:
-                re_search = re.search("(\d{4})", date)
+                re_search = re.search(r"(\d{4})", date)
                 if re_search is not None:
-                    src = re.search("(\d{4})", date).group(0)
+                    src = re.search(r"(\d{4})", date).group(0)
                     datetime_object = datetime.strptime(src, "%Y")
                     pmid_date = datetime.strftime(datetime_object, "%Y")
         return pmid_date

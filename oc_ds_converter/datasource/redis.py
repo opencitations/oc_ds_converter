@@ -78,8 +78,11 @@ class RedisDataSource(DataSource):
         #     for i, v in enumerate(self._r.mget(resources_id))
         # }
 
-    def flushall(self):
-        self._r.flushall()
+    def flushdb(self):
+        batch_size = 1000
+        keys = self._r.keys('*')
+        for i in range(0, len(keys), batch_size):
+            self._r.delete(*keys[i:i+batch_size])
 
     def delete(self, resource_id):
         self._r.delete(resource_id)

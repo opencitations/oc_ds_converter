@@ -49,8 +49,7 @@ class WikipediaManager(IdentifierManager):
                     self._data[wikipedia_id] = info[1]
                     return (info[0] and self.syntax_ok(wikipedia_id)), info[1]
                 self._data[wikipedia_id] = dict()
-                self._data[wikipedia_id]["valid"] = True if (self.exists(wikipedia_id) and self.syntax_ok(
-                    wikipedia_id)) else False
+                self._data[wikipedia_id]["valid"] = True if (self.syntax_ok(wikipedia_id) and self.exists(wikipedia_id)) else False
                 return self._data[wikipedia_id].get("valid")
             if get_extra_info:
                 return self._data[wikipedia_id].get("valid"), self._data[wikipedia_id]

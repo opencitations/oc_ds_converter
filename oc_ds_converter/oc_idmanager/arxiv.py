@@ -83,7 +83,7 @@ class ArXivManager(IdentifierManager):
                     info = self.exists(arxiv, get_extra_info=True)
                     self.storage_manager.set_full_value(arxiv,info[1])
                     return (info[0] and self.syntax_ok(arxiv)), info[1]
-                validity_check = self.exists(arxiv) and self.syntax_ok(arxiv)
+                validity_check = self.syntax_ok(arxiv) and self.exists(arxiv) 
                 self.storage_manager.set_value(arxiv, validity_check)
 
                 return validity_check

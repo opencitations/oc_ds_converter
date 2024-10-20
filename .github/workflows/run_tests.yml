@@ -14,7 +14,6 @@
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
 
-
 name: Run tests
 on:
   push:
@@ -27,7 +26,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - uses: actions/checkout@v3.0.2
     - name: Set up Python ${{ matrix.python-version }}
@@ -39,7 +48,7 @@ jobs:
         pip3 install poetry
         sudo apt install -y python-is-python3
         poetry install
-    - name: Check the overage
+    - name: Check the coverage
       run: |
         poetry run coverage run --rcfile=test/coverage/.coveragerc
     - name: Generate the badge

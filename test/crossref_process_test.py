@@ -227,14 +227,12 @@ class CrossrefProcessTest(unittest.TestCase):
         except:
             run_test = False
             print("test skipped: 'test_any_db_creation_redis_no_testing': Connect to redis before running the test")
-
         if run_test:
             rsm.del_value("TEST VALUE")
             if not len(rsm.get_all_keys()):
                 preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping,
                            orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True,
-                           storage_path=self.db, cache=self.cache)
-
+                           storage_path=self.db, cache=self.cache, verbose=True)
 
                 rsm.delete_storage()
 

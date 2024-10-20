@@ -48,7 +48,7 @@ class URLManager(IdentifierManager):
                     self._data[url] = info[1]
                     return (info[0] and self.syntax_ok(url)), info[1]
                 self._data[url] = dict()
-                self._data[url]["valid"] = True if (self.exists(url) and self.syntax_ok(url)) else False
+                self._data[url]["valid"] = True if (self.syntax_ok(url) and self.exists(url)) else False
                 return self._data[url].get("valid")
 
             if get_extra_info:
@@ -85,49 +85,37 @@ class URLManager(IdentifierManager):
         if self._use_api_service:
             url = self.normalise(url_full)
             if url is not None:
-                tentative = 3
-                while tentative:
-                    tentative -= 1
-                    try:
-                        r = get(self._scheme_https + url,
-                            headers=self._headers,
-                            timeout=30,
-                        )
-                        if r.status_code == 200:
-                            if get_extra_info:
-                                return True, {"valid": True}
-                            return True
-                        elif r.status_code == 404:
-                            if get_extra_info:
-                                return False, {"valid": False}
-                            return False
+                variations = [
+                    f"https://www.{url}",
+                    f"https://{url}",
+                    f"http://www.{url}",
+                    f"http://{url}"
+                ]
 
-                    except ReadTimeout:
-                        # Do nothing, just try again
-                        pass
-                    except ConnectionError:
-                        # Sleep 5 seconds, then try again
-                        sleep(5)
-
-                try:
-                    r = get(self._scheme_http + url,
-                            headers=self._headers,
-                            timeout=30,
+                for variation in variations:
+                    tentative = 3
+                    while tentative:
+                        tentative -= 1
+                        try:
+                            r = get(variation,
+                                headers=self._headers,
+                                timeout=30,
                             )
-                    if r.status_code == 200:
-                        if get_extra_info:
-                            return True, {"valid": True}
-                        return True
-                    elif r.status_code == 404:
-                        if get_extra_info:
-                            return False, {"valid": False}
-                        return False
-                except ReadTimeout:
-                    # Do nothing, just try again
-                    pass
-                except ConnectionError:
-                    # Sleep 5 seconds, then try again
-                    sleep(5)
+                            if r.status_code == 200:
+                                if get_extra_info:
+                                    return True, {"valid": True}
+                                return True
+                            elif r.status_code == 404:
+                                if get_extra_info:
+                                    return False, {"valid": False}
+                                return False
+
+                        except ReadTimeout:
+                            # Do nothing, just try again
+                            pass
+                        except ConnectionError:
+                            # Sleep 5 seconds, then try again
+                            sleep(5)
 
                 valid_bool = False
 

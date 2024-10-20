@@ -124,14 +124,14 @@ class DOIManager(IdentifierManager):
                     info = self.exists(doi, get_extra_info=True)
                     self.storage_manager.set_full_value(doi,info[1])
                     return (info[0] and self.syntax_ok(doi)), info[1]
-                validity_check = self.exists(doi) and self.syntax_ok(doi)
+                validity_check = self.syntax_ok(doi) and self.exists(doi) 
                 self.storage_manager.set_value(doi, validity_check)
                 return validity_check
 
     def base_normalise(self, id_string):
         try:
             id_string = sub(
-                "\0+", "", sub("\s+", "", unquote(id_string[id_string.index("10.") :]))
+                r"\0+", "", sub(r"\s+", "", unquote(id_string[id_string.index("10.") :]))
             )
             return id_string.lower().strip() if id_string else None
         except:
@@ -191,7 +191,7 @@ class DOIManager(IdentifierManager):
     def syntax_ok(self, id_string):
         if not id_string.startswith(self._p):
             id_string = self._p+id_string
-        return True if match("^doi:10\.(\d{4,9}|[^\s/]+(\.[^\s/]+)*)/[^\s]+$", id_string, re.IGNORECASE) else False
+        return True if match(r"^doi:10\.(\d{4,9}|[^\s/]+(\.[^\s/]+)*)/[^\s]+$", id_string, re.IGNORECASE) else False
 
     def exists(self, doi_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True

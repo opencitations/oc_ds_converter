@@ -85,7 +85,7 @@ class PMIDManager(IdentifierManager):
                     info = self.exists(pmid, get_extra_info=True)
                     self.storage_manager.set_full_value(pmid,info[1])
                     return (info[0] and self.syntax_ok(pmid)), info[1]
-                validity_check = self.exists(pmid) and self.syntax_ok(pmid)
+                validity_check = self.syntax_ok(pmid) and self.exists(pmid) 
                 self.storage_manager.set_value(pmid, validity_check)
 
                 return validity_check
@@ -95,7 +95,7 @@ class PMIDManager(IdentifierManager):
     def normalise(self, id_string, include_prefix=False):
         id_string = str(id_string)
         try:
-            pmid_string = sub("^0+", "", sub("\0+", "", (sub("[^\d+]", "", id_string))))
+            pmid_string = sub(r"^0+", "", sub(r"\0+", "", (sub(r"[^\d+]", "", id_string))))
             return "%s%s" % (self._p if include_prefix else "", pmid_string)
         except:
             # Any error in processing the PMID will return None
@@ -104,7 +104,7 @@ class PMIDManager(IdentifierManager):
     def syntax_ok(self, id_string):
         if not id_string.startswith(self._p):
             id_string = self._p + id_string
-        return True if match("^pmid:[1-9]\d*$", id_string) else False
+        return True if match(r"^pmid:[1-9]\d*$", id_string) else False
 
     def exists(self, pmid_full, get_extra_info=False, allow_extra_api=None):
         valid_bool = True
@@ -166,8 +166,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_tit, match_tit in enumerate(match_title, start=1):
                 m_title = match_tit.group()
                 if m_title:
-                    ts = re.sub("\s+", " ", m_title)
-                    t = re.sub("\n", " ", ts)
+                    ts = re.sub(r"\s+", " ", m_title)
+                    t = re.sub(r"\n", " ", ts)
                     norm_title = t.strip()
                     if norm_title is not None:
                         title = norm_title
@@ -183,8 +183,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_aut, match_au in enumerate(fa_aut, start=1):
                 m_aut = match_au.group()
                 if m_aut:
-                    fau = re.sub("\s+", " ", m_aut)
-                    nlfau = re.sub("\n", " ", fau)
+                    fau = re.sub(r"\s+", " ", m_aut)
+                    nlfau = re.sub(r"\n", " ", fau)
                     norm_fau = nlfau.strip()
                     if norm_fau is not None:
                         authors.add(norm_fau)
@@ -200,7 +200,7 @@ class PMIDManager(IdentifierManager):
                 re.IGNORECASE,
             ).group(1)
             re_search = re.search(
-                "(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+((3[0-1])|([1-2][0-9])|([0]?[1-9]))",
+                r"(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+((3[0-1])|([1-2][0-9])|([0]?[1-9]))",
                 date,
                 re.IGNORECASE,
             )
@@ -210,7 +210,7 @@ class PMIDManager(IdentifierManager):
                 pmid_date = datetime.strftime(datetime_object, "%Y-%m-%d")
             else:
                 re_search = re.search(
-                    "(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)",
+                    r"(\d{4})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)",
                     date,
                     re.IGNORECASE,
                 )
@@ -219,9 +219,9 @@ class PMIDManager(IdentifierManager):
                     datetime_object = datetime.strptime(src, "%Y %b")
                     pmid_date = datetime.strftime(datetime_object, "%Y-%m")
                 else:
-                    re_search = re.search("(\d{4})", date)
+                    re_search = re.search(r"(\d{4})", date)
                     if re_search is not None:
-                        src = re.search("(\d{4})", date).group(0)
+                        src = re.search(r"(\d{4})", date).group(0)
                         datetime_object = datetime.strptime(src, "%Y")
                         pmid_date = datetime.strftime(datetime_object, "%Y")
                     else:
@@ -251,8 +251,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_title, match_tit in enumerate(fa_jur_title, start=1):
                 m_title = match_tit.group()
                 if m_title:
-                    s_jt = re.sub("\s+", " ", m_title)
-                    n_jt = re.sub("\n", " ", s_jt)
+                    s_jt = re.sub(r"\s+", " ", m_title)
+                    n_jt = re.sub(r"\n", " ", s_jt)
                     norm_jour = n_jt.strip()
                     if norm_jour is not None:
                         jur_title = norm_jour
@@ -269,7 +269,7 @@ class PMIDManager(IdentifierManager):
             for matchNum_volume, match_vol in enumerate(fa_volume, start=1):
                 m_vol = match_vol.group()
                 if m_vol:
-                    vol = re.sub("\s+", " ", m_vol)
+                    vol = re.sub(r"\s+", " ", m_vol)
                     norm_volume = vol.strip()
                     if norm_volume is not None:
                         volume = norm_volume
@@ -285,8 +285,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_issue, match_issue in enumerate(fa_issue, start=1):
                 m_issue = match_issue.group()
                 if m_issue:
-                    s_issue = re.sub("\s+", " ", m_issue)
-                    n_issue = re.sub("\n", " ", s_issue)
+                    s_issue = re.sub(r"\s+", " ", m_issue)
+                    n_issue = re.sub(r"\n", " ", s_issue)
                     norm_issue = n_issue.strip()
                     if norm_issue is not None:
                         issue = norm_issue
@@ -302,8 +302,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_pag, match_pag in enumerate(fa_pag, start=1):
                 m_pag = match_pag.group()
                 if m_pag:
-                    s_pg = re.sub("\s+", " ", m_pag)
-                    n_pg = re.sub("\n", " ", s_pg)
+                    s_pg = re.sub(r"\s+", " ", m_pag)
+                    n_pg = re.sub(r"\n", " ", s_pg)
                     norm_pag = n_pg.strip()
                     if norm_pag is not None:
                         pag = norm_pag
@@ -319,8 +319,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_types, match_types in enumerate(types, start=1):
                 m_type = match_types.group()
                 if m_type:
-                    s_ty = re.sub("\s+", " ", m_type)
-                    b_ty = re.sub("\n", " ", s_ty)
+                    s_ty = re.sub(r"\s+", " ", m_type)
+                    b_ty = re.sub(r"\n", " ", s_ty)
                     norm_type = b_ty.strip().lower()
                     if norm_type is not None:
                         pub_types.add(norm_type)
@@ -336,8 +336,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_publishers, match_publishers in enumerate(publishers, start=1):
                 m_publishers = match_publishers.group()
                 if m_publishers:
-                    s_pbs = re.sub("\s+", " ", m_publishers)
-                    n_pbs = re.sub("\n", " ", s_pbs)
+                    s_pbs = re.sub(r"\s+", " ", m_publishers)
+                    n_pbs = re.sub(r"\n", " ", s_pbs)
                     norm_pbs = n_pbs.strip()
                     if norm_pbs is not None:
                         publisher.add(norm_pbs)
@@ -353,8 +353,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_editors, match_editors in enumerate(editors, start=1):
                 m_editors = match_editors.group()
                 if m_editors:
-                    s_ed = re.sub("\s+", " ", m_editors)
-                    n_ed = re.sub("\n", " ", s_ed)
+                    s_ed = re.sub(r"\s+", " ", m_editors)
+                    n_ed = re.sub(r"\n", " ", s_ed)
                     norm_ed = n_ed.strip()
                     if norm_ed is not None:
                         editor.add(norm_ed)
@@ -370,8 +370,8 @@ class PMIDManager(IdentifierManager):
             for matchNum_doi, match_doi in enumerate(map_doi, start=1):
                 m_doi = match_doi.group()
                 if m_doi:
-                    id = re.sub("\s+", " ", m_doi)
-                    n_id = re.sub("\n", " ", id)
+                    id = re.sub(r"\s+", " ", m_doi)
+                    n_id = re.sub(r"\n", " ", id)
                     n_id_strip = n_id.strip()
 
                     if n_id_strip.endswith('[doi]'):

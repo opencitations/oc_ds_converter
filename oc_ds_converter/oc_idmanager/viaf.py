@@ -67,7 +67,7 @@ class ViafManager(IdentifierManager):
                     info = self.exists(viaf, get_extra_info=True)
                     self.storage_manager.set_full_value(viaf,info[1])
                     return (info[0] and self.syntax_ok(viaf)), info[1]
-                validity_check = self.exists(viaf) and self.syntax_ok(viaf)
+                validity_check = self.syntax_ok(viaf) and self.exists(viaf) 
                 self.storage_manager.set_value(viaf, validity_check)
 
                 return validity_check

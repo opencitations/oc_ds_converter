@@ -364,8 +364,8 @@ class TestPubmedProcessing(unittest.TestCase):
         self.assertEqual(tabular_data_w_redis_data['id'], 'pmid:5 doi:10.1016/a_fake_doi')
 
         pubmed_processor.doi_m.storage_manager.delete_storage()
-        pubmed_processor.BR_redis.flushall()
-        pubmed_processor.RA_redis.flushall()
+        pubmed_processor.BR_redis.flushdb()
+        pubmed_processor.RA_redis.flushdb()
 
     def test_get_citations(self):
         inp_ent = {'pmid': '5', 'doi': '10.1016/0006-291x(75)90508-2',

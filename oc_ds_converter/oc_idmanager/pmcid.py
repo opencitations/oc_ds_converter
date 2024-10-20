@@ -72,7 +72,7 @@ class PMCIDManager(IdentifierManager):
                     info = self.exists(pmcid, get_extra_info=True)
                     self.storage_manager.set_full_value(pmcid,info[1])
                     return (info[0] and self.syntax_ok(pmcid)), info[1]
-                validity_check = self.exists(pmcid) and self.syntax_ok(pmcid)
+                validity_check = self.syntax_ok(pmcid) and self.exists(pmcid) 
                 self.storage_manager.set_value(pmcid, validity_check)
 
                 return validity_check
@@ -85,7 +85,7 @@ class PMCIDManager(IdentifierManager):
                 id_string = id_string
 
             pmcid_string = sub(
-                "\0+", "", sub("\s+", "", unquote(id_string[id_string.index("PMC"):]))
+                r"\0+", "", sub(r"\s+", "", unquote(id_string[id_string.index("PMC"):]))
             )
             return "%s%s" % (
                 self._p if include_prefix else "",

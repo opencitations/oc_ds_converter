@@ -118,7 +118,7 @@ class RedisStorageManager(StorageManager):
 
 
     def delete_storage(self):
-        self.PROCESS_redis.flushall()
+        self.PROCESS_redis.flushdb()
 
     def get_all_keys(self):
         result = [x for x in self.PROCESS_redis.scan_iter('*')]

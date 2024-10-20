@@ -70,7 +70,7 @@ class ORCIDManager(IdentifierManager):
                     info = self.exists(orcid, get_extra_info=True)
                     self.storage_manager.set_full_value(orcid,info[1])
                     return (info[0] and self.check_digit(orcid) and self.syntax_ok(orcid)), info[1]
-                validity_check = self.exists(orcid) and self.syntax_ok(orcid) and self.check_digit(orcid)
+                validity_check = self.syntax_ok(orcid) and self.check_digit(orcid) and self.exists(orcid) 
                 self.storage_manager.set_value(orcid, validity_check)
                 return validity_check
 
