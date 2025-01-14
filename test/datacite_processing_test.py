@@ -1072,3 +1072,49 @@ class TestDataciteProcessing(unittest.TestCase):
                                                                              agents_list)
         expected_authors_list = ['Viorel, Cojocaru', 'Cojocaru, John', 'Ciprian, Panait']
         self.assertEqual(authors_strings_list, expected_authors_list)
+
+    def test_find_datacite_orcid_with_index(self):
+        """Test ORCID validation using ORCID index before API validation"""
+        # Setup
+        test_doi = "10.1234/test123"
+        test_orcid = "0000-0002-1234-5678"
+        test_name = "Smith, John"
+        
+        # Create DataciteProcessing instance with ORCID index
+        dp = DataciteProcessing()
+        dp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
+        
+        # Test Case 1: ORCID found in index
+        inp_1 = [test_orcid]
+        out_1 = dp.find_datacite_orcid(inp_1, test_doi)
+        exp_1 = f"orcid:{test_orcid}"
+        self.assertEqual(out_1, exp_1)
+        # Verify it was added to temporary storage
+        self.assertTrue(dp.tmp_orcid_m.storage_manager.get_value(f"orcid:{test_orcid}"))
+        
+        # Test Case 2: ORCID not in index but valid via API
+        inp_2 = ["0000-0003-4082-1500"]
+        out_2 = dp.find_datacite_orcid(inp_2, test_doi)
+        exp_2 = "orcid:0000-0003-4082-1500"
+        self.assertEqual(out_2, exp_2)
+        
+        # Test Case 3: ORCID not in index and invalid
+        inp_3 = ["0000-0000-0000-0000"]
+        out_3 = dp.find_datacite_orcid(inp_3, test_doi)
+        exp_3 = ""
+        self.assertEqual(out_3, exp_3)
+        
+        # Test Case 4: Valid ORCID but no DOI provided (retrocompatibilità)
+        inp_4 = [test_orcid]
+        out_4 = dp.find_datacite_orcid(inp_4)  # No DOI
+        exp_4 = f"orcid:{test_orcid}"  # Should still validate via API
+        self.assertEqual(out_4, exp_4)
+        
+        # Test Case 5: Multiple ORCIDs, first one valid
+        inp_5 = [test_orcid, "0000-0000-0000-0000"]
+        out_5 = dp.find_datacite_orcid(inp_5, test_doi)
+        exp_5 = f"orcid:{test_orcid}"
+        self.assertEqual(out_5, exp_5)
+        
+        # Cleanup
+        dp.storage_manager.delete_storage()

@@ -718,19 +718,37 @@ class DataciteProcessing(RaProcessor):
         return agent_list
 
     #added
-    def find_datacite_orcid(self, all_author_ids):
+    def find_datacite_orcid(self, all_author_ids, doi=None):
+        """Find and validate ORCID from Datacite data
+        
+        Args:
+            orcid_ids (list): List of ORCID identifiers
+            doi (str, optional): DOI to check in ORCID index. Defaults to None.
+        """
         orcid = ""
         if all_author_ids:
             for identifier in all_author_ids:
-                norm_orcid = self.orcid_m.normalise(identifier, include_prefix = True)
+                norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
                 ## Check orcid presence in memory and storage before validating the id
                 validity_value_orcid = self.validated_as({"identifier": norm_orcid, "schema": "orcid"})
                 if validity_value_orcid is True:
                     orcid = norm_orcid
+                    break
                 elif validity_value_orcid is None:
-                    norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
-                    if norm_orcid in self.to_validated_id_list(norm_id_dict):
-                        orcid = norm_orcid
+                    # Check in ORCID index using provided DOI before any API validation
+                    if doi:
+                        found_orcids = self.orcid_finder(doi)
+                        if found_orcids and norm_orcid.split(':')[1] in found_orcids:
+                            self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
+                            orcid = norm_orcid
+                    
+                    # If not found in index, proceed with normal validation
+                    if not orcid:
+                        norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
+                        if norm_orcid in self.to_validated_id_list(norm_id_dict):
+                            orcid = norm_orcid
+                            break
+
         return orcid
 
 

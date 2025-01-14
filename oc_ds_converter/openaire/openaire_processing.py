@@ -609,7 +609,7 @@ class OpenaireProcessing(RaProcessor):
         
         return agent_list
 
-    def find_openaire_orcid(self, all_author_ids):
+    def find_openaire_orcid(self, all_author_ids, doi=None):
         orcid = ""
         if all_author_ids:
             for id in all_author_ids:
@@ -618,19 +618,26 @@ class OpenaireProcessing(RaProcessor):
                 if isinstance(schema, str):
                     if schema.lower().strip() == "orcid":
                         if isinstance(identifier, str):
-                            norm_orcid = self.orcid_m.normalise(identifier, include_prefix =True)
+                            norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
                             ## Check orcid presence in memory and storage before validating the id
                             validity_value_orcid = self.validated_as({"identifier":norm_orcid, "schema": schema})
                             if validity_value_orcid is True:
                                 orcid = norm_orcid
                             elif validity_value_orcid is None:
-                                #if self.RA_redis.get(norm_orcid):
-                                if norm_orcid in self._redis_values_ra:
-                                    orcid = norm_orcid
-                                # if the id is not in redis db, validate it before appending
-                                elif self.tmp_orcid_m.is_valid(norm_orcid):
-                                    orcid = norm_orcid
-
+                                # Check in ORCID index using provided DOI before any API validation
+                                if doi:
+                                    found_orcids = self.orcid_finder(doi)
+                                    if found_orcids and norm_orcid.split(':')[1] in found_orcids:
+                                        self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
+                                        orcid = norm_orcid
+                                
+                                # If not found in index, check Redis and API
+                                if not orcid:
+                                    if norm_orcid in self._redis_values_ra:
+                                        orcid = norm_orcid
+                                    # if the id is not in redis db, validate it before appending
+                                    elif self.tmp_orcid_m.is_valid(norm_orcid):
+                                        orcid = norm_orcid
 
         return orcid
 
