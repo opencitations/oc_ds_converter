@@ -417,37 +417,55 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(venue_name, 'Disaster Medicine and Public Health Preparedness [issn:1935-7893 issn:1938-744X]')
 
     def test_find_crossref_orcid(self):
-        cp = CrossrefProcessing()
-        inp = '0000-0001-9759-3938'
-        out = cp.find_crossref_orcid(inp)
-        exp = "orcid:0000-0001-9759-3938"
+        """Test that, given in input a string representing an ORCID, the method returns:
+        - the ORCID itself if it is valid
+        - an empty string if it is not valid
+        The procedure is tested with:
+        - a valid ORCID
+        - an invalid ORCID
+        - a non-string input
+        """
+        c_processing = CrossrefProcessing()
+        test_doi = "10.1234/test123"  # Added test DOI
+
+        # Valid ORCID
+        inp = '0000-0003-4082-1500'
+        out = c_processing.find_crossref_orcid(inp, test_doi)
+        exp = "orcid:0000-0003-4082-1500"
         self.assertEqual(out, exp)
 
+        # Invalid ORCID
         inp_invalid_id = '5500-0001-9759-3938'
-        out_invalid_id = cp.find_crossref_orcid(inp_invalid_id)
+        out_invalid_id = c_processing.find_crossref_orcid(inp_invalid_id, test_doi)
         exp_invalid_id = ""
         self.assertEqual(out_invalid_id, exp_invalid_id)
 
-        cp.storage_manager.delete_storage()
+        # Non-string input
+        inp_non_string = None
+        out_non_string = c_processing.find_crossref_orcid(inp_non_string, test_doi)
+        exp_non_string = ""
+        self.assertEqual(out_non_string, exp_non_string)
 
-        # set a valid id as invalid in storage, so to check that the api check is
+        c_processing.storage_manager.delete_storage()
+
+        # Set a valid id as invalid in storage to check that the api check is
         # avoided if the info is already in storage
-        cp = CrossrefProcessing()
-        cp.storage_manager.set_value("orcid:0000-0001-9759-3938", False)
+        c_processing = CrossrefProcessing()
+        c_processing.storage_manager.set_value("orcid:0000-0001-9759-3938", False)
 
         inp = '0000-0001-9759-3938'
-        out = cp.find_crossref_orcid(inp)
+        out = c_processing.find_crossref_orcid(inp, test_doi)
         exp = ""
         self.assertEqual(out, exp)
-        cp.storage_manager.delete_storage()
+        c_processing.storage_manager.delete_storage()
 
-        cp = CrossrefProcessing()
-        cp.storage_manager.set_value("orcid:0000-0001-9759-3938", True)
+        c_processing = CrossrefProcessing()
+        c_processing.storage_manager.set_value("orcid:0000-0001-9759-3938", True)
         inp = '0000-0001-9759-3938'
-        out = cp.find_crossref_orcid(inp)
+        out = c_processing.find_crossref_orcid(inp, test_doi)
         exp = "orcid:0000-0001-9759-3938"
         self.assertEqual(out, exp)
-        cp.storage_manager.delete_storage()
+        c_processing.storage_manager.delete_storage()
 
     def test_report_series_venue_id(self):
         crossref_processor = CrossrefProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, publishers_filepath=None)
@@ -731,10 +749,36 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(value, True)
         cp.storage_manager.delete_storage()
 
-
-
-
-
+    def test_find_crossref_orcid_with_index(self):
+        """Test ORCID validation using ORCID index before API validation"""
+        # Setup
+        test_doi = "10.1234/test123"
+        test_orcid = "0000-0002-1234-5678"
+        test_name = "Smith, John"
+        
+        # Create CrossrefProcessing instance with ORCID index
+        cp = CrossrefProcessing()
+        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
+        
+        # Test Case 1: ORCID found in index
+        out_1 = cp.find_crossref_orcid(test_orcid, test_doi)
+        exp_1 = f"orcid:{test_orcid}"
+        self.assertEqual(out_1, exp_1)
+        # Verify it was added to temporary storage
+        self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{test_orcid}"))
+        
+        # Test Case 2: ORCID not in index but valid via API
+        out_2 = cp.find_crossref_orcid("0000-0003-4082-1500", test_doi)
+        exp_2 = "orcid:0000-0003-4082-1500"
+        self.assertEqual(out_2, exp_2)
+        
+        # Test Case 3: ORCID not in index and invalid
+        out_3 = cp.find_crossref_orcid("0000-0000-0000-0000", test_doi)
+        exp_3 = ""
+        self.assertEqual(out_3, exp_3)
+        
+        # Cleanup
+        cp.storage_manager.delete_storage()
 
 
 

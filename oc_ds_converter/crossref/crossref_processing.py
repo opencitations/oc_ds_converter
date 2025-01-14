@@ -102,6 +102,7 @@ class CrossrefProcessing(RaProcessor):
         valid_id_list = []
         norm_id = norm_id_dict.get("id")
         schema = norm_id_dict.get("schema")
+
         if schema == "doi":
             if norm_id in self._redis_values_br:
                 self.tmp_doi_m.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
@@ -499,7 +500,7 @@ class CrossrefProcessing(RaProcessor):
             if orcid:
 
                 # VALIDATE ORCID HERE (with same procedure used for br identifiers)
-                orcid = self.find_crossref_orcid(orcid)
+                orcid = self.find_crossref_orcid(orcid, doi)
                 # END: VALIDATE ORCID HERE
 
             elif dict_orcid and f_name:
@@ -555,10 +556,10 @@ class CrossrefProcessing(RaProcessor):
         return authors_strings_list, editors_string_list
 
 
-    def find_crossref_orcid(self, identifier):
+    def find_crossref_orcid(self, identifier, doi):
         orcid = ""
         if isinstance(identifier, str):
-            norm_orcid = self.orcid_m.normalise(identifier, include_prefix =True)
+            norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
             ## Check orcid presence in memory and storage before validating the id
             norm_orcid_dict = {"schema":"orcid"}
             norm_orcid_dict["identifier"] = norm_orcid
@@ -566,12 +567,18 @@ class CrossrefProcessing(RaProcessor):
 
             if validity_value_orcid is True:
                 orcid = norm_orcid
-
             elif validity_value_orcid is None:
-                norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
-                if norm_orcid in self.to_validated_id_list(norm_id_dict):
+                # Check in ORCID index using provided DOI before any REDIS / API validation
+                found_orcids = self.orcid_finder(doi)
+                if found_orcids and norm_orcid.split(':')[1] in found_orcids:
+                    self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
                     orcid = norm_orcid
-
+                
+                # If not found in index, proceed with normal validation
+                if not orcid:
+                    norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
+                    if norm_orcid in self.to_validated_id_list(norm_id_dict):
+                        orcid = norm_orcid
 
         return orcid
 
