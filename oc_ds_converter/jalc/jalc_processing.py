@@ -18,9 +18,6 @@
 from __future__ import annotations
 
 import csv
-import pathlib
-from os.path import exists
-from oc_ds_converter.pubmed.get_publishers import ExtractPublisherDOI
 
 from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.issn import ISSNManager
@@ -29,7 +26,6 @@ from oc_ds_converter.oc_idmanager.jid import JIDManager
 import os
 import os.path
 import json
-import re
 import warnings
 from pathlib import Path
 from typing import Optional

@@ -18,6 +18,62 @@ PUBLISHERS_MAPPING = os.path.join(BASE, 'publishers.csv')
 
 class TestJalcProcessing(unittest.TestCase):
 
+    def setUp(self):
+        """Setup comune per i test che include entity dict di esempio"""
+        # Entity dict con autori singoli
+        self.entity_dict_single_author = {
+            "data": {
+                "doi": "10.11178/example.1",
+                "creator_list": [
+                    {
+                        "sequence": "1",
+                        "type": "person",
+                        "names": [
+                            {
+                                "lang": "ja",
+                                "last_name": "山田",
+                                "first_name": "太郎"
+                            }
+                        ],
+                        "role": "author"
+                    }
+                ]
+            }
+        }
+
+        # Entity dict con autori omonimi
+        self.entity_dict_homonyms = {
+            "data": {
+                "doi": "10.11178/example.2",
+                "creator_list": [
+                    {
+                        "sequence": "1",
+                        "type": "person",
+                        "names": [
+                            {
+                                "lang": "ja", 
+                                "last_name": "田中",
+                                "first_name": "一郎"
+                            }
+                        ],
+                        "role": "author"
+                    },
+                    {
+                        "sequence": "2",
+                        "type": "person",
+                        "names": [
+                            {
+                                "lang": "ja", 
+                                "last_name": "田中",
+                                "first_name": "一郎"
+                            }
+                        ],
+                        "role": "author"
+                    }
+                ]
+            }
+        }
+
     def test_csv_creator(self):
         jalc_processor_citing = JalcProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, citing=True)
         jalc_processor_cited = JalcProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, citing=False)
@@ -4478,6 +4534,66 @@ class TestJalcProcessing(unittest.TestCase):
         exp_1 = ['doi:10.13039/100005522']
         self.assertEqual(out_1, exp_1)
         j_p.storage_manager.delete_storage()
+
+    def test_get_agents_strings_list_with_orcid_index(self):
+        """Test aggiunta ORCID da index per autore"""
+        jalc_processor = JalcProcessing()
+        csv_manager = CSVManager()
+        # Creo un ORCID index con entry per l'autore
+        csv_manager.data = {
+            '10.11178/example.1': {
+                '山田, 太郎 [0000-0001-2345-6789]'
+            }
+        }
+        jalc_processor.orcid_index = csv_manager
+
+        authors_list = jalc_processor.get_authors(self.entity_dict_single_author["data"])
+        authors_strings_list, _ = jalc_processor.get_agents_strings_list(
+            self.entity_dict_single_author["data"]["doi"], 
+            authors_list
+        )
+
+        expected_authors = ['山田, 太郎 [orcid:0000-0001-2345-6789]']
+        self.assertEqual(authors_strings_list, expected_authors)
+
+    def test_get_agents_strings_list_partial_orcid_index(self):
+        """Test quando l'ORCID index contiene solo uno degli autori omonimi"""
+        jalc_processor = JalcProcessing()
+        csv_manager = CSVManager()
+        # ORCID index con solo uno degli autori omonimi
+        csv_manager.data = {
+            '10.11178/example.2': {
+                '田中, 一郎 [0000-0003-4567-8901]'
+            }
+        }
+        jalc_processor.orcid_index = csv_manager
+
+        authors_list = jalc_processor.get_authors(self.entity_dict_homonyms["data"])
+        authors_strings_list, _ = jalc_processor.get_agents_strings_list(
+            self.entity_dict_homonyms["data"]["doi"],
+            authors_list
+        )
+
+        # In caso di omonimi perfetti, l'ORCID non viene assegnato a nessuno
+        expected_authors = ['田中, 一郎', '田中, 一郎']
+        self.assertEqual(authors_strings_list, expected_authors)
+
+    def test_get_agents_strings_list_empty_orcid_index(self):
+        """Test quando l'ORCID index è vuoto"""
+        jalc_processor = JalcProcessing()
+        csv_manager = CSVManager()
+        # ORCID index vuoto
+        csv_manager.data = {}
+        jalc_processor.orcid_index = csv_manager
+
+        authors_list = jalc_processor.get_authors(self.entity_dict_single_author["data"])
+        authors_strings_list, _ = jalc_processor.get_agents_strings_list(
+            self.entity_dict_single_author["data"]["doi"],
+            authors_list
+        )
+
+        expected_authors = ['山田, 太郎']
+        self.assertEqual(authors_strings_list, expected_authors)
 
 
 if __name__ == '__main__':
