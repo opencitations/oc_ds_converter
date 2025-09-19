@@ -25,7 +25,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class DataciteProcessing(RaProcessor):
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_dc: str = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing=True):
+    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_dc: str = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing=True, use_orcid_api: bool = True):
         super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
         # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
         if storage_manager is None:
@@ -151,9 +151,10 @@ class DataciteProcessing(RaProcessor):
     # self.preprocessor.split_input()
 
         self.doi_m = DOIManager(storage_manager=self.storage_manager)
-        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager)
+        self.orcid_m = ORCIDManager(use_api_service=use_orcid_api, storage_manager=self.storage_manager)
         self.issn_m = ISSNManager()
         self.isbn_m = ISBNManager()
+        self.use_orcid_api = use_orcid_api
         self.venue_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
         # Temporary storage managers : all data must be stored in tmp storage manager and passed all together to the
         # main storage_manager  only once the full file is processed. Checks must be done both on tmp and in
@@ -163,7 +164,7 @@ class DataciteProcessing(RaProcessor):
         # and lost.
 
         self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
-        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager)
+        self.tmp_orcid_m = ORCIDManager(use_api_service=use_orcid_api, storage_manager=self.temporary_manager)
         self.venue_tmp_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
 
         if testing:
@@ -673,7 +674,7 @@ class DataciteProcessing(RaProcessor):
                         orcid_ids = [x.get("nameIdentifier") for x in ed.get("nameIdentifiers") if
                                      x.get("nameIdentifierScheme") == "ORCID"]
                         if orcid_ids:
-                            orcid_id = self.find_datacite_orcid(orcid_ids)
+                            orcid_id = self.find_datacite_orcid(orcid_ids, item.get("doi"))
                             if orcid_id:
                                 agent["orcid"] = orcid_id
 
@@ -708,7 +709,7 @@ class DataciteProcessing(RaProcessor):
                         orcid_ids = [x.get("nameIdentifier") for x in c.get("nameIdentifiers") if
                                      x.get("nameIdentifierScheme") == "ORCID"]
                         if orcid_ids:
-                            orcid_id = self.find_datacite_orcid(orcid_ids)
+                            orcid_id = self.find_datacite_orcid(orcid_ids, item.get("doi"))
                             if orcid_id:
                                 agent["orcid"] = orcid_id
                 missing_names = [x for x in ["family", "given", "name"] if x not in agent]
@@ -720,37 +721,44 @@ class DataciteProcessing(RaProcessor):
     #added
     def find_datacite_orcid(self, all_author_ids, doi=None):
         """Find and validate ORCID from Datacite data
-        
+
         Args:
-            orcid_ids (list): List of ORCID identifiers
-            doi (str, optional): DOI to check in ORCID index. Defaults to None.
+            all_author_ids (list): list of ORCID identifiers (URL o bare id)
+            doi (str, optional): DOI per cercare nell'indice DOI→ORCID prima di usare l'API.
         """
-        orcid = ""
-        if all_author_ids:
-            for identifier in all_author_ids:
-                norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
-                ## Check orcid presence in memory and storage before validating the id
-                validity_value_orcid = self.validated_as({"identifier": norm_orcid, "schema": "orcid"})
-                if validity_value_orcid is True:
-                    orcid = norm_orcid
-                    break
-                elif validity_value_orcid is None:
-                    # Check in ORCID index using provided DOI before any API validation
-                    if doi:
-                        found_orcids = self.orcid_finder(doi)
-                        if found_orcids and norm_orcid.split(':')[1] in found_orcids:
-                            self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
-                            orcid = norm_orcid
-                    
-                    # If not found in index, proceed with normal validation
-                    if not orcid:
-                        norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
-                        if norm_orcid in self.to_validated_id_list(norm_id_dict):
-                            orcid = norm_orcid
-                            break
+        if not all_author_ids:
+            return ""
 
-        return orcid
+        for identifier in all_author_ids:
+            norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
+            if not norm_orcid:
+                continue
 
+            # 1) Già noto in storage/memoria?
+            validity = self.validated_as({"identifier": norm_orcid, "schema": "orcid"})
+            if validity is True:
+                return norm_orcid
+            if validity is False:
+                continue
+
+            # 2) Prova con l'indice DOI→ORCID (se ho un DOI)
+            if doi:
+                found_orcids = self.orcid_finder(doi)  # bare ids, es. '0000-0002-...'
+                if found_orcids and norm_orcid.split(':')[1] in found_orcids:
+                    # segna valido in memoria temporanea; il flush avverrà con memory_to_storage()
+                    self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
+                    return norm_orcid
+
+            # 3) Se l’API è disattivata, NON accetto l’ORCID solo perché "ben formato"
+            if not getattr(self, "use_orcid_api", True):
+                continue
+
+            # 4) API attiva: usa il comportamento esistente (validazione/formato)
+            norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
+            if norm_orcid in self.to_validated_id_list(norm_id_dict):
+                return norm_orcid
+
+        return ""
 
     # added
     def memory_to_storage(self):

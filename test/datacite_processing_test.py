@@ -678,6 +678,37 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(out, exp_out)
         dcp.storage_manager.delete_storage()
 
+    def test_find_datacite_orcid_api_disabled_not_in_index(self):
+        """Se l'API è OFF e l'ORCID non è nell'indice, non deve essere risolto."""
+        dp = DataciteProcessing(use_orcid_api=False)
+        test_doi = "10.9999/noindex"
+        candidate = "0000-0003-4082-1500"  # valido sintatticamente
+
+        out = dp.find_datacite_orcid([candidate], test_doi)
+
+        self.assertEqual(out, "")
+        # Non deve essere stato scritto in tmp storage
+        self.assertIsNone(dp.tmp_orcid_m.storage_manager.get_value(f"orcid:{candidate}"))
+
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_orcid_api_disabled_from_index(self):
+        """Se l'API è OFF ma l'ORCID è nell'indice DOI→ORCID, deve essere risolto e salvato in tmp storage."""
+        dp = DataciteProcessing(use_orcid_api=False)
+        test_doi = "10.1234/test"
+        test_orcid = "0000-0002-1234-5678"
+        test_name = "Smith, John"
+
+        # l'indice DOI→ORCID viene popolato
+        dp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
+
+        out = dp.find_datacite_orcid([test_orcid], test_doi)
+
+        self.assertEqual(out, f"orcid:{test_orcid}")
+        self.assertTrue(dp.tmp_orcid_m.storage_manager.get_value(f"orcid:{test_orcid}"))
+
+        dp.storage_manager.delete_storage()
+
     def test_get_venue_name(self):
         item = {
             "container": {"type": "Series", "title": "Journal of Educational Thought / Revue de la Pensée Educative", "firstPage": "Vol 46 No 3 (2012)", "identifier": "10.11575/jet.v46i3", "identifierType": "DOI"}
@@ -1072,6 +1103,39 @@ class TestDataciteProcessing(unittest.TestCase):
                                                                              agents_list)
         expected_authors_list = ['Viorel, Cojocaru', 'Cojocaru, John', 'Ciprian, Panait']
         self.assertEqual(authors_strings_list, expected_authors_list)
+
+    def test_get_agents_strings_list_api_disabled_no_index(self):
+        """Con API OFF e indice vuoto, gli ORCID presenti come nameIdentifier NON devono comparire in output."""
+        entity_attr_dict = {
+            "creators": [
+                {
+                    "name": "Doe, Jane",
+                    "nameType": "Personal",
+                    "givenName": "Jane",
+                    "familyName": "Doe",
+                    "nameIdentifiers": [
+                        {
+                            "schemeUri": "https://orcid.org",
+                            "nameIdentifier": "https://orcid.org/0000-0003-4082-1500",
+                            "nameIdentifierScheme": "ORCID",
+                        }
+                    ],
+                }
+            ],
+            "contributors": [],
+        }
+
+        dp = DataciteProcessing(use_orcid_api=False)  # indice vuoto, nessuna API
+        authors_list = dp.add_authors_to_agent_list(entity_attr_dict, [])
+        editors_list = dp.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_strings, editors_strings = dp.get_agents_strings_list("10.9999/noindex", authors_list + editors_list)
+
+        # L'ORCID NON deve essere aggiunto tra [] perché non c'è indice e l'API è OFF
+        self.assertEqual(authors_strings, ["Doe, Jane"])
+        self.assertEqual(editors_strings, [])
+
+        dp.storage_manager.delete_storage()
+
 
     def test_find_datacite_orcid_with_index(self):
         """Test ORCID validation using ORCID index before API validation"""

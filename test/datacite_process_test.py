@@ -1,6 +1,5 @@
 import unittest
 import os
-from os.path import join
 import shutil
 from oc_ds_converter.run.datacite_process import preprocess
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
@@ -78,6 +77,58 @@ class DataciteProcessTest(unittest.TestCase):
         if os.path.exists(self.db):
             os.remove(self.db)
 
+    def test_preprocess_orcid_api_disabled_no_index(self):
+        """
+        With the ORCID API disabled and without a DOI->ORCID index,
+        ORCIDs must not appear in _subject.csv files.
+        """
+        # Pre-clean
+        for el in os.listdir(self.zst_input_folder):
+            if el.endswith("decompr_zst_dir"):
+                shutil.rmtree(os.path.join(self.zst_input_folder, el))
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        citations_output_path = self.output_dir + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+
+        # Run with API disabled and no index
+        preprocess(
+            datacite_ndjson_dir=self.zst_input_folder,
+            publishers_filepath=self.publisher_mapping,
+            orcid_doi_filepath=None,
+            csv_dir=self.output_dir,
+            redis_storage_manager=False,
+            storage_path=self.db,
+            cache=self.cache,
+            use_orcid_api=False
+        )
+
+        # Verify: no "[orcid:" in any _subject.csv "author" field
+        found_orcid = False
+        for file in os.listdir(self.output_dir):
+            if file.endswith("_subject.csv"):
+                with open(os.path.join(self.output_dir, file), "r", encoding="utf-8") as f:
+                    for row in csv.DictReader(f):
+                        if "[orcid:" in (row.get("author", "") or ""):
+                            found_orcid = True
+                            break
+            if found_orcid:
+                break
+
+        self.assertFalse(found_orcid)
+
+        # Post-clean
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        for el in os.listdir(self.zst_input_folder):
+            if el.endswith("decompr_zst_dir"):
+                shutil.rmtree(os.path.join(self.zst_input_folder, el))
+        if os.path.exists(self.db):
+            os.remove(self.db)
+
     def test_preprocess_base_decompress_and_read_redis(self):
         """Test base functionalities of the Datacite processor for producing META csv tables and INDEX tables:
         1) All the files in the zst in input are correctly processed
@@ -129,6 +180,59 @@ class DataciteProcessTest(unittest.TestCase):
 
         shutil.rmtree(self.output_dir)
 
+        for el in os.listdir(self.zst_input_folder):
+            if el.endswith("decompr_zst_dir"):
+                shutil.rmtree(os.path.join(self.zst_input_folder, el))
+        if os.path.exists(self.db):
+            os.remove(self.db)
+
+    def test_preprocess_orcid_api_disabled_no_leak(self):
+        """With ORCID API disabled, authors should not contain [orcid:] unless the DOI is in the provided index.
+        Our sample input DOIs with authors having ORCID nameIdentifiers are not covered by the sample index (iod),
+        so no [orcid:] should appear in the subject CSVs."""
+
+        # Clean any previous decompression dirs
+        for el in os.listdir(self.zst_input_folder):
+            if el.endswith("decompr_zst_dir"):
+                shutil.rmtree(os.path.join(self.zst_input_folder, el))
+
+        # Clean outputs
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        citations_output_path = self.output_dir + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+
+        # Run the process with ORCID API disabled
+        preprocess(
+            datacite_ndjson_dir=self.zst_input_folder,
+            publishers_filepath=self.publisher_mapping,
+            orcid_doi_filepath=self.iod,
+            csv_dir=self.output_dir,
+            redis_storage_manager=False,
+            storage_path=self.db,
+            cache=self.cache,
+            use_orcid_api=False,
+        )
+
+        # Scan subject CSVs and ensure authors contain no “[orcid:” token
+        subject_rows = 0
+        orcid_mentions = 0
+        for fname in os.listdir(self.output_dir):
+            if fname.endswith("_subject.csv"):
+                with open(os.path.join(self.output_dir, fname), encoding="utf-8") as f:
+                    rdr = csv.DictReader(f)
+                    for row in rdr:
+                        subject_rows += 1
+                        if "[orcid:" in row.get("author", ""):
+                            orcid_mentions += 1
+
+        self.assertGreater(subject_rows, 0)
+        self.assertEqual(orcid_mentions, 0)
+
+        # Cleanup
+        shutil.rmtree(citations_output_path)
+        shutil.rmtree(self.output_dir)
         for el in os.listdir(self.zst_input_folder):
             if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
