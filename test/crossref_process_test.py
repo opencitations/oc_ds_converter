@@ -6,7 +6,6 @@ from oc_ds_converter.run.crossref_process import *
 from pathlib import Path
 
 
-
 class CrossrefProcessTest(unittest.TestCase):
     def setUp(self) -> None:
         self.test_dir = os.path.join('test', 'crossref_processing')
@@ -25,7 +24,6 @@ class CrossrefProcessTest(unittest.TestCase):
         self.sample_fake_dump = os.path.join(self.sample_fake_dump_dir, '1.tar.gz')
         self.any_db1 = join(self.test_dir, "anydb1.db")
 
-
     def test_preprocess_base_decompress_and_read_without_cited(self):
         """CASE 1: compressed input without cited entities"""
         if os.path.exists(self.output):
@@ -35,8 +33,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(self.targz_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache = self.cache)
-
+        preprocess(self.targz_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -56,7 +53,7 @@ class CrossrefProcessTest(unittest.TestCase):
                         unique_entities += 1
                         encountered_ids.update(citied_ids)
         expected_entities_in_output = 0
-        expected_citations_in_output=0
+        expected_citations_in_output = 0
         self.assertEqual(expected_entities_in_output, unique_entities)
         self.assertEqual(expected_citations_in_output, citations_in_output)
 
@@ -72,7 +69,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache = self.cache)
+        preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
@@ -109,7 +106,6 @@ class CrossrefProcessTest(unittest.TestCase):
 
         self.assertEqual(expected_entities_in_output, entities_in_meta_output)
         self.assertEqual(unique_entities, entities_in_meta_output)
-
 
         # make sure that for each of the input files was created a citation file and two meta input file
         self.assertTrue(meta_files_n == 2)
@@ -128,7 +124,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True, storage_path=self.any_db1, cache = self.cache)
+        preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True, storage_path=self.any_db1, cache=self.cache)
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
@@ -166,15 +162,12 @@ class CrossrefProcessTest(unittest.TestCase):
         self.assertEqual(expected_entities_in_output, entities_in_meta_output)
         self.assertEqual(unique_entities, entities_in_meta_output)
 
-
         # make sure that for each of the input files was created a citation file and two meta input file
         self.assertTrue(meta_files_n == 2)
         self.assertTrue(citations_files_n == 1)
 
         shutil.rmtree(self.output)
         #os.remove(self.any_db1)
-
-
 
     def test_preprocess_wrong_doi_cited(self):
 
@@ -185,7 +178,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(self.sample_fake_dump, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache = self.cache)
+        preprocess(self.sample_fake_dump, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -208,7 +201,6 @@ class CrossrefProcessTest(unittest.TestCase):
         expected_citations_in_output = 15
 
         expected_entities_in_output = 16
-        
 
         self.assertEqual(expected_entities_in_output, unique_entities)
         self.assertEqual(expected_citations_in_output, citations_in_output)
@@ -244,14 +236,13 @@ class CrossrefProcessTest(unittest.TestCase):
     def test_cache(self):
         'Nothing should be produced in output, since the cache file reports that all the files in input were completed'
 
-
         if os.path.exists(self.output):
             shutil.rmtree(self.output)
 
         citations_output_path = self.output + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        cache_dict = {'first_iteration':[], 'second_iteration':[]}
+        cache_dict = {'first_iteration': [], 'second_iteration': []}
         targz_fd = tarfile.open(self.targz_cited_input, "r:gz", encoding="utf-8")
         for cur_file in targz_fd:
             if cur_file.name.endswith('.json') and not basename(cur_file.name).startswith("."):
@@ -268,8 +259,6 @@ class CrossrefProcessTest(unittest.TestCase):
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
-
-
 
         for file in os.listdir(citations_output_path):
             with open(os.path.join(citations_output_path, file), 'r', encoding='utf-8') as f:
@@ -290,11 +279,92 @@ class CrossrefProcessTest(unittest.TestCase):
 
         expected_entities_in_output = 0
 
-
         self.assertEqual(expected_entities_in_output, unique_entities)
         self.assertEqual(expected_citations_in_output, citations_in_output)
 
         shutil.rmtree(citations_output_path)
         shutil.rmtree(self.output)
 
+    def test_preprocess_orcid_api_disabled_no_index(self):
+        """
+        With the ORCID API disabled and without a DOI->ORCID index,
+        ORCIDs must not appear in _citing.csv files.
+        """
+        if os.path.exists(self.output):
+            shutil.rmtree(self.output)
+        citations_output_path = self.output + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
 
+        preprocess(
+            crossref_json_dir=self.targz_cited_input,
+            publishers_filepath=self.publisher_mapping,
+            orcid_doi_filepath=None,
+            csv_dir=self.output,
+            redis_storage_manager=False,
+            storage_path=self.db,
+            cache=self.cache,
+            use_orcid_api=False
+        )
+
+        found_orcid = False
+        for file in os.listdir(self.output):
+            if file.endswith("_citing.csv"):
+                with open(os.path.join(self.output, file), "r", encoding="utf-8") as f:
+                    for row in csv.DictReader(f):
+                        if "[orcid:" in (row.get("author", "") or ""):
+                            found_orcid = True
+                            break
+            if found_orcid:
+                break
+
+        self.assertFalse(found_orcid)
+
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+        if os.path.exists(self.output):
+            shutil.rmtree(self.output)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+
+    def test_preprocess_orcid_api_disabled_no_leak(self):
+        """With ORCID API disabled, authors should not contain [orcid:] unless the DOI is in the provided index."""
+        if os.path.exists(self.output):
+            shutil.rmtree(self.output)
+        citations_output_path = self.output + "_citations"
+        if os.path.exists(citations_output_path):
+            shutil.rmtree(citations_output_path)
+
+        preprocess(
+            crossref_json_dir=self.targz_cited_input,
+            publishers_filepath=self.publisher_mapping,
+            orcid_doi_filepath=self.iod,
+            csv_dir=self.output,
+            redis_storage_manager=False,
+            storage_path=self.db,
+            cache=self.cache,
+            use_orcid_api=False
+        )
+
+        subject_rows = 0
+        orcid_mentions = 0
+        for fname in os.listdir(self.output):
+            if fname.endswith("_citing.csv"):
+                with open(os.path.join(self.output, fname), encoding="utf-8") as f:
+                    rdr = csv.DictReader(f)
+                    for row in rdr:
+                        subject_rows += 1
+                        if "[orcid:" in row.get("author", ""):
+                            orcid_mentions += 1
+
+        self.assertGreater(subject_rows, 0)
+        self.assertEqual(orcid_mentions, 0)
+
+        shutil.rmtree(citations_output_path)
+        shutil.rmtree(self.output)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+
+
+if __name__ == '__main__':
+    unittest.main()
