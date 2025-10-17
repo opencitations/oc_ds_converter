@@ -1,3 +1,22 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+# Copyright 2019-2020 Fabio Mariani <fabio.mariani555@gmail.com>
+# Copyright 2021-2022 Arcangelo Massari <arcangelo.massari@unibo.it>
+# Copyright 2023-2025 Arianna Moretti <arianna.moretti4@unibo.it>
+#
+# Permission to use, copy, modify, and/or distribute this software for any purpose
+# with or without fee is hereby granted, provided that the above copyright notice
+# and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED 'AS IS' AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+# FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT,
+# OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+# DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
+# ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
+# SOFTWARE.
+
+
 import html
 import re
 import warnings
@@ -157,12 +176,7 @@ class DataciteProcessing(RaProcessor):
         self.use_orcid_api = use_orcid_api
         self.venue_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
         # Temporary storage managers : all data must be stored in tmp storage manager and passed all together to the
-        # main storage_manager  only once the full file is processed. Checks must be done both on tmp and in
-        # storage_manager, so that in case the process breaks while processing a file which does not complete (so
-        # without writing the final file) all the data concerning the ids are not stored. Otherwise, the ids saved in
-        # a storage_manager db would be considered to have been processed and thus would be ignored by the process
-        # and lost.
-
+        # main storage_manager  only once the full file is processed.
         self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
         self.tmp_orcid_m = ORCIDManager(use_api_service=use_orcid_api, storage_manager=self.temporary_manager)
         self.venue_tmp_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
@@ -170,7 +184,6 @@ class DataciteProcessing(RaProcessor):
         if testing:
             self.BR_redis = fakeredis.FakeStrictRedis()
             self.RA_redis = fakeredis.FakeStrictRedis()
-
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
             self.RA_redis = RedisDataSource("DB-META-RA")
@@ -196,6 +209,7 @@ class DataciteProcessing(RaProcessor):
                     with open(self.publishers_filepath, encoding="utf8") as f:
                         pfp = json.load(f)
                 self.publishers_mapping = pfp
+
     #added
     def update_redis_values(self, br, ra):
         self._redis_values_br = br
@@ -203,36 +217,22 @@ class DataciteProcessing(RaProcessor):
 
     #added
     def validated_as(self, id_dict):
-        # Check if the validity was already retrieved and thus
-        # a) if it is now saved either in the in-memory database, which only concerns data validated
-        # during the current file processing;
-        # b) or if it is now saved in the storage_manager database, which only concerns data validated
-        # during the previous files processing.
-        # In memory db is checked first because the dimension is smaller and the check is faster and
-        # Because we assume that it is more likely to find the same ids in close positions, e.g.: same
-        # citing id in several citations with different cited ids.
-
         schema = id_dict["schema"].strip().lower()
-        id = id_dict["identifier"]
+        identifier = id_dict["identifier"]
 
         if schema != "orcid":
-            validity_value = self.tmp_doi_m.validated_as_id(id)
+            validity_value = self.tmp_doi_m.validated_as_id(identifier)
             if validity_value is None:
-                validity_value = self.doi_m.validated_as_id(id)
+                validity_value = self.doi_m.validated_as_id(identifier)
             return validity_value
         else:
-            validity_value = self.tmp_orcid_m.validated_as_id(id)
+            validity_value = self.tmp_orcid_m.validated_as_id(identifier)
             if validity_value is None:
-                validity_value = self.orcid_m.validated_as_id(id)
+                validity_value = self.orcid_m.validated_as_id(identifier)
             return validity_value
 
     #added(probably unuseful)
-
     def get_id_manager(self, schema_or_id, id_man_dict):
-        """Given as input the string of a schema (e.g.:'pmid') and a dictionary mapping strings of
-        the schemas to their id managers, the method returns the correct id manager. Note that each
-        instance of the Preprocessing class needs its own instances of the id managers, in order to
-        avoid conflicts while validating data"""
         if ":" in schema_or_id:
             split_id_prefix = schema_or_id.split(":")
             schema = split_id_prefix[0]
@@ -262,7 +262,6 @@ class DataciteProcessing(RaProcessor):
         keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type', 'publisher', 'editor']
         for k in keys:
             row[k] = ''
-        # all the validation and normalization is done in the process
         row['id'] = doi_object
         try:
             return self.normalise_unicode(row)
@@ -270,14 +269,11 @@ class DataciteProcessing(RaProcessor):
             print(row)
             raise (TypeError)
 
-
-    # no modified(look at the part of the venues)
     def csv_creator(self, item: dict) -> dict:
         row = dict()
         doi = str(item['id'])
         if (doi and self.doi_set and doi in self.doi_set) or (doi and not self.doi_set):
             norm_id = self.doi_m.normalise(doi, include_prefix=True)
-            # create empty row
             keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
                     'publisher', 'editor']
             for k in keys:
@@ -320,7 +316,6 @@ class DataciteProcessing(RaProcessor):
                                 row['type'] = self.RESOURCETYPEGENERAL_types_map[norm_v]
                                 break
 
-
             # row['id']
             ids_list = list()
             ids_list.append(norm_id)
@@ -331,7 +326,6 @@ class DataciteProcessing(RaProcessor):
                         o_id_type = other_id.get('identifierType')
                         o_id = other_id.get('identifier')
 
-
                         if o_id_type == 'ISBN':
                             if row['type'] in {'book', 'dissertation', 'edited book', 'monograph', 'reference book', 'report',
                                                'standard'}:
@@ -341,7 +335,6 @@ class DataciteProcessing(RaProcessor):
                             if row['type'] in {'book series', 'book set', 'journal', 'proceedings series', 'series',
                                                'standard series', 'report series'}:
                                 self.id_worker(o_id, ids_list, self.issn_worker)
-
 
             row['id'] = ' '.join(ids_list)
 
@@ -369,7 +362,6 @@ class DataciteProcessing(RaProcessor):
             if 'creators' in attributes:
                 row['author'] = '; '.join(authors_strings_list)
 
-
             # row['pub_date']
             cur_date = ""
             dates = attributes.get("dates")
@@ -378,11 +370,9 @@ class DataciteProcessing(RaProcessor):
                     if date.get("dateType") == "Issued":
                         cur_date = date.get("date")
                         break
-
             if cur_date == "":
                 if attributes.get("publicationYear"):
                     cur_date = str(attributes.get("publicationYear"))
-
             row['pub_date'] = cur_date
 
             # row['venue']
@@ -393,7 +383,7 @@ class DataciteProcessing(RaProcessor):
 
             if attributes.get("container"):
                 container = attributes["container"]
-                if container and container.get("identifierType") == "ISSN" or container.get("identifierType") == "ISBN":
+                if container and (container.get("identifierType") in ("ISSN", "ISBN")):  # fix precedenza and/or
                     if container.get("issue"):
                         issue = container.get("issue")
                     if container.get("volume"):
@@ -410,19 +400,11 @@ class DataciteProcessing(RaProcessor):
                                         issue = related.get("issue")
                                     if not volume and related.get("volume"):
                                         volume = related.get("volume")
-            # row['volume']
             row['volume'] = volume
-
-            # row['issue']
             row['issue'] = issue
-
-            # row['page']
             row['page'] = self.get_datacite_pages(attributes)
-
-            # row['publisher']
             row['publisher'] = self.get_publisher_name(doi, attributes)
 
-            # row['editor']
             if attributes.get("contributors"):
                 editors = [contributor for contributor in attributes.get("contributors") if
                            contributor.get("contributorType") == "Editor"]
@@ -442,37 +424,25 @@ class DataciteProcessing(RaProcessor):
         schema = norm_id_dict.get("schema")
         if schema == "doi":
             if norm_id in self._redis_values_br:
-                self.tmp_doi_m.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+                self.tmp_doi_m.storage_manager.set_value(norm_id, True)
                 valid_id_list.append(norm_id)
-            # if the id is not in redis db, validate it before appending
-            elif self.tmp_doi_m.is_valid(norm_id):#In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+            elif self.tmp_doi_m.is_valid(norm_id):
                 valid_id_list.append(norm_id)
         elif schema == "orcid":
             if norm_id in self._redis_values_ra:
-                self.tmp_orcid_m.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+                self.tmp_orcid_m.storage_manager.set_value(norm_id, True)
                 valid_id_list.append(norm_id)
-            # if the id is not in redis db, validate it before appending
-            elif self.tmp_orcid_m.is_valid(norm_id):#In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+            elif not self.use_orcid_api:
+                # OFFLINE: non chiamare l'API per ORCID
+                pass
+            elif self.tmp_orcid_m.is_valid(norm_id):
                 valid_id_list.append(norm_id)
-
         else:
             print("Schema not accepted:", norm_id_dict.get("schema"), "in ", norm_id_dict, ". Use 'orcid' or 'doi'.")
-
         return valid_id_list
 
     #no modified
     def get_datacite_pages(self, item: dict) -> str:
-        '''
-        This function returns the pages interval.
-
-        :params item: the item's dictionary
-        :type item: dict
-        :returns: str -- The output is a string in the format 'START-END', for example, '583-584'. If there are no pages, the output is an empty string.
-        '''
         container_pages_list = list()
         related_pages_list = list()
         container = item.get("container")
@@ -499,19 +469,7 @@ class DataciteProcessing(RaProcessor):
 
     #modified
     def get_publisher_name(self, doi: str, item: dict) -> str:
-        '''
-        This function aims to return a publisher's name and id. If a mapping was provided,
-        it is used to find the publisher's standardized name from its id or DOI prefix.
-
-        :params doi: the item's DOI
-        :type doi: str
-        :params item: the item's dictionary
-        :type item: dict
-        :returns: str -- The output is a string in the format 'NAME [SCHEMA:ID]', for example, 'American Medical Association (AMA) [crossref:10]'. If the id does not exist, the output is only the name. Finally, if there is no publisher, the output is an empty string.
-        '''
-
-        # filtering values for publishers not accepet in OpenCitations, in particular :unkn and (:unkn), :unav and (:unav), publisher not identified, unknown or
-        # cases like unknown unknown, [unknown] : [unknown]
+        # (regex invariate)
         publisher = item.get("publisher")
         if publisher:
             txt = publisher.lower().strip()
@@ -558,29 +516,12 @@ class DataciteProcessing(RaProcessor):
         return name_and_id
 
     #no modified
-
     def get_venue_name(self, item: dict, row: dict) -> str:
-        '''
-        This method deals with generating the venue's name, followed by id in square brackets, separated by spaces.
-        HTML tags are deleted and HTML entities escaped. In addition, any ISBN and ISSN are validated.
-        Finally, the square brackets in the venue name are replaced by round brackets to avoid conflicts with the ids enclosures.
-
-        :params item: the item's dictionary
-        :type item: dict
-        :params row: a CSV row
-        :type row: dict
-        :returns: str -- The output is a string in the format 'NAME [SCHEMA:ID]', for example, 'Nutrition & Food Science
-         [issn:0034-6659]'. If the id does not exist, the output is only the name. Finally, if there is no venue,
-         the output is an empty string.
-         '''
-
         cont_title = ""
         venids_list = list()
 
-        # container
         container = item.get("container")
         if container:
-            # TITLE
             if container.get("title"):
                 cont_title = (container["title"].lower()).replace('\n', '')
                 ven_soup = BeautifulSoup(cont_title, 'html.parser')
@@ -594,7 +535,6 @@ class DataciteProcessing(RaProcessor):
                     ventit = ventit[:close_bracket] + ')' + ventit[close_bracket + 1:]
                     cont_title = ventit
 
-            # IDS
             if container.get("identifierType") == "ISBN":
                 if row['type'] in {'book chapter', 'book part', 'book section', 'book track', 'reference entry'}:
                     try:
@@ -617,7 +557,6 @@ class DataciteProcessing(RaProcessor):
                                 self.id_worker(container.get("identifier"), venids_list, self.issn_worker)
                             except ValueError:
                                 print(f'''{container.get("identifier")} raised a value error''')
-
 
         if not venids_list:
             relatedIdentifiers = item.get("relatedIdentifiers")
@@ -650,14 +589,6 @@ class DataciteProcessing(RaProcessor):
 
     #added the call to find_datacite_orcid
     def add_editors_to_agent_list(self, item: dict, ag_list: list) -> list:
-        '''
-        This function returns the agents list updated with the editors dictionaries, in the correct format.
-
-        :params item: the item's dictionary (attributes), ag_list: the
-        :type item: dict, ag_list: list
-
-        :returns: listthe agents list updated with the editors dictionaries, in the correct format.
-        '''
         agent_list = ag_list
         if item.get("contributors"):
             editors = [contributor for contributor in item.get("contributors") if
@@ -686,14 +617,6 @@ class DataciteProcessing(RaProcessor):
 
     # added the call to find_datacite_orcid
     def add_authors_to_agent_list(self, item: dict, ag_list: list) -> list:
-        '''
-        This function returns the agents list updated with the authors dictionaries, in the correct format.
-
-        :params item: the item's dictionary (attributes), ag_list: the
-        :type item: dict, ag_list: list
-
-        :returns: list the agents list updated with the authors dictionaries, in the correct format.
-        '''
         agent_list = ag_list
         if item.get("creators"):
             creators = item.get("creators")
@@ -720,12 +643,6 @@ class DataciteProcessing(RaProcessor):
 
     #added
     def find_datacite_orcid(self, all_author_ids, doi=None):
-        """Find and validate ORCID from Datacite data
-
-        Args:
-            all_author_ids (list): list of ORCID identifiers (URL o bare id)
-            doi (str, optional): DOI per cercare nell'indice DOI→ORCID prima di usare l'API.
-        """
         if not all_author_ids:
             return ""
 
@@ -734,26 +651,24 @@ class DataciteProcessing(RaProcessor):
             if not norm_orcid:
                 continue
 
-            # 1) Già noto in storage/memoria?
             validity = self.validated_as({"identifier": norm_orcid, "schema": "orcid"})
             if validity is True:
                 return norm_orcid
             if validity is False:
                 continue
 
-            # 2) Prova con l'indice DOI→ORCID (se ho un DOI)
             if doi:
-                found_orcids = self.orcid_finder(doi)  # bare ids, es. '0000-0002-...'
+                found_orcids = self.orcid_finder(doi)
                 if found_orcids and norm_orcid.split(':')[1] in found_orcids:
-                    # segna valido in memoria temporanea; il flush avverrà con memory_to_storage()
                     self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
                     return norm_orcid
 
-            # 3) Se l’API è disattivata, NON accetto l’ORCID solo perché "ben formato"
             if not getattr(self, "use_orcid_api", True):
+                if norm_orcid in self._redis_values_ra:
+                    self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
+                    return norm_orcid
                 continue
 
-            # 4) API attiva: usa il comportamento esistente (validazione/formato)
             norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
             if norm_orcid in self.to_validated_id_list(norm_id_dict):
                 return norm_orcid
@@ -774,9 +689,6 @@ class DataciteProcessing(RaProcessor):
             all_br = set()
             all_ra = set()
 
-            # VALIDATE RESPONSIBLE AGENTS IDS FOR THE CITING ENTITY (THE CITING ENTITY DOI IS VALID BY
-            # DEFAULT SINCE IT WAS ASSIGNED BY DATACITE, WHICH IS ALSO ITS DOI REGISTRATION AGENCY.
-
             attributes = citation.get("attributes")
             if attributes:
                 creators = attributes.get("creators")
@@ -787,8 +699,6 @@ class DataciteProcessing(RaProcessor):
                             norm_c_orcids = {self.orcid_m.normalise(x.get("nameIdentifier"), include_prefix=True) for x in c.get("nameIdentifiers") if
                                          x.get("nameIdentifierScheme") == "ORCID"}
                             if norm_c_orcids:
-                                # if it was possible to normalise any id according to orcid schema, add
-                                # the norm_orcids to the set of retrieved ra ids for the citation.
                                 all_ra.update(norm_c_orcids)
 
                 if attributes.get("contributors"):
@@ -801,21 +711,14 @@ class DataciteProcessing(RaProcessor):
                             if norm_ed_orcids:
                                 all_ra.update(norm_ed_orcids)
 
-            all_br = list(all_br)
-            for x in all_br:
-                if x is None:
-                    all_br.remove(x)
-            all_ra = list(all_ra)
-            for y in all_ra:
-                if y is None:
-                    all_ra.remove(y)
+            all_br = [x for x in all_br if x is not None]
+            all_ra = [y for y in all_ra if y is not None]
             return all_br, all_ra
 
-        #all the objects doi
         else:
             all_br = set()
             all_ra = set()
-            attributes = citation["attributes"]
+            attributes = citation.get("attributes", {})  # evita KeyError
             rel_ids = attributes.get("relatedIdentifiers")
             if rel_ids:
                 for ref in rel_ids:
@@ -827,36 +730,18 @@ class DataciteProcessing(RaProcessor):
                                 rel_id = self.doi_m.normalise(ref["relatedIdentifier"], include_prefix=True)
                                 if rel_id:
                                     all_br.add(rel_id)
-            all_br = list(all_br)
-            for x in all_br:
-                if x is None:
-                    all_br.remove(x)
-            all_ra = list(all_ra)
-            for y in all_ra:
-                if y is None:
-                    all_ra.remove(y)
+            all_br = [x for x in all_br if x is not None]
+            all_ra = [y for y in all_ra if y is not None]
             return all_br, all_ra
-
 
     #added
     def get_reids_validity_list(self, id_list, redis_db):
+        ids = list(id_list)  # garantisci ordine deterministico
         if redis_db == "ra":
-            valid_ra_ids = []
-            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
-            validity_list_ra = self.RA_redis.mget(id_list)
-            for i, e in enumerate(id_list):
-                if validity_list_ra[i]:
-                    valid_ra_ids.append(e)
-            return valid_ra_ids
-
+            validity = self.RA_redis.mget(ids)
+            return [ids[i] for i, v in enumerate(validity) if v]
         elif redis_db == "br":
-            valid_br_ids = []
-            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
-            validity_list_br = self.BR_redis.mget(id_list)
-            for i, e in enumerate(id_list):
-                if validity_list_br[i]:
-                    valid_br_ids.append(e)
-            return valid_br_ids
+            validity = self.BR_redis.mget(ids)
+            return [ids[i] for i, v in enumerate(validity) if v]
         else:
-            raise ValueError("redis_db must be either 'ra' for responsible agents ids "
-                             "or 'br' for bibliographic resources ids")
+            raise ValueError("redis_db must be either 'ra' or 'br'")

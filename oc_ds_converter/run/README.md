@@ -1,111 +1,203 @@
-# A) Overall architecture (to be replicated for the others)
+# A) Overall architecture (replicated across DataCite & Crossref)
 
-* **Process layer**: `run/datacite_process.py`
+* **Process layer**
 
-  * Orchestrates input discovery, chunking, two-pass processing (subjects first, then objects + citations), and I/O (CSV output, cache file, lock handling).
-* **Processing layer**: `datacite/datacite_processing.py` (`DataciteProcessing`)
+  * `run/datacite_process.py`
+  * `run/crossref_process.py`
+    Handles input discovery, chunking, two-pass processing (first subjects/citing entities, then objects/cited entities and citations), and manages I/O operations such as CSV output, cache management, and lock handling.
 
-  * Translates DataCite records into CSV rows, extracts/normalizes identifiers (DOI/ORCID/ISSN/ISBN), formats authors/editors, and queries auxiliary sources (publisher mapping, DOI -> ORCID index).
-* **ID managers**: `oc_idmanager/*`
+* **Processing layer**
 
-  * `ORCIDManager`, `DOIManager`, etc., encapsulate normalization and validity checks, backed by storage managers (SQLite / Redis / in-memory).
-* **Storage**:
+  * `datacite/datacite_processing.py` (`DataciteProcessing`)
+  * `crossref/crossref_processing.py` (`CrossrefProcessing`)
+    Translates source metadata into structured CSV rows, extracts and validates identifiers (DOI, ORCID, ISSN, ISBN where applicable), formats authors and editors, and interacts with auxiliary data such as publisher mappings and the DOI→ORCID index.
 
-  * **Persistent** (SQLite or Redis) plus **temporary in-memory** storage per run; temporary results are flushed into persistent storage at safe points.
+* **ID managers** (`oc_idmanager/*`)
+  Components such as `ORCIDManager`, `DOIManager`, `ISSNManager`, and `ISBNManager` encapsulate normalization and validation logic, using backends like SQLite, Redis, or in-memory storage.
+
+* **Storage**
+  Combines **persistent storage** (SQLite or Redis) with **temporary in-memory** storage for each processing run or chunk.
+  Temporary results are merged into persistent storage once processing completes safely.
+
+---
 
 # B) Current ORCID usage (generic)
 
-* ORCID values are read from DataCite metadata (`creators[*].nameIdentifiers`, `contributors[*].nameIdentifiers`) and turned into canonical `orcid:XXXX-XXXX-XXXX-XXXX`.
-* Validity is determined by consulting local caches/stores first, then (optionally) using the DOI -> ORCID index, and finally (only if allowed) the ORCID API via `ORCIDManager`.
-* The DOI -> ORCID index is also used to **enrich** author/editor strings when an ORCID is missing, based on the record’s DOI.
+* ORCID identifiers are extracted from source metadata (`creators[*].nameIdentifiers` and `contributors[*].nameIdentifiers` for DataCite; `author[*].ORCID` and `editor[*].ORCID` for Crossref) and normalized into canonical form:
+  `orcid:XXXX-XXXX-XXXX-XXXX`.
 
-# C) What was changed (ORCID - API not active parameter + bug fix ra / br redis)
+* Validation proceeds through a defined chain:
+  local caches and persistent stores → DOI→ORCID index → (only if enabled) the remote ORCID API.
 
-## 1) `datacite/datacite_processing.py` (class `DataciteProcessing`)
+* The DOI→ORCID index may also enrich author/editor fields when an ORCID is not directly provided but can be inferred via the DOI.
+
+---
+
+# C) Changes introduced (ORCID API toggle, RA/BR Redis fix, unified Crossref behavior)
+
+## 1) `datacite/datacite_processing.py` (`DataciteProcessing`)
 
 * **Configurable ORCID API usage**
 
-  * `__init__` now accepts `use_orcid_api: bool` and passes it to both
+  * Added parameter `use_orcid_api: bool = True` in `__init__`.
+  * Propagated to both:
 
     * `self.orcid_m = ORCIDManager(use_api_service=use_orcid_api, ...)`
     * `self.tmp_orcid_m = ORCIDManager(use_api_service=use_orcid_api, ...)`
-  * Effect: when `use_orcid_api=False`, `ORCIDManager` does **not** call the remote ORCID API; only caches, storage, and (if provided) the DOI -> ORCID index are used.
+  * When `use_orcid_api=False`, all remote ORCID API calls are disabled. Only local caches, Redis, and the DOI→ORCID index are consulted.
 
-* **ORCID extraction/validation path hardened**
+* **Deterministic ORCID validation**
 
-  * `find_datacite_orcid(all_author_ids, doi=None)`:
+  * `find_datacite_orcid(...)` implements the ordered validation chain detailed in Section D.
+  * ORCIDs confirmed through the index or Redis are immediately marked valid in temporary storage.
 
-    * Normalizes each candidate ORCID.
-    * Checks temporary and persistent stores (via `validated_as(...)`) **before** any further work.
-    * If a DOI is provided, can use the DOI -> ORCID index (`orcid_finder(doi)`) to confirm the candidate without contacting the API. When confirmed, the temporary store is marked valid.
-    * Otherwise falls back to `to_validated_id_list(...)`, which:
+* **Supporting methods**
 
-      * Consults Redis-derived validity snapshots gathered for the current chunk.
-      * Uses the corresponding `ORCIDManager.is_valid(...)` in a way that respects `use_orcid_api` (no network if disabled).
+  * `update_redis_values(...)`, `to_validated_id_list(...)`, `get_reids_validity_list(...)`, `memory_to_storage(...)`, and `validated_as(...)`
+    provide consistent handling of ID validity across local and temporary storage and Redis.
 
-* **Support methods to minimize revalidation**
+---
 
-  * `update_redis_values(...)`, `to_validated_id_list(...)`, `memory_to_storage(...)`, `extract_all_ids(...)`, `get_reids_validity_list(...)`, and `validated_as(...)` were integrated to:
+## 2) `crossref/crossref_processing.py` (`CrossrefProcessing`)
 
-    * Pull known-valid IDs from Redis (when available),
-    * Stage validity in a fast, temporary store for the current file/chunk,
-    * Flush staged validity to persistent storage once a chunk is finished.
+* **Unified with DataCite**
 
-> Outcome: when the ORCID API is disabled, no remote lookup is attempted, and ORCIDs only appear if already known valid via local storage, Redis, or the DOI -> ORCID index.
+  * Introduces the same `use_orcid_api` toggle and validation chain.
+  * The ORCID validation procedure now exactly mirrors the one in `DataciteProcessing`.
 
-## 2) `run/datacite_process.py`
+* **Deterministic ORCID validation**
+
+  * `find_crossref_orcid(...)` performs:
+
+    1. Validation in temporary and persistent storage.
+    2. Lookup in DOI→ORCID index (if DOI is available).
+    3. Check in RA Redis.
+    4. Optional network validation if API is enabled.
+
+* **RA/BR Redis correction**
+
+  * ORCIDs (responsible agents) are always verified using **RA Redis**.
+  * Bibliographic resource identifiers (e.g., DOIs) are verified using **BR Redis**.
+
+* **Result**
+
+  * Crossref and DataCite now share a unified ORCID validation and caching mechanism.
+
+---
+
+## 3) `run/datacite_process.py` and `run/crossref_process.py`
 
 * **CLI toggle for ORCID API**
 
-  * Added `--no-orcid-api` flag; mapped to `use_orcid_api = not no_orcid_api`.
-  * Passed `use_orcid_api` to every `DataciteProcessing` instance (both the first and second pass).
+  * Added `--no-orcid-api` option, mapping to `use_orcid_api = not no_orcid_api`.
+  * The parameter is passed to all processing instances for both passes.
 
-* **Cache lock guard**
+* **Cache lock management**
 
-  * After processing, the code now **removes** the cache lock file `cache.json.lock` (or the fallback lock) to avoid stale locks:
+  * After completion, the process removes any cache lock files (`cache.json.lock` or fallback) to prevent stale locks.
 
-    * If `cache` is provided: delete `cache` and `cache + ".lock"` when done.
-    * If `cache` is not provided: delete fallback `./cache.json` and `./cache.json.lock`.
+---
 
-* **Minor correctness**
+## 4) `test/datacite_process_test.py` and `test/crossref_processing_test.py`
 
-  * The helper that collects IDs from Redis ensures responsible-agent IDs (ORCIDs) are fetched from the RA Redis and not the BR Redis.
+* Added test coverage ensuring that:
 
-## 3) `test/datacite_process_test.py`
+  * No ORCID values appear when the API is disabled and the index is empty.
+  * ORCIDs appear only when confirmed via storage, Redis, or the DOI→ORCID index.
+  * Crossref follows the same logic as DataCite.
 
-* **New tests to freeze the behavior when ORCID API is off**
+---
 
-  * `test_preprocess_orcid_api_disabled_no_index`: with API disabled and **no** DOI -> ORCID index, **no** `[orcid:...]` must appear in `_subject.csv`.
-  * `test_preprocess_orcid_api_disabled_no_leak`: with API disabled and the **sample** DOI -> ORCID index that does **not** cover the sample DOIs, again **no** `[orcid:...]` must appear in `_subject.csv`.
-* These tests ensure there is no “leak” of ORCIDs coming from remote validation when the API is explicitly switched off.
+# D) Unified ORCID validation mechanism
 
-# D) How this fits together (process -> processing -> id managers)
+### Step 1 — Normalization
 
-* The **process layer** (`preprocess`) orchestrates the two-pass run and supplies policy knobs: storage back-end, Redis on/off, and now “ORCID API on/off.”
-* The **processing layer** (DataciteProcessing) implements the domain logic for DataCite:
+Each candidate ORCID is normalized to canonical form: `orcid:XXXX-XXXX-XXXX-XXXX`.
 
-  * Uses the **ID managers** exclusively for normalization and validity checks,
-  * Defers to local caches, Redis and the DOI -> ORCID index before considering any remote validation,
-  * Obeys the `use_orcid_api` policy so that external calls can be centrally enabled/disabled.
-* The **ID managers** remain the single point of truth for identifier normalization/validation. They are configured once and then reused by the processing logic without duplicating remote access code.
+### Step 2 — Local cache and persistent storage
 
-# E) Practical implications and reuse
+`validated_as(...)` checks:
 
-* When `--no-orcid-api` is set:
+1. Temporary storage (`tmp_orcid_m`)
+2. Persistent storage (`orcid_m`)
 
-  * ORCID resolution is **purely offline**: previously validated entries, Redis, and (optionally) DOI -> ORCID index.
-  * If neither the stores nor the index can confirm an ORCID, it is omitted from author/editor strings.
-* The same pattern can be replicated in other ingestion pipelines (e.g., Crossref):
+   * If valid, the ORCID is accepted immediately.
+   * If explicitly marked invalid, it is skipped.
 
-  * Thread the `use_orcid_api` toggle down into their processing classes,
-  * Ensure their ORCID resolution uses the same cache/index-first approach,
-  * Reuse the tests that assert “no ORCID leakage” when the API is disabled.
+### Step 3 — DOI→ORCID index
 
-This separation of concerns keeps the **policy** (whether network is allowed) at the process boundary, while the **mechanism** (how ORCIDs are found/validated) remains in the processing + ID-manager layers and can be shared across sources.
+If a DOI is provided, `orcid_finder(doi)` is queried.
+If the normalized ORCID appears in the index:
 
-## sample call [--no-orcid-api] -> ORCID API CALL NOT ACTIVE
+* It is accepted.
+* It is marked valid in temporary storage.
 
-`python -m oc_ds_converter.run.datacite_process \
+### Step 4 — Redis snapshot
+
+If the ORCID is listed in the RA Redis snapshot (`_redis_values_ra`):
+
+* It is accepted.
+* It is marked valid in temporary storage.
+
+### Step 5 — Validation fallback (only if API is enabled)
+
+If no confirmation was found:
+
+* `to_validated_id_list(...)` is called, which:
+
+  1. Checks Redis again for completeness.
+  2. Calls `is_valid(...)` in the appropriate ID manager.
+
+     * With `use_api_service=True`: may perform a remote validation.
+     * With `use_api_service=False`: no network access is attempted.
+
+If the check succeeds, the ORCID is accepted and stored as valid; otherwise, it is skipped.
+
+### Step 6 — Final outcome
+
+If none of the checks confirm validity, the method returns an empty string `""`, meaning no ORCID is added.
+
+---
+
+# E) Behavioral summary
+
+| Mode    | Local Cache | DOI→ORCID Index | Redis RA | API/Network | ORCID Returned                     |
+| ------- | ----------- | --------------- | -------- | ----------- | ---------------------------------- |
+| API OFF | Yes         | Yes             | Yes      | No          | Only if found in cache/index/Redis |
+| API ON  | Yes         | Yes             | Yes      | Yes         | Yes, full validation allowed       |
+
+When the API is disabled, validation is strictly offline (cache, Redis, index).
+When enabled, full validation including remote checks is performed.
+
+---
+
+# F) Component interaction (process → processing → ID managers)
+
+* The **process layer** defines configuration and policy (e.g., API on/off, storage backend, Redis usage) and orchestrates the two-pass pipeline.
+* The **processing layer** implements source-specific logic (DataCite, Crossref) and uses ID managers for normalization and validation, following process-layer policy.
+* The **ID managers** (`DOIManager`, `ORCIDManager`, etc.) provide consistent normalization and validation across all ingestion modules.
+
+---
+
+# G) Truth table (expected behavior)
+
+| Scenario                        | API | In local cache | In DOI→ORCID index | In Redis RA | ORCID appears           |
+| ------------------------------- | --- | -------------- | ------------------ | ----------- | ----------------------- |
+| None present                    | OFF | No             | No                 | No          | No                      |
+| Present only in DOI→ORCID index | OFF | No             | Yes                | –           | Yes                     |
+| Present only in Redis           | OFF | No             | No                 | Yes         | Yes                     |
+| Present only in cache           | OFF | Yes            | –                  | –           | Yes                     |
+| Not found anywhere              | ON  | No             | No                 | No          | Depends on `is_valid()` |
+| Found in Redis or cache         | ON  | Yes/No         | –                  | Yes/No      | Yes                     |
+
+---
+
+# H) Example executions
+
+**DataCite**
+
+```bash
+python -m oc_ds_converter.run.datacite_process \
   -dc test/datacite_process/sample_dc \
   -out test/datacite_process/output_dir \
   -p test/datacite_processing/publishers.csv \
@@ -113,4 +205,17 @@ This separation of concerns keeps the **policy** (whether network is allowed) at
   -ca test/datacite_process/cache.json \
   -sp test/datacite_process/anydb.db \
   -t \
-  --no-orcid-api`
+  --no-orcid-api
+```
+
+**Crossref**
+
+```bash
+python -m oc_ds_converter.run.crossref_process \
+  -cr test/crossref_process/sample_cr \
+  -out test/crossref_process/output_dir \
+  -ca test/crossref_process/cache.json \
+  --no-orcid-api
+```
+
+After execution, both processes remove any remaining cache lock files (`cache.json.lock` or fallback) to ensure clean termination.

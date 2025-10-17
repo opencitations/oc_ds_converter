@@ -780,6 +780,91 @@ class TestCrossrefProcessing(unittest.TestCase):
         # Cleanup
         cp.storage_manager.delete_storage()
 
+    def test_find_crossref_orcid_api_disabled_not_in_index(self):
+        """API OFF + empty index: a syntactically valid ORCID must NOT be resolved."""
+        cp = CrossrefProcessing(use_orcid_api=False)
+        test_doi = "10.9999/noindex"
+        candidate = "0000-0003-4082-1500"  # syntactically valid
+
+        out = cp.find_crossref_orcid(candidate, test_doi)
+        self.assertEqual(out, "")
+        # Must NOT be written to tmp storage
+        self.assertIsNone(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{candidate}"))
+
+        cp.storage_manager.delete_storage()
+
+    def test_find_crossref_orcid_api_disabled_from_index(self):
+        """API OFF + present in DOI→ORCID index: must resolve and be saved in tmp storage."""
+        cp = CrossrefProcessing(use_orcid_api=False)
+        test_doi = "10.1234/test"
+        test_orcid = "0000-0002-1234-5678"
+        test_name = "Smith, John"
+
+        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
+
+        out = cp.find_crossref_orcid(test_orcid, test_doi)
+        self.assertEqual(out, f"orcid:{test_orcid}")
+        self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{test_orcid}"))
+
+        cp.storage_manager.delete_storage()
+
+    def test_find_crossref_orcid_api_disabled_in_storage(self):
+        """API OFF + ORCID already valid in persistent storage: must be accepted."""
+        cp = CrossrefProcessing(use_orcid_api=False)
+        oid = "orcid:0000-0003-4082-1500"
+        cp.storage_manager.set_value(oid, True)  # mark valid
+        out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/any")
+        self.assertEqual(out, oid)
+        cp.storage_manager.delete_storage()
+
+    def test_find_crossref_orcid_api_disabled_from_redis_snapshot(self):
+        """API OFF + empty index/storage, but ORCID present in Redis snapshot: accept and seed tmp storage."""
+        cp = CrossrefProcessing(use_orcid_api=False)
+        oid = "orcid:0000-0003-4082-1500"
+        cp.update_redis_values(br=[], ra=[oid])  # emulate per-chunk snapshot
+
+        out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/noindex")
+        self.assertEqual(out, oid)
+        self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(oid))
+        cp.storage_manager.delete_storage()
+
+    def test_find_crossref_orcid_api_enabled_invalid_in_storage(self):
+        """API ON + ORCID explicitly invalid in storage: reject immediately (no API/index)."""
+        cp = CrossrefProcessing(use_orcid_api=True)
+        oid = "orcid:0000-0002-9286-2630"
+        cp.storage_manager.set_value(oid, False)
+        out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/anything")
+        self.assertEqual(out, "")
+        cp.storage_manager.delete_storage()
+
+    def test_find_crossref_orcid_api_enabled_from_redis_snapshot(self):
+        """API ON + empty storage/index, but ORCID present in Redis snapshot: accept without API call."""
+        cp = CrossrefProcessing(use_orcid_api=True)
+        oid = "orcid:0000-0003-4082-1500"
+        cp.update_redis_values(br=[], ra=[oid])
+
+        out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/noindex")
+        self.assertEqual(out, oid)
+        self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(oid))
+        cp.storage_manager.delete_storage()
+
+    def test_get_agents_strings_list_api_disabled_no_index(self):
+        """API OFF + empty index: ORCIDs provided in agent dict MUST NOT be appended to the author string."""
+        agents_list = [
+            {
+                "given": "Jane",
+                "family": "Doe",
+                "role": "author",
+                "ORCID": "https://orcid.org/0000-0003-4082-1500",  # present in metadata
+            }
+        ]
+        cp = CrossrefProcessing(use_orcid_api=False)
+        authors_strings, editors_strings = cp.get_agents_strings_list("10.9999/noindex", agents_list)
+        self.assertEqual(authors_strings, ["Doe, Jane"])  # no [orcid:...] tag
+        self.assertEqual(editors_strings, [])
+        cp.storage_manager.delete_storage()
+
+
 
 
 

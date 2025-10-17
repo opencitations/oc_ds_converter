@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Copyright 2019-2020 Fabio Mariani <fabio.mariani555@gmail.com>
 # Copyright 2021-2022 Arcangelo Massari <arcangelo.massari@unibo.it>
+# Copyright 2023-2025 Arianna Moretti <arianna.moretti4@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
 # with or without fee is hereby granted, provided that the above copyright notice
@@ -47,9 +48,10 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class CrossrefProcessing(RaProcessor):
 
-    def __init__(self, orcid_index:str=None, doi_csv:str=None, publishers_filepath:str=None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing=True):
+    def __init__(self, orcid_index:str=None, doi_csv:str=None, publishers_filepath:str=None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True, use_orcid_api: bool = True):
         super(CrossrefProcessing, self).__init__(orcid_index, doi_csv, publishers_filepath)
         self.citing = citing
+        self.use_orcid_api = use_orcid_api
 
         if storage_manager is None:
             self.storage_manager = SqliteStorageManager()
@@ -59,32 +61,22 @@ class CrossrefProcessing(RaProcessor):
         self.temporary_manager = InMemoryStorageManager('../memory.json')
 
         self.doi_m = DOIManager(storage_manager=self.storage_manager)
-        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager)
+        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager, use_api_service=use_orcid_api)
         self.issn_m = ISSNManager()
 
         self.venue_id_man_dict = {"issn": self.issn_m}
-        # Temporary storage managers : all data must be stored in tmp storage manager and passed all together to the
-        # main storage_manager  only once the full file is processed. Checks must be done both on tmp and in
-        # storage_manager, so that in case the process breaks while processing a file which does not complete (so
-        # without writing the final file) all the data concerning the ids are not stored. Otherwise, the ids saved in
-        # a storage_manager db would be considered to have been processed and thus would be ignored by the process
-        # and lost.
-
+        # Temporary storage managers
         self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
-        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager)
-
+        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager, use_api_service=use_orcid_api)
 
         self.venue_tmp_id_man_dict = {"issn": self.issn_m}
 
         if testing:
             self.BR_redis = fakeredis.FakeStrictRedis()
             self.RA_redis= fakeredis.FakeStrictRedis()
-
-
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
             self.RA_redis = RedisDataSource("DB-META-RA")
-
 
         self._redis_values_br = []
         self._redis_values_ra = []
@@ -95,36 +87,29 @@ class CrossrefProcessing(RaProcessor):
         self._redis_values_ra = ra
 
     def to_validated_id_list(self, norm_id_dict):
-        """this method takes in input a dictionary representing a normalized id, i.e.: {id:"id:000", "schema":"id"} and returns a list containing the validated id if it is valid, and an empty list otheriwse.
-        A first validation try is made by checking its presence in META db. If the id is not in META db yet,
-        a second attempt is made by using the specific id-schema API"""
-        #if self.BR_redis.get(norm_id):
         valid_id_list = []
         norm_id = norm_id_dict.get("id")
         schema = norm_id_dict.get("schema")
 
         if schema == "doi":
             if norm_id in self._redis_values_br:
-                self.tmp_doi_m.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+                self.tmp_doi_m.storage_manager.set_value(norm_id, True)
                 valid_id_list.append(norm_id)
-            # if the id is not in redis db, validate it before appending
-            elif self.tmp_doi_m.is_valid(norm_id):#In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+            elif self.tmp_doi_m.is_valid(norm_id):
                 valid_id_list.append(norm_id)
+
         elif schema == "orcid":
             if norm_id in self._redis_values_ra:
-                self.tmp_orcid_m.storage_manager.set_value(norm_id, True) #In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+                self.tmp_orcid_m.storage_manager.set_value(norm_id, True)
                 valid_id_list.append(norm_id)
-            # if the id is not in redis db, validate it before appending
-            elif self.tmp_orcid_m.is_valid(norm_id):#In questo modo l'id presente in redis viene inserito anche nello storage e risulta già
-                # preso in considerazione negli step successivi
+            elif not self.use_orcid_api:
+                # OFFLINE: non tentare la validazione via rete
+                pass
+            elif self.tmp_orcid_m.is_valid(norm_id):
                 valid_id_list.append(norm_id)
 
         else:
-            print("Schema not accepted:", norm_id_dict.get("schema"), "in ", norm_id_dict, ". Use 'orcid' or 'doi'.")
-
+            print("Schema not accepted:", schema, "in", norm_id_dict, ". Use 'orcid' or 'doi'.")
 
         return valid_id_list
 
@@ -132,35 +117,24 @@ class CrossrefProcessing(RaProcessor):
         kv_in_memory = self.temporary_manager.get_validity_list_of_tuples()
         if kv_in_memory:
             self.storage_manager.set_multi_value(kv_in_memory)
-            self.temporary_manager.delete_storage()
+        # uniformità con Datacite: svuota sempre la memoria temporanea
+        self.temporary_manager.delete_storage()
 
 
     def validated_as(self, id_dict):
-        # Check if the validity was already retrieved and thus
-        # a) if it is now saved either in the in-memory database, which only concerns data validated
-        # during the current file processing;
-        # b) or if it is now saved in the storage_manager database, which only concerns data validated
-        # during the previous files processing.
-        # In memory db is checked first because the dimension is smaller and the check is faster and
-        # Because we assume that it is more likely to find the same ids in close positions, e.g.: same
-        # citing id in several citations with different cited ids.
-
         schema = id_dict["schema"].strip().lower()
-        id = id_dict["identifier"]
+        identifier = id_dict["identifier"]
 
         if schema == "orcid":
-            tmp_id_m = self.tmp_orcid_m
-            validity_value = tmp_id_m.validated_as_id(id)
-
+            validity_value = self.tmp_orcid_m.validated_as_id(identifier)
             if validity_value is None:
-                id_m = self.orcid_m
-                validity_value = id_m.validated_as_id(id)
+                validity_value = self.orcid_m.validated_as_id(identifier)
             return validity_value
 
         elif schema == "doi":
-            validity_value = self.tmp_doi_m.validated_as_id(id)
+            validity_value = self.tmp_doi_m.validated_as_id(identifier)
             if validity_value is None:
-                validity_value = self.doi_m.validated_as_id(id)
+                validity_value = self.doi_m.validated_as_id(identifier)
             return validity_value
         else:
             print("invalid schema in ", id_dict, ". schema should be either doi or orcid.")
@@ -168,10 +142,6 @@ class CrossrefProcessing(RaProcessor):
 
 
     def get_id_manager(self, schema_or_id, id_man_dict):
-        """Given as input the string of a schema (e.g.:'pmid') and a dictionary mapping strings of
-        the schemas to their id managers, the method returns the correct id manager. Note that each
-        instance of the Preprocessing class needs its own instances of the id managers, in order to
-        avoid conflicts while validating data"""
         if ":" in schema_or_id:
             split_id_prefix = schema_or_id.split(":")
             schema = split_id_prefix[0]
@@ -273,34 +243,17 @@ class CrossrefProcessing(RaProcessor):
             if 'page' in item:
                 row['page'] = self.get_crossref_pages(item)
 
-            row['publisher'] = self.get_publisher_name(doi, item)                        
+            row['publisher'] = self.get_publisher_name(doi, item)
 
             if 'editor' in item:
                 row['editor'] = '; '.join(editors_string_list)
         return self.normalise_unicode(row)
-        
-    def get_crossref_pages(self, item:dict) -> str:
-        '''
-        This function returns the pages interval. 
 
-        :params item: the item's dictionary
-        :type item: dict
-        :returns: str -- The output is a string in the format 'START-END', for example, '583-584'. If there are no pages, the output is an empty string.
-        '''
+    def get_crossref_pages(self, item:dict) -> str:
         pages_list = re.split(pages_separator, item['page'])
         return self.get_pages(pages_list)
-    
-    def get_publisher_name(self, doi:str, item:dict) -> str:
-        '''
-        This function aims to return a publisher's name and id. If a mapping was provided, 
-        it is used to find the publisher's standardized name from its id or DOI prefix. 
 
-        :params doi: the item's DOI
-        :type doi: str
-        :params item: the item's dictionary
-        :type item: dict
-        :returns: str -- The output is a string in the format 'NAME [SCHEMA:ID]', for example, 'American Medical Association (AMA) [crossref:10]'. If the id does not exist, the output is only the name. Finally, if there is no publisher, the output is an empty string.
-        '''
+    def get_publisher_name(self, doi:str, item:dict) -> str:
         data = {
             'publisher': '',
             'member': None,
@@ -335,17 +288,6 @@ class CrossrefProcessing(RaProcessor):
 
 
     def get_venue_name(self, item:dict, row:dict) -> str:
-        '''
-        This method deals with generating the venue's name, followed by id in square brackets, separated by spaces. 
-        HTML tags are deleted and HTML entities escaped. In addition, any ISBN and ISSN are validated. 
-        Finally, the square brackets in the venue name are replaced by round brackets to avoid conflicts with the ids enclosures.
-
-        :params item: the item's dictionary
-        :type item: dict
-        :params row: a CSV row
-        :type row: dict
-        :returns: str -- The output is a string in the format 'NAME [SCHEMA:ID]', for example, 'Nutrition & Food Science [issn:0034-6659]'. If the id does not exist, the output is only the name. Finally, if there is no venue, the output is an empty string.
-        '''
         name_and_id = ''
         if 'container-title' in item:
             if item['container-title']:
@@ -386,37 +328,24 @@ class CrossrefProcessing(RaProcessor):
         all_ra = set()
 
         if is_first_iteration:
-            # VALIDATE RESPONSIBLE AGENTS IDS FOR THE CITING ENTITY (THE CITING ENTITY DOI IS VALID BY
-            # DEFAULT SINCE IT WAS ASSIGNED BY CROSSREF, WHICH IS ALSO ITS DOI REGISTRATION AGENCY.
-
-            # EXTRA: THE CITING DOI IS VALID BY DEFAULT
-            # d1_br = entity_dict.get("DOI")
-            # if d1_br:
-            #  norm_id = self.doi_m.normalise(d1_br, include_prefix=True)
-            #  if norm_id:
-            #     all_br.add(norm_id)
-
+            # VALIDATE RESPONSIBLE AGENTS IDS FOR THE CITING ENTITY
             if entity_dict.get("author"):
                 for author in entity_dict["author"]:
-                        if "ORCID" in author:
-                            orcid = self.orcid_m.normalise(
-                                author["ORCID"]
-                            )
-                            if orcid:
-                                all_ra.add(orcid)
+                    if "ORCID" in author:
+                        orcid = self.orcid_m.normalise(author["ORCID"])
+                        if orcid:
+                            all_ra.add(orcid)
 
             if entity_dict.get("editor"):
                 for author in entity_dict["editor"]:
-                        if "ORCID" in author:
-                            orcid = self.orcid_m.normalise(
-                                author["ORCID"]
-                            )
-                            if orcid:
-                                all_ra.add(orcid)
+                    if "ORCID" in author:
+                        orcid = self.orcid_m.normalise(author["ORCID"])
+                        if orcid:
+                            all_ra.add(orcid)
 
         # RETRIEVE CITED IDS OF A CITING ENTITY
         else:
-            citations = [x for x in entity_dict["reference"] if x.get("DOI")]
+            citations = [x for x in entity_dict.get("reference", []) if x.get("DOI")]
             for cit in citations:
                 norm_id = self.doi_m.normalise(cit["DOI"], include_prefix=True)
                 if norm_id:
@@ -426,28 +355,16 @@ class CrossrefProcessing(RaProcessor):
         all_ra = list(all_ra)
         return all_br, all_ra
 
-
     def get_reids_validity_list(self, id_list, redis_db):
+        ids = list(id_list)  # garantisci ordine deterministico
         if redis_db == "ra":
-            valid_ra_ids = []
-            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
-            validity_list_ra = self.RA_redis.mget(id_list)
-            for i, e in enumerate(id_list):
-                if validity_list_ra[i]:
-                    valid_ra_ids.append(e)
-            return valid_ra_ids
-
+            validity = self.RA_redis.mget(ids)
+            return [ids[i] for i, v in enumerate(validity) if v]
         elif redis_db == "br":
-            valid_br_ids = []
-            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
-            validity_list_br = self.BR_redis.mget(id_list)
-            for i, e in enumerate(id_list):
-                if validity_list_br[i]:
-                    valid_br_ids.append(e)
-            return valid_br_ids
+            validity = self.BR_redis.mget(ids)
+            return [ids[i] for i, v in enumerate(validity) if v]
         else:
-            raise ValueError("redis_db must be either 'ra' for responsible agents ids "
-                             "or 'br' for bibliographic resources ids")
+            raise ValueError("redis_db must be either 'ra' or 'br'")
 
     def get_agents_strings_list(self, doi: str, agents_list: List[dict]) -> Tuple[list, list]:
         authors_strings_list = list()
@@ -498,11 +415,7 @@ class CrossrefProcessing(RaProcessor):
                 else:
                     orcid = str(agent['ORCID'])
             if orcid:
-
-                # VALIDATE ORCID HERE (with same procedure used for br identifiers)
                 orcid = self.find_crossref_orcid(orcid, doi)
-                # END: VALIDATE ORCID HERE
-
             elif dict_orcid and f_name:
                 for ori in dict_orcid:
                     orc_n: List[str] = dict_orcid[ori].split(', ')
@@ -510,36 +423,28 @@ class CrossrefProcessing(RaProcessor):
                     orc_g = orc_n[1] if len(orc_n) == 2 else None
                     if f_name.lower() in orc_f.lower() or orc_f.lower() in f_name.lower():
                         if g_name and orc_g:
-                            # If there are several authors with the same surname
                             if len([person for person in agents_list if 'family' in person if person['family'] if
                                     person['family'].lower() in orc_f.lower() or orc_f.lower() in person[
                                         'family'].lower()]) > 1:
-                                # If there are several authors with the same surname and the same given names' initials
                                 if len([person for person in agents_list if 'given' in person if person['given'] if
                                         person['given'][0].lower() == orc_g[0].lower()]) > 1:
                                     homonyms_list = [person for person in agents_list if 'given' in person if
                                                      person['given'] if person['given'].lower() == orc_g.lower()]
-                                    # If there are homonyms
                                     if len(homonyms_list) > 1:
-                                        # If such homonyms have different roles from the current role
                                         if [person for person in homonyms_list if person['role'] != cur_role]:
                                             if orc_g.lower() == g_name.lower():
                                                 orcid = ori
-
                                     else:
                                         if orc_g.lower() == g_name.lower():
                                             orcid = ori
                                 elif orc_g[0].lower() == g_name[0].lower():
                                     orcid = ori
-
-                            # If there is a person whose given name is equal to the family name of the current person (a common situation for cjk names)
                             elif any([person for person in agents_list if 'given' in person if person['given'] if
                                       person['given'].lower() == f_name.lower()]):
                                 if orc_g.lower() == g_name.lower():
                                     orcid = ori
                             else:
                                 orcid = ori
-
                         else:
                             orcid = ori
 
@@ -555,30 +460,38 @@ class CrossrefProcessing(RaProcessor):
                     editors_string_list.append(agent_string)
         return authors_strings_list, editors_string_list
 
-
     def find_crossref_orcid(self, identifier, doi):
         orcid = ""
-        if isinstance(identifier, str):
-            norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
-            ## Check orcid presence in memory and storage before validating the id
-            norm_orcid_dict = {"schema":"orcid"}
-            norm_orcid_dict["identifier"] = norm_orcid
-            validity_value_orcid = self.validated_as(norm_orcid_dict)
+        if not isinstance(identifier, str):
+            return orcid
 
-            if validity_value_orcid is True:
-                orcid = norm_orcid
-            elif validity_value_orcid is None:
-                # Check in ORCID index using provided DOI before any REDIS / API validation
-                found_orcids = self.orcid_finder(doi)
-                if found_orcids and norm_orcid.split(':')[1] in found_orcids:
-                    self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
-                    orcid = norm_orcid
-                
-                # If not found in index, proceed with normal validation
-                if not orcid:
-                    norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
-                    if norm_orcid in self.to_validated_id_list(norm_id_dict):
-                        orcid = norm_orcid
+        norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
+        if not norm_orcid:
+            return orcid
 
-        return orcid
+        # 1) Already known in tmp/persistent storage?
+        validity_value_orcid = self.validated_as({"schema": "orcid", "identifier": norm_orcid})
+        if validity_value_orcid is True:
+            return norm_orcid
+        if validity_value_orcid is False:
+            return ""
 
+        # 2) DOI→ORCID index first (if DOI provided)
+        found_orcids = self.orcid_finder(doi) if doi else None
+        if found_orcids and norm_orcid.split(':')[1] in found_orcids:
+            self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
+            return norm_orcid
+
+        # 3) API OFF: only Redis snapshot
+        if not self.use_orcid_api:
+            if norm_orcid in self._redis_values_ra:
+                self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
+                return norm_orcid
+            return ""
+
+        # 4) API ON: Redis snapshot + manager.is_valid()
+        norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
+        if norm_orcid in self.to_validated_id_list(norm_id_dict):
+            return norm_orcid
+
+        return ""
