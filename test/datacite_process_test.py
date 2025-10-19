@@ -19,6 +19,73 @@ class DataciteProcessTest(unittest.TestCase):
         self.cache = os.path.join(self.test_dir, 'cache.json')
         self.cache_test = os.path.join(self.test_dir, 'cache_test.json')
         self.db = os.path.join(self.test_dir, 'anydb.db')
+        # percorso input con il file NDJSON malformato
+        self.error_input_folder = os.path.join(self.test_dir, 'sample_dc_error')
+        # percorsi per report errori
+        self.bad_dir = os.path.join(self.output_dir, '_bad')
+        self.citations_output_path = self.output_dir + "_citations"
+
+    def test_malformed_line_report_saved_and_cleaned(self):
+        """
+        Verifica che con un NDJSON malformato venga creato il report degli errori:
+        - esiste output_dir/_bad/datacite_test_bad.ndjson.bad.ndjson
+        - contiene almeno una riga e include '10.1234/bad'
+        Poi elimina file e cartelle create, incluso _bad.
+        """
+        # PRE-CLEAN: rimuovi decompressioni residue nella cartella errori
+        if os.path.exists(self.error_input_folder):
+            for el in os.listdir(self.error_input_folder):
+                if el.endswith("decompr_zst_dir"):
+                    shutil.rmtree(os.path.join(self.error_input_folder, el))
+
+        # PRE-CLEAN: output, citations e bad
+        if os.path.exists(self.citations_output_path):
+            shutil.rmtree(self.citations_output_path)
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        if os.path.exists(self.bad_dir):
+            shutil.rmtree(self.bad_dir)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
+
+        # ESECUZIONE
+        preprocess(
+            datacite_ndjson_dir=self.error_input_folder,
+            publishers_filepath=self.publisher_mapping,
+            orcid_doi_filepath=self.iod,
+            csv_dir=self.output_dir,
+            redis_storage_manager=False,
+            storage_path=self.db,
+            cache=self.cache,
+            use_orcid_api=True
+        )
+
+        # VERIFICHE
+        bad_report_file = os.path.join(self.bad_dir, "datacite_test_bad.ndjson.bad.ndjson")
+        self.assertTrue(os.path.exists(bad_report_file), "Report errori non generato")
+        with open(bad_report_file, "r", encoding="utf-8") as bf:
+            content = bf.read()
+        self.assertTrue(len(content) > 0, "Report errori vuoto")
+        self.assertIn("10.1234/bad", content, "Report non contiene la riga malformata attesa")
+
+        # POST-CLEAN: rimuovi tutto, incluso _bad e file report
+        if os.path.exists(self.citations_output_path):
+            shutil.rmtree(self.citations_output_path)
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        if os.path.exists(self.bad_dir):
+            shutil.rmtree(self.bad_dir)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
+        # rimuovi eventuali decompressioni residue
+        if os.path.exists(self.error_input_folder):
+            for el in os.listdir(self.error_input_folder):
+                if el.endswith("decompr_zst_dir"):
+                    shutil.rmtree(os.path.join(self.error_input_folder, el))
 
     def test_preprocess_base_decompress_and_read(self):
         """Test base functionalities of the Datacite processor for producing META csv tables and INDEX tables:
@@ -37,6 +104,11 @@ class DataciteProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
+
+        # assicura corretto funzionamento di _bad
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
 
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
                    orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=False,
@@ -69,13 +141,19 @@ class DataciteProcessTest(unittest.TestCase):
         input_files_n = 1
         self.assertTrue(citations_files_n == input_files_n)
 
-        shutil.rmtree(self.output_dir)
-
+        # CLEAN: output, _bad, decompressioni e db
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
         for el in os.listdir(self.zst_input_folder):
             if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
         if os.path.exists(self.db):
             os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
     def test_preprocess_orcid_api_disabled_no_index(self):
         """
@@ -91,6 +169,13 @@ class DataciteProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
         # Run with API disabled and no index
         preprocess(
@@ -123,11 +208,16 @@ class DataciteProcessTest(unittest.TestCase):
             shutil.rmtree(citations_output_path)
         if os.path.exists(self.output_dir):
             shutil.rmtree(self.output_dir)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
         for el in os.listdir(self.zst_input_folder):
             if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
         if os.path.exists(self.db):
             os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
     def test_preprocess_base_decompress_and_read_redis(self):
         """Test base functionalities of the Datacite processor for producing META csv tables and INDEX tables:
@@ -146,6 +236,13 @@ class DataciteProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
                    orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=True,
@@ -178,13 +275,19 @@ class DataciteProcessTest(unittest.TestCase):
         input_files_n = 1
         self.assertTrue(citations_files_n == input_files_n)
 
-        shutil.rmtree(self.output_dir)
-
+        # CLEAN
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
         for el in os.listdir(self.zst_input_folder):
             if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
         if os.path.exists(self.db):
             os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
     def test_preprocess_orcid_api_disabled_no_leak(self):
         """With ORCID API disabled, authors should not contain [orcid:] unless the DOI is in the provided index.
@@ -202,6 +305,13 @@ class DataciteProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
         # Run the process with ORCID API disabled
         preprocess(
@@ -233,11 +343,16 @@ class DataciteProcessTest(unittest.TestCase):
         # Cleanup
         shutil.rmtree(citations_output_path)
         shutil.rmtree(self.output_dir)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
         for el in os.listdir(self.zst_input_folder):
             if el.endswith("decompr_zst_dir"):
                 shutil.rmtree(os.path.join(self.zst_input_folder, el))
         if os.path.exists(self.db):
             os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
     def test_any_db_creation_redis_no_testing(self):
         try:
@@ -265,6 +380,19 @@ class DataciteProcessTest(unittest.TestCase):
                 print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
         if os.path.exists(self.db):
             os.remove(self.db)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
+        # rimuovi sempre eventuale _bad e output
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(self.citations_output_path):
+            shutil.rmtree(self.citations_output_path)
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
+        for el in os.listdir(self.zst_input_folder):
+            if el.endswith("decompr_zst_dir"):
+                shutil.rmtree(os.path.join(self.zst_input_folder, el))
 
     def test_cache(self):
         'Nothing should be produced in output, since the cache file reports that all the files in input were completed'
@@ -279,7 +407,15 @@ class DataciteProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        with open(self.cache_test, "w") as write_cache:
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
+        if os.path.exists(self.db):
+            os.remove(self.db)
+        if os.path.exists(self.cache_test):
+            os.remove(self.cache_test)
+
+        with open(self.cache_test, "w", encoding="utf-8") as write_cache:
             processed_files_dict = {'first_iteration': ['chunk_1'],
                                     'second_iteration': ['chunk_1']}
             json.dump(processed_files_dict, write_cache)
@@ -314,8 +450,12 @@ class DataciteProcessTest(unittest.TestCase):
         self.assertEqual(expected_entities_in_output, unique_entities)
         self.assertEqual(expected_citations_in_output, citations_in_output)
 
+        # CLEAN
         shutil.rmtree(citations_output_path)
         shutil.rmtree(self.output_dir)
+        bad_dir = os.path.join(self.output_dir, '_bad')
+        if os.path.exists(bad_dir):
+            shutil.rmtree(bad_dir)
 
         for el in os.listdir(self.zst_input_folder):
             if el.endswith("decompr_zst_dir"):
@@ -323,6 +463,8 @@ class DataciteProcessTest(unittest.TestCase):
 
         if os.path.exists(self.db):
             os.remove(self.db)
+        if os.path.exists(self.cache_test):
+            os.remove(self.cache_test)
 
 if __name__ == '__main__':
     unittest.main()

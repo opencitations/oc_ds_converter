@@ -80,14 +80,6 @@
 
   * On completion, any cache file and its `.lock` are removed (or the fallback `cache.json` and `cache.json.lock`), preventing stale locks between runs.
 
-## 4) Tests
-
-* `test/datacite_process_test.py` and `test/crossref_processing_test.py` now include cases that:
-
-  * Assert no ORCID leakage when the API is disabled and the DOI→ORCID index is missing.
-  * Assert ORCID appearance only when confirmed via storage, Redis, or index.
-  * Verify Crossref uses the same offline/online behavior as DataCite.
-
 ---
 
 # D) Unified ORCID validation mechanism
@@ -169,3 +161,56 @@ python -m oc_ds_converter.run.crossref_process \
 ```
 
 Both processes clean up the cache file and any `.lock` to ensure a clean state for subsequent runs.
+
+---
+
+# I) Additional changes (progress bar, malformed NDJSON report, error entity preview)
+
+## 1) Persistent progress bars
+
+* Both **DataCite** and **Crossref** processes now display `tqdm` progress bars in both passes (subject and object), **regardless of the `--verbose` flag**.
+  This ensures consistent visual feedback during all runs, even in non-verbose mode.
+
+## 2) Malformed NDJSON handling and reporting
+
+* The NDJSON reader (`read_ndjson_chunk(...)`) now:
+
+  * Catches `json.JSONDecodeError` for malformed lines.
+  * Prints a short log showing:
+
+    ```
+    [JSON ERROR] file=<path> line=<n>: <error>
+      preview: <first 300 chars of the line>
+    ```
+  * Appends the problematic lines to a report file located at:
+
+    ```
+    <output_dir>/_bad/<original_filename>.bad.ndjson
+    ```
+  * Continues processing remaining lines (fail-open).
+
+This provides a reproducible report for corrupted NDJSON dumps without stopping the overall process.
+
+## 3) Entity preview on processing errors
+
+* If a valid JSON entity raises an exception during processing (subject/object phases),
+  the system now prints:
+
+  ```
+  [PROCESS ERROR] during subject/object processing. Entity preview:
+  {<partial JSON of entity>}
+  Details: <exception message>
+  ```
+
+  The iteration continues normally, isolating only the faulty entity.
+
+---
+
+# J) Summary of operational behavior
+
+| Feature                             |           Before           |                    Now                   |
+| ----------------------------------- | :------------------------: | :--------------------------------------: |
+| Progress bars always visible        | No (only with `--verbose`) |                   ✅ Yes                  |
+| Handling of malformed NDJSON        |     Stop or silent skip    | ✅ Logged, reported in `_bad/`, continued |
+| Entity-level error preview          |            None            |  ✅ Printed with JSON snippet + exception |
+| Post-run cleanup (`cache`, `.lock`) |           Partial          |            ✅ Always guaranteed           |
