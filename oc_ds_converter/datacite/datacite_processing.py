@@ -39,6 +39,7 @@ from oc_ds_converter.preprocessing.datacite import DatacitePreProcessing
 from oc_ds_converter.ra_processor import RaProcessor
 from typing import Dict, List, Tuple, Optional, Type, Callable
 from pathlib import Path
+from oc_ds_converter.lib.cleaner import Cleaner
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -210,12 +211,127 @@ class DataciteProcessing(RaProcessor):
                         pfp = json.load(f)
                 self.publishers_mapping = pfp
 
-    #added
-    def update_redis_values(self, br, ra):
-        self._redis_values_br = br
-        self._redis_values_ra = ra
+    def get_agents_strings_list(self, doi: str, agents_list: List[dict]) -> Tuple[list, list]:
+        """
+        Uniformata a Crossref:
+        - prova ad arricchire dagli indici DOI→ORCID quando l'ORCID non è nei nameIdentifiers
+        - DOI normalizzato (accetta input con o senza 'doi:')
+        """
+        authors_strings_list = []
+        editors_string_list = []
 
-    #added
+        # Se almeno un agent NON ha già 'orcid', carica la mappa dall'indice
+        dict_orcid = None
+        norm_doi = self.doi_m.normalise(doi, include_prefix=True) if doi else None
+        if not all(('orcid' in a or 'ORCID' in a) for a in agents_list):
+            dict_orcid = self.orcid_finder(norm_doi) if norm_doi else None  # vedi Note in find_datacite_orcid
+
+        # Pulizia base come in Crossref (virgolette strane, spazi ecc.)
+        agents_list = [
+            {k: Cleaner(v).remove_unwanted_characters() if k in {'family', 'given', 'name'} and v is not None else v
+             for k, v in agent_dict.items()}
+            for agent_dict in agents_list
+        ]
+
+        for agent in agents_list:
+            cur_role = agent.get('role', '')
+            f_name = None
+            g_name = None
+
+            # costruzione display name "Family, Given" come in Crossref
+            agent_string = None
+            if agent.get('family') and agent.get('given'):
+                f_name = agent['family']
+                g_name = agent['given']
+                agent_string = f_name + ', ' + g_name
+            elif agent.get('name'):
+                agent_string = agent['name']
+                f_name = agent_string.split(",")[0].strip() if "," in agent_string else None
+                g_name = agent_string.split(",")[-1].strip() if "," in agent_string else None
+                if f_name and g_name:
+                    agent_string = f_name + ', ' + g_name
+
+            if agent_string is None:
+                if agent.get('family') and not agent.get('given'):
+                    if g_name:
+                        agent_string = agent['family'] + ', ' + g_name
+                    else:
+                        agent_string = agent['family'] + ', '
+                elif agent.get('given') and not agent.get('family'):
+                    if f_name:
+                        agent_string = f_name + ', ' + agent['given']
+                    else:
+                        agent_string = ', ' + agent['given']
+
+            # ORCID diretto?
+            orcid = None
+            if 'orcid' in agent:
+                orcid = str(agent['orcid'][0]) if isinstance(agent['orcid'], list) else str(agent['orcid'])
+            elif 'ORCID' in agent:
+                orcid = str(agent['ORCID'][0]) if isinstance(agent['ORCID'], list) else str(agent['ORCID'])
+
+            # Se presente, validalo/correggilo col nostro flusso
+            if orcid:
+                orcid = self.find_datacite_orcid([orcid], norm_doi)
+            # Altrimenti: prova a ricavarlo da indice via NOME (come Crossref)
+            elif dict_orcid and f_name:
+                for ori in dict_orcid:
+                    # dict_orcid[ori] è di norma "Cognome, Nome"
+                    orc_n = dict_orcid[ori].split(', ')
+                    orc_f = orc_n[0].lower()
+                    orc_g = orc_n[1] if len(orc_n) == 2 else None
+
+                    if f_name.lower() in orc_f.lower() or orc_f.lower() in (f_name or '').lower():
+                        if g_name and orc_g:
+                            # discriminazione omonimi (stessa logica Crossref)
+                            if len([p for p in agents_list if p.get('family') and (
+                                    p['family'].lower() in orc_f or orc_f in p['family'].lower())]) > 1:
+                                if len([p for p in agents_list if
+                                        p.get('given') and p['given'][0].lower() == orc_g[0].lower()]) > 1:
+                                    homonyms_list = [p for p in agents_list if
+                                                     p.get('given') and p['given'].lower() == orc_g.lower()]
+                                    if len(homonyms_list) > 1:
+                                        if [p for p in homonyms_list if p.get('role') != cur_role]:
+                                            if orc_g.lower() == g_name.lower():
+                                                orcid = ori
+                                    else:
+                                        if orc_g.lower() == g_name.lower():
+                                            orcid = ori
+                                elif orc_g[0].lower() == g_name[0].lower():
+                                    orcid = ori
+                            elif any([p for p in agents_list if
+                                      p.get('given') and p['given'].lower() == f_name.lower()]):
+                                if orc_g.lower() == g_name.lower():
+                                    orcid = ori
+                            else:
+                                orcid = ori
+                        else:
+                            orcid = ori
+
+                # normalizza eventuale ori senza prefisso
+                if orcid and not str(orcid).startswith("orcid:"):
+                    orcid = f"orcid:{orcid}"
+
+            # aggiungi [orcid:…] se trovato
+            if agent_string and orcid:
+                agent_string += f" [{orcid}]"
+
+            if agent_string:
+                if cur_role == 'author':
+                    authors_strings_list.append(agent_string)
+                elif cur_role == 'editor':
+                    editors_string_list.append(agent_string)
+
+        return authors_strings_list, editors_string_list
+
+    def update_redis_values(self, br, ra):
+        self._redis_values_br = [
+            x for x in (self.doi_m.normalise(b, include_prefix=True) for b in (br or [])) if x
+        ]
+        self._redis_values_ra = [
+            x for x in (self.orcid_m.normalise(r, include_prefix=True) for r in (ra or [])) if x
+        ]
+
     def validated_as(self, id_dict):
         schema = id_dict["schema"].strip().lower()
         identifier = id_dict["identifier"]
@@ -231,7 +347,7 @@ class DataciteProcessing(RaProcessor):
                 validity_value = self.orcid_m.validated_as_id(identifier)
             return validity_value
 
-    #added(probably unuseful)
+
     def get_id_manager(self, schema_or_id, id_man_dict):
         if ":" in schema_or_id:
             split_id_prefix = schema_or_id.split(":")
@@ -241,14 +357,14 @@ class DataciteProcessing(RaProcessor):
         id_man = id_man_dict.get(schema)
         return id_man
 
-    #added (probably unuseful)
+
     def normalise_any_id(self, id_with_prefix):
         id_man = self.doi_m
         id_no_pref = ":".join(id_with_prefix.split(":")[1:])
         norm_id_w_pref = id_man.normalise(id_no_pref, include_prefix=True)
         return norm_id_w_pref
 
-    #added
+
     def dict_to_cache(self, dict_to_be_saved, path):
         path = Path(path)
         parent_dir_path = path.parent.absolute()
@@ -353,8 +469,8 @@ class DataciteProcessing(RaProcessor):
 
             row['title'] = pub_title
 
-            agent_list_authors_only = self.add_authors_to_agent_list(attributes, [])
-            agents_list = self.add_editors_to_agent_list(attributes, agent_list_authors_only)
+            agent_list_authors_only = self.add_authors_to_agent_list(attributes, [], doi)
+            agents_list = self.add_editors_to_agent_list(attributes, agent_list_authors_only, doi)
 
             authors_strings_list, editors_string_list = self.get_agents_strings_list(doi, agents_list)
 
@@ -469,7 +585,6 @@ class DataciteProcessing(RaProcessor):
 
     #modified
     def get_publisher_name(self, doi: str, item: dict) -> str:
-        # (regex invariate)
         publisher = item.get("publisher")
         if publisher:
             txt = publisher.lower().strip()
@@ -588,7 +703,7 @@ class DataciteProcessing(RaProcessor):
         return name_and_id
 
     #added the call to find_datacite_orcid
-    def add_editors_to_agent_list(self, item: dict, ag_list: list) -> list:
+    def add_editors_to_agent_list(self, item: dict, ag_list: list, doi: str) -> list:
         agent_list = ag_list
         if item.get("contributors"):
             editors = [contributor for contributor in item.get("contributors") if
@@ -602,10 +717,10 @@ class DataciteProcessing(RaProcessor):
                     agent["family"] = ed.get("familyName")
                     agent["given"] = ed.get("givenName")
                     if ed.get("nameIdentifiers"):
-                        orcid_ids = [x.get("nameIdentifier") for x in ed.get("nameIdentifiers") if
-                                     x.get("nameIdentifierScheme") == "ORCID"]
+                        orcid_ids = [x.get("nameIdentifier") for x in ed.get("nameIdentifiers")
+                                     if x.get("nameIdentifierScheme") == "ORCID"]
                         if orcid_ids:
-                            orcid_id = self.find_datacite_orcid(orcid_ids, item.get("doi"))
+                            orcid_id = self.find_datacite_orcid(orcid_ids, doi)
                             if orcid_id:
                                 agent["orcid"] = orcid_id
 
@@ -616,7 +731,7 @@ class DataciteProcessing(RaProcessor):
         return agent_list
 
     # added the call to find_datacite_orcid
-    def add_authors_to_agent_list(self, item: dict, ag_list: list) -> list:
+    def add_authors_to_agent_list(self, item: dict, ag_list: list, doi: str) -> list:
         agent_list = ag_list
         if item.get("creators"):
             creators = item.get("creators")
@@ -629,10 +744,10 @@ class DataciteProcessing(RaProcessor):
                     agent["family"] = c.get("familyName")
                     agent["given"] = c.get("givenName")
                     if c.get("nameIdentifiers"):
-                        orcid_ids = [x.get("nameIdentifier") for x in c.get("nameIdentifiers") if
-                                     x.get("nameIdentifierScheme") == "ORCID"]
+                        orcid_ids = [x.get("nameIdentifier") for x in c.get("nameIdentifiers")
+                                     if x.get("nameIdentifierScheme") == "ORCID"]
                         if orcid_ids:
-                            orcid_id = self.find_datacite_orcid(orcid_ids, item.get("doi"))
+                            orcid_id = self.find_datacite_orcid(orcid_ids, doi)
                             if orcid_id:
                                 agent["orcid"] = orcid_id
                 missing_names = [x for x in ["family", "given", "name"] if x not in agent]
@@ -646,6 +761,27 @@ class DataciteProcessing(RaProcessor):
         if not all_author_ids:
             return ""
 
+        # normalizza DOI
+        norm_doi = self.doi_m.normalise(doi, include_prefix=True) if doi else None
+        found_orcids = set()
+
+        # FIX: cerca anche la versione senza prefisso "doi:" nell'indice
+        if norm_doi:
+            alt_doi = norm_doi.replace("doi:", "") if norm_doi.startswith("doi:") else f"doi:{norm_doi}"
+            raw = (
+                    self.orcid_finder(norm_doi)
+                    or self.orcid_finder(alt_doi)
+            )
+            if isinstance(raw, dict):
+                found_orcids = {k.replace("orcid:", "").strip() for k in raw.keys()}
+            elif isinstance(raw, (set, list, tuple)):
+                for v in raw:
+                    m = re.findall(r"(\d{4}-\d{4}-\d{4}-\d{3,4}[0-9X])", str(v))
+                    found_orcids.update(m)
+            elif isinstance(raw, str):
+                m = re.findall(r"(\d{4}-\d{4}-\d{4}-\d{3,4}[0-9X])", raw)
+                found_orcids.update(m)
+
         for identifier in all_author_ids:
             norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
             if not norm_orcid:
@@ -657,17 +793,16 @@ class DataciteProcessing(RaProcessor):
             if validity is False:
                 continue
 
-            if doi:
-                found_orcids = self.orcid_finder(doi)
-                if found_orcids and norm_orcid.split(':')[1] in found_orcids:
-                    self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
-                    return norm_orcid
+            bare_orcid = norm_orcid.split(":", 1)[1]
+            if bare_orcid in found_orcids:
+                self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
+                return norm_orcid
 
-            if not getattr(self, "use_orcid_api", True):
+            if not self.use_orcid_api:
                 if norm_orcid in self._redis_values_ra:
                     self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
                     return norm_orcid
-                continue
+                return ""  # offline: se non in redis, stop qui
 
             norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
             if norm_orcid in self.to_validated_id_list(norm_id_dict):

@@ -10,7 +10,6 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
-
 TEST_DIR = os.path.join("test", "datacite_processing")
 TMP_SUPPORT_MATERIAL = os.path.join(TEST_DIR, "tmp_support")
 IOD = os.path.join(TEST_DIR, 'iod')
@@ -700,7 +699,7 @@ class TestDataciteProcessing(unittest.TestCase):
         test_name = "Smith, John"
 
         # l'indice DOI→ORCID viene popolato
-        dp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
+        dp.orcid_index.data = {test_doi: {f"{test_name} [orcid:{test_orcid}]"}}
 
         out = dp.find_datacite_orcid([test_orcid], test_doi)
 
@@ -958,14 +957,17 @@ class TestDataciteProcessing(unittest.TestCase):
         }
 
         datacite_processor = DataciteProcessing(None, None)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.1594/pangaea.777220")
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.1594/pangaea.777220")
         agents_list = authors_list + editors_list
         csv_manager = CSVManager()
         csv_manager.data = {'10.1594/pangaea.777220': {'Lyle, Mitchell W [0000-0002-0861-0511]'}}
         datacite_processor.orcid_index = csv_manager
         authors_strings_list, editors_strings_list = datacite_processor.get_agents_strings_list(
             '10.1594/pangaea.777220', agents_list)
+
         expected_authors_list = ['Olivarez Lyle, Annette',
                                  'Lyle, Mitchell W [orcid:0000-0002-0861-0511]']
         expected_editors_list = []
@@ -985,13 +987,13 @@ class TestDataciteProcessing(unittest.TestCase):
                             'nameIdentifiers': []}]}
 
         datacite_processor = DataciteProcessing(IOD, WANTED_DOIS)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.1002/2014jd022411")
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.1002/2014jd022411")
         agents_list = authors_list + editors_list
-
-
         authors_strings_list, editors_strings_list = datacite_processor.get_agents_strings_list('10.1002/2014jd022411',
-                                                                             agents_list)
+                                                                                                agents_list)
         expected_authors_list = ['Ott, Lesley E.', 'Pawson, Steven', 'Collatz, George J.', 'Gregg, Watson W.', 'Menemenlis, Dimitris [orcid:0000-0001-9940-8409]', 'Brix, Holger', 'Rousseaux, Cecile S.', 'Bowman, Kevin W.', 'Liu, Junjie', 'Eldering, Annmarie', 'Gunson, Michael R.', 'Kawa, Stephan R.']
         expected_editors_list = ['AKMB-News: Informationen Zu Kunst, Museum Und Bibliothek']
 
@@ -1021,11 +1023,12 @@ class TestDataciteProcessing(unittest.TestCase):
             "contributors": []
         }
         datacite_processor = DataciteProcessing(IOD, WANTED_DOIS)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.1594/pangaea.231378")
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.1594/pangaea.231378")
         agents_list = authors_list + editors_list
-        authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.1594/pangaea.231378',
-                                                                             agents_list)
+        authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.1594/pangaea.231378', agents_list)
         expected_authors_list = ['Schulz, Heide N [orcid:0000-0003-1445-0291]', 'Schulz, Horst D']
         self.assertEqual(authors_strings_list, expected_authors_list)
 
@@ -1057,11 +1060,12 @@ class TestDataciteProcessing(unittest.TestCase):
             "contributors": []
         }
         datacite_processor = DataciteProcessing(None, None)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.12753/2066-026x-14-246")
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.12753/2066-026x-14-246")
         agents_list = authors_list + editors_list
-        authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.12753/2066-026x-14-246',
-                                                                             agents_list)
+        authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.12753/2066-026x-14-246', agents_list)
         expected_authors_list = ['Viorel, Cojocaru', 'Viorel, Cojocaru', 'Ciprian, Panait']
         self.assertEqual(authors_strings_list, expected_authors_list)
 
@@ -1096,11 +1100,12 @@ class TestDataciteProcessing(unittest.TestCase):
         }
         # Note : 'Cojocaru, John' is not one of the authors of the item, the name was made up for testing purposes
         datacite_processor = DataciteProcessing(None, None)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.12753/2066-026x-14-246")
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [],
+                                                                    doi="doi:10.12753/2066-026x-14-246")
         agents_list = authors_list + editors_list
-        authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.12753/2066-026x-14-246',
-                                                                             agents_list)
+        authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.12753/2066-026x-14-246', agents_list)
         expected_authors_list = ['Viorel, Cojocaru', 'Cojocaru, John', 'Ciprian, Panait']
         self.assertEqual(authors_strings_list, expected_authors_list)
 
@@ -1126,8 +1131,8 @@ class TestDataciteProcessing(unittest.TestCase):
         }
 
         dp = DataciteProcessing(use_orcid_api=False)  # indice vuoto, nessuna API
-        authors_list = dp.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = dp.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = dp.add_authors_to_agent_list(entity_attr_dict, [], doi="doi:10.9999/noindex")
+        editors_list = dp.add_editors_to_agent_list(entity_attr_dict, [], doi="doi:10.9999/noindex")
         authors_strings, editors_strings = dp.get_agents_strings_list("10.9999/noindex", authors_list + editors_list)
 
         # L'ORCID NON deve essere aggiunto tra [] perché non c'è indice e l'API è OFF
@@ -1146,11 +1151,11 @@ class TestDataciteProcessing(unittest.TestCase):
         
         # Create DataciteProcessing instance with ORCID index
         dp = DataciteProcessing()
-        dp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
-        
+        dp.orcid_index.data = {test_doi: {f"{test_name} [orcid:{test_orcid}]"}}
+
         # Test Case 1: ORCID found in index
         inp_1 = [test_orcid]
-        out_1 = dp.find_datacite_orcid(inp_1, test_doi)
+        out_1 = dp.find_datacite_orcid([test_orcid], test_doi)
         exp_1 = f"orcid:{test_orcid}"
         self.assertEqual(out_1, exp_1)
         # Verify it was added to temporary storage
@@ -1158,13 +1163,13 @@ class TestDataciteProcessing(unittest.TestCase):
         
         # Test Case 2: ORCID not in index but valid via API
         inp_2 = ["0000-0003-4082-1500"]
-        out_2 = dp.find_datacite_orcid(inp_2, test_doi)
+        out_2 = dp.find_datacite_orcid(["0000-0003-4082-1500"], test_doi)
         exp_2 = "orcid:0000-0003-4082-1500"
         self.assertEqual(out_2, exp_2)
         
         # Test Case 3: ORCID not in index and invalid
         inp_3 = ["0000-0000-0000-0000"]
-        out_3 = dp.find_datacite_orcid(inp_3, test_doi)
+        out_3 = dp.find_datacite_orcid(["0000-0000-0000-0000"], test_doi)
         exp_3 = ""
         self.assertEqual(out_3, exp_3)
         
@@ -1176,9 +1181,145 @@ class TestDataciteProcessing(unittest.TestCase):
         
         # Test Case 5: Multiple ORCIDs, first one valid
         inp_5 = [test_orcid, "0000-0000-0000-0000"]
-        out_5 = dp.find_datacite_orcid(inp_5, test_doi)
+        out_5 = dp.find_datacite_orcid([test_orcid, "0000-0000-0000-0000"], test_doi)
         exp_5 = f"orcid:{test_orcid}"
         self.assertEqual(out_5, exp_5)
-        
+
+
         # Cleanup
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_orcid_api_enabled_invalid_in_storage(self):
+        """API ON + ORCID marcato come invalid in storage: rifiuta subito (niente indice/API)."""
+        dp = DataciteProcessing(use_orcid_api=True)
+        oid = "orcid:0000-0002-9286-2630"
+        dp.storage_manager.set_value(oid, False)
+        out = dp.find_datacite_orcid([oid.split(":")[1]], "10.9999/anything")
+        self.assertEqual(out, "")
+        # nessuna semina in tmp
+        self.assertIsNone(dp.tmp_orcid_m.storage_manager.get_value(oid))
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_orcid_api_enabled_from_redis_snapshot(self):
+        """API ON + storage/indice vuoti, ma ORCID presente nello snapshot Redis RA: accetta senza rete."""
+        dp = DataciteProcessing(use_orcid_api=True)
+        oid = "orcid:0000-0003-4082-1500"
+        dp.update_redis_values(br=[], ra=[oid])  # simula snapshot
+        out = dp.find_datacite_orcid([oid.split(":")[1]], "10.9999/noindex")
+        self.assertEqual(out, oid)
+        self.assertTrue(dp.tmp_orcid_m.storage_manager.get_value(oid))
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_orcid_api_disabled_from_redis_snapshot(self):
+        """API OFF + storage/indice vuoti, ORCID nello snapshot Redis RA: accetta offline."""
+        dp = DataciteProcessing(use_orcid_api=False)
+        oid = "orcid:0000-0003-4082-1500"
+        dp.update_redis_values(br=[], ra=[oid])
+        out = dp.find_datacite_orcid([oid.split(":")[1]], "10.9999/noindex")
+        self.assertEqual(out, oid)
+        self.assertTrue(dp.tmp_orcid_m.storage_manager.get_value(oid))
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_orcid_api_disabled_in_storage(self):
+        """API OFF + ORCID già valido nello storage persistente: deve essere accettato."""
+        dp = DataciteProcessing(use_orcid_api=False)
+        oid = "orcid:0000-0003-4082-1500"
+        dp.storage_manager.set_value(oid, True)
+        out = dp.find_datacite_orcid([oid.split(":")[1]], "10.9999/any")
+        self.assertEqual(out, oid)
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_orcid_index_with_normalized_doi(self):
+        """La lookup nell'indice deve funzionare anche se DOI è passato senza prefisso o viceversa."""
+        dp = DataciteProcessing()
+        doi_no_prefix = "10.1234/test-norm"
+        doi_with_prefix = f"doi:{doi_no_prefix}"
+        orcid = "0000-0002-1234-5678"
+        dp.orcid_index.add_value(doi_with_prefix, f"Rossi, Mario [orcid:{orcid}]")
+        #  DOI senza prefisso: deve matchare comunque
+        out = dp.find_datacite_orcid([orcid], doi_no_prefix)
+        self.assertEqual(out, f"orcid:{orcid}")
+        self.assertTrue(dp.tmp_orcid_m.storage_manager.get_value(f"orcid:{orcid}"))
+        dp.storage_manager.delete_storage()
+
+    def test_update_redis_values_normalization(self):
+        """update_redis_values deve normalizzare gli ID (doi:/orcid:) così i confronti funzionano."""
+        dp = DataciteProcessing()
+        dp.update_redis_values(
+            br=["10.1002/2014jd022411"],  # senza prefisso
+            ra=["https://orcid.org/0000-0001-8513-8700"]  # URL
+        )
+        # validazione via snapshot deve riuscire
+        out_ra = dp.find_datacite_orcid(["0000-0001-8513-8700"], "10.9999/noindex")
+        self.assertEqual(out_ra, "orcid:0000-0001-8513-8700")
+        # DOI in BR: check via to_validated_id_list
+        out_br = dp.to_validated_id_list({"id": "doi:10.1002/2014jd022411", "schema": "doi"})
+        self.assertEqual(out_br, ["doi:10.1002/2014jd022411"])
+        dp.storage_manager.delete_storage()
+
+    def test_memory_to_storage_flushes_and_clears(self):
+        """Gli aggiornamenti in tmp vengono persistiti in blocco e la memoria temporanea viene svuotata."""
+        dp = DataciteProcessing()
+        #  usa Redis snapshot per marcare True in tmp
+        oid = "orcid:0000-0001-8513-8700"
+        dp.update_redis_values(br=[], ra=[oid])
+        _ = dp.find_datacite_orcid([oid.split(":")[1]], "10.9999/noindex")
+        # prima del flush: storage principale non ha il valore
+        self.assertIsNone(dp.storage_manager.get_value(oid))
+        # flush
+        dp.memory_to_storage()
+        # dopo il flush: storage principale aggiornato
+        self.assertTrue(dp.storage_manager.get_value(oid))
+        # e la memoria tmp svuotata (nessun valore residuo)
+        self.assertEqual(dp.temporary_manager.get_validity_list_of_tuples(), [])
+        dp.storage_manager.delete_storage()
+
+    def test_csv_creator_offline_uses_index_for_orcid(self):
+        """API OFF: se l'ORCID è nell'indice DOI→ORCID, l'autore deve uscire con [orcid:...] anche offline."""
+        dp = DataciteProcessing(use_orcid_api=False)
+        doi = "10.2000/test-offline-index"
+        orcid = "0000-0002-1234-5678"
+        name = "Doe, Jane"
+        dp.orcid_index.add_value(doi, f"{name} [orcid:{orcid}]")
+        item = {
+            "id": doi,
+            "type": "dois",
+            "attributes": {
+                "doi": doi,
+                "titles": [{"title": "Sample"}],
+                "types": {"ris": "JOUR"},
+                "creators": [{
+                    "nameType": "Personal",
+                    "familyName": "Doe",
+                    "givenName": "Jane",
+                    "nameIdentifiers": [{
+                        "nameIdentifierScheme": "ORCID",
+                        "nameIdentifier": f"https://orcid.org/{orcid}",
+                        "schemeUri": "https://orcid.org"
+                    }]
+                }]
+            }
+        }
+        row = dp.csv_creator(item)
+        self.assertIn("[orcid:0000-0002-1234-5678]", row["author"])
+        dp.storage_manager.delete_storage()
+
+    def test_get_agents_strings_list_uses_index_with_doi_normalization(self):
+        """get_agents_strings_list deve arricchire da indice anche se DOI arriva senza prefisso."""
+        dp = DataciteProcessing()
+        doi_no_prefix = "10.3000/abc"
+        orcid = "0000-0003-1445-0291"
+        dp.orcid_index.add_value(f"doi:{doi_no_prefix}", f"Schulz, Heide N [orcid:{orcid}]")
+        entity_attr_dict = {
+            "creators": [
+                {"name": "Schulz, Heide N", "nameType": "Personal",
+                 "givenName": "Heide N", "familyName": "Schulz", "nameIdentifiers": []}
+            ],
+            "contributors": []
+        }
+        authors = dp.add_authors_to_agent_list(entity_attr_dict, [], doi="doi:10.3000/abc")
+        editors = dp.add_editors_to_agent_list(entity_attr_dict, [], doi="doi:10.3000/abc")
+        authors_strings, editors_strings = dp.get_agents_strings_list(doi_no_prefix, authors + editors)
+        self.assertEqual(authors_strings, [f"Schulz, Heide N [orcid:{orcid}]"])
+        self.assertEqual(editors_strings, [])
         dp.storage_manager.delete_storage()

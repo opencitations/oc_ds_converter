@@ -864,6 +864,96 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(editors_strings, [])
         cp.storage_manager.delete_storage()
 
+    def test_get_agents_strings_list_api_disabled_index_requires_prefixed_doi(self):
+        """
+        API OFF + indice DOI→ORCID popolato con chiave DOI prefissata (doi:...).
+        Il DOI passato a get_agents_strings_list è senza prefisso: la funzione deve
+        normalizzarlo prima di interrogare l'indice, altrimenti l'ORCID non viene trovato.
+        """
+        cp = CrossrefProcessing(use_orcid_api=False)
+
+        # Indice popolato con DOI **prefissato**
+        doi_pref = "doi:10.1234/test-idx"
+        test_orcid = "0000-0002-9999-8888"
+        cp.orcid_index.add_value(doi_pref, f"Smith, John [orcid:{test_orcid}]")
+
+        # Autore senza ORCID in metadati; DOI passato **senza prefisso**
+        agents = [{
+            "given": "John",
+            "family": "Smith",
+            "role": "author"
+        }]
+
+        authors, editors = cp.get_agents_strings_list("10.1234/test-idx", agents)
+        # Deve risolvere via indice e apporre il tag [orcid:...]
+        self.assertEqual(authors, ["Smith, John [orcid:0000-0002-9999-8888]"])
+        self.assertEqual(editors, [])
+        cp.storage_manager.delete_storage()
+
+    def test_find_crossref_orcid_api_disabled_redis_snapshot_unprefixed_orcid(self):
+        """
+        API OFF + indice vuoto + storage vuoto, ma Redis snapshot contiene ORCID **senza prefisso**.
+        La funzione deve riconoscerlo (normalizzando) e validarlo.
+        """
+        cp = CrossrefProcessing(use_orcid_api=False)
+
+        # Redis snapshot con ORCID **senza prefisso**
+        raw_orcid = "0000-0003-4082-1500"
+        cp.update_redis_values(br=[], ra=[raw_orcid])
+
+        out = cp.find_crossref_orcid(raw_orcid, "10.9999/noindex")
+        self.assertEqual(out, f"orcid:{raw_orcid}")
+        self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{raw_orcid}"))
+        cp.storage_manager.delete_storage()
+
+    def test_update_redis_values_normalizes_inputs(self):
+        """
+        update_redis_values deve normalizzare sempre:
+        - DOI → con prefisso 'doi:'
+        - ORCID → con prefisso 'orcid:'
+        ed eliminare voci non normalizzabili.
+        """
+        cp = CrossrefProcessing()
+
+        cp.update_redis_values(
+            br=["10.1001/jama.299.12.1471", "doi:10.2105/ajph.2006.101626", "xxx-bad"],
+            ra=["0000-0002-1234-5678", "orcid:0000-0003-4082-1500", "bad-orcid"]
+        )
+
+        # Tutti normalizzati (e 'bad' scartati)
+        self.assertIn("doi:10.1001/jama.299.12.1471", cp._redis_values_br)
+        self.assertIn("doi:10.2105/ajph.2006.101626", cp._redis_values_br)
+        self.assertNotIn("xxx-bad", cp._redis_values_br)
+
+        self.assertIn("orcid:0000-0002-1234-5678", cp._redis_values_ra)
+        self.assertIn("orcid:0000-0003-4082-1500", cp._redis_values_ra)
+        self.assertNotIn("bad-orcid", cp._redis_values_ra)
+        cp.storage_manager.delete_storage()
+
+    def test_get_agents_strings_list_api_disabled_redis_unprefixed_orcid(self):
+        """
+        API OFF + nessun ORCID in metadata + indice vuoto.
+        Redis snapshot contiene ORCID per l'autore **senza prefisso**: deve essere apposto all'autore.
+        """
+        cp = CrossrefProcessing(use_orcid_api=False)
+
+        # Autore senza ORCID nei metadati
+        agents = [{
+            "given": "Chan-Ick",
+            "family": "Cheigh",
+            "role": "author"
+        }]
+
+        # Redis snapshot con ORCID **senza prefisso** dell'autore
+        raw_orcid = "0000-0002-6227-4053"
+        cp.update_redis_values(br=[], ra=[raw_orcid])
+
+        authors, editors = cp.get_agents_strings_list("10.9799/ksfan.2012.25.1.069", agents)
+        self.assertEqual(authors, ["Cheigh, Chan-Ick [orcid:0000-0002-6227-4053]"])
+        self.assertEqual(editors, [])
+        cp.storage_manager.delete_storage()
+
+
 
 
 

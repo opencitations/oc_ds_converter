@@ -41,6 +41,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMem
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from typing import Dict, List, Tuple
 from oc_ds_converter.lib.cleaner import Cleaner
+from collections import defaultdict
 
 
 
@@ -81,10 +82,18 @@ class CrossrefProcessing(RaProcessor):
         self._redis_values_br = []
         self._redis_values_ra = []
 
-
     def update_redis_values(self, br, ra):
-        self._redis_values_br = br
-        self._redis_values_ra = ra
+        # normalizza e filtra valori validi CON prefisso
+        self._redis_values_br = [
+            x for x in (
+                self.doi_m.normalise(b, include_prefix=True) for b in (br or [])
+            ) if x
+        ]
+        self._redis_values_ra = [
+            x for x in (
+                self.orcid_m.normalise(r, include_prefix=True) for r in (ra or [])
+            ) if x
+        ]
 
     def to_validated_id_list(self, norm_id_dict):
         valid_id_list = []
@@ -103,7 +112,7 @@ class CrossrefProcessing(RaProcessor):
                 self.tmp_orcid_m.storage_manager.set_value(norm_id, True)
                 valid_id_list.append(norm_id)
             elif not self.use_orcid_api:
-                # OFFLINE: non tentare la validazione via rete
+                # OFFLINE: non tenta validazione via rete
                 pass
             elif self.tmp_orcid_m.is_valid(norm_id):
                 valid_id_list.append(norm_id)
@@ -117,7 +126,7 @@ class CrossrefProcessing(RaProcessor):
         kv_in_memory = self.temporary_manager.get_validity_list_of_tuples()
         if kv_in_memory:
             self.storage_manager.set_multi_value(kv_in_memory)
-        # uniformità con Datacite: svuota sempre la memoria temporanea
+        # come con Datacite svuota sempre la memoria temporanea
         self.temporary_manager.delete_storage()
 
 
@@ -322,7 +331,7 @@ class CrossrefProcessing(RaProcessor):
                     name_and_id = ventit
         return name_and_id
 
-    # UPDATED FOR CROSSREF √
+    # UPDATED
     def extract_all_ids(self, entity_dict, is_first_iteration: bool):
         all_br = set()
         all_ra = set()
@@ -332,14 +341,14 @@ class CrossrefProcessing(RaProcessor):
             if entity_dict.get("author"):
                 for author in entity_dict["author"]:
                     if "ORCID" in author:
-                        orcid = self.orcid_m.normalise(author["ORCID"])
+                        orcid = self.orcid_m.normalise(author["ORCID"], include_prefix=True)
                         if orcid:
                             all_ra.add(orcid)
 
             if entity_dict.get("editor"):
                 for author in entity_dict["editor"]:
                     if "ORCID" in author:
-                        orcid = self.orcid_m.normalise(author["ORCID"])
+                        orcid = self.orcid_m.normalise(author["ORCID"], include_prefix=True)
                         if orcid:
                             all_ra.add(orcid)
 
@@ -367,129 +376,267 @@ class CrossrefProcessing(RaProcessor):
             raise ValueError("redis_db must be either 'ra' or 'br'")
 
     def get_agents_strings_list(self, doi: str, agents_list: List[dict]) -> Tuple[list, list]:
-        authors_strings_list = list()
-        editors_string_list = list()
-        dict_orcid = None
-        if not all('orcid' in agent or 'ORCID' in agent for agent in agents_list):
-            dict_orcid = self.orcid_finder(doi)
+        authors_strings_list = []
+        editors_string_list = []
+
+        # --- 1) DOI → prova indice in cascata (prefissato, non prefissato, raw) ---
+        norm_doi_pref = self.doi_m.normalise(doi, include_prefix=True) if doi else None
+        norm_doi_nopref = self.doi_m.normalise(doi, include_prefix=False) if doi else None
+
+        raw_index = None
+        for key in (norm_doi_pref, norm_doi_nopref, doi):
+            if not key:
+                continue
+            raw_index = self.orcid_finder(key)
+            if raw_index:
+                break  # trovato qualcosa nell'indice
+
+        # --- 2) Parser indice → lista candidati (family, given, orcid normalizzato) ---
+        def _extract_orcid(text: str) -> Optional[str]:
+            if not isinstance(text, str):
+                return None
+            m = re.search(r'(\d{4}-\d{4}-\d{4}-[0-9]{3}[0-9X])', text)
+            return f"orcid:{m.group(1)}" if m else None
+
+        def _split_name(text: str) -> Tuple[str, Optional[str]]:
+            if not isinstance(text, str):
+                return "", None
+            base = re.sub(r'\s*\[.*?\]\s*$', '', text).strip()
+            if ',' in base:
+                fam, giv = [p.strip() for p in base.split(',', 1)]
+                return fam, (giv if giv else None)
+            toks = base.split()
+            if len(toks) >= 2:
+                return toks[-1], ' '.join(toks[:-1])
+            return base, None
+
+        candidates: List[Tuple[str, Optional[str], str]] = []
+        if isinstance(raw_index, dict):
+            for k, v in raw_index.items():
+                oc = k if str(k).lower().startswith("orcid:") else f"orcid:{k}"
+                oc_norm = self.orcid_m.normalise(oc, include_prefix=True)
+                if not oc_norm:
+                    continue
+                fam, giv = _split_name(v)
+                candidates.append((fam.lower(), (giv or "").lower() or None, oc_norm))
+        elif isinstance(raw_index, (list, set, tuple)):
+            for v in raw_index:
+                oc = _extract_orcid(str(v))
+                if not oc:
+                    continue
+                oc_norm = self.orcid_m.normalise(oc, include_prefix=True)
+                if not oc_norm:
+                    continue
+                fam, giv = _split_name(str(v))
+                candidates.append((fam.lower(), (giv or "").lower() or None, oc_norm))
+        elif isinstance(raw_index, str):
+            oc = _extract_orcid(raw_index)
+            if oc:
+                oc_norm = self.orcid_m.normalise(oc, include_prefix=True)
+                if oc_norm:
+                    fam, giv = _split_name(raw_index)
+                    candidates.append((fam.lower(), (giv or "").lower() or None, oc_norm))
+
+        # --- 3) Pulizia agenti ---
         agents_list = [
-            {k: Cleaner(v).remove_unwanted_characters() if k in {'family', 'given', 'name'} and v is not None
-            else v for k, v in agent_dict.items()} for agent_dict in agents_list]
+            {
+                k: Cleaner(v).remove_unwanted_characters()
+                if k in {"family", "given", "name"} and v is not None else v
+                for k, v in agent_dict.items()
+            }
+            for agent_dict in agents_list
+        ]
 
+        def _format_person(a: dict) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+            family = a.get("family")
+            given = a.get("given")
+            if family and given:
+                return family, given, f"{family}, {given}"
+            if a.get("name"):
+                base = a["name"]
+                if "," in base:
+                    fam, giv = [p.strip() for p in base.split(",", 1)]
+                    return fam, (giv if giv else None), (f"{fam}, {giv}" if giv else fam)
+                return base, None, base
+            if family:
+                return family, given, f"{family}, {given or ''}"
+            if given:
+                return None, given, f", {given}"
+            return None, None, None
+
+        # --- helper locali per normalizzazione e iniziale ---
+        def _norm(s: str) -> str:
+            return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+        def _initial_from_given(given: Optional[str]) -> str:
+            if not given:
+                return ""
+            first_token = re.split(r"[\s\-]+", given.strip())[0]
+            m = re.search(r"[A-Za-z0-9]", first_token)
+            return m.group(0).lower() if m else ""
+
+        # --- contatori per disambiguazione *per ruolo* (author/editor) ---
+        from collections import defaultdict
+        name_counts = defaultdict(int)  # key: (role, fam_norm, given_norm)
+        initial_counts = defaultdict(int)  # key: (role, fam_norm, initial)
+
+        for _a in agents_list:
+            role_n = (_a.get("role") or "").strip().lower()
+            fam_n = _norm(_a.get("family") or "")
+            giv_n = _norm(_a.get("given") or "")
+            ini_n = _initial_from_given(_a.get("given"))
+            name_counts[(role_n, fam_n, giv_n)] += 1
+            if fam_n and ini_n:
+                initial_counts[(role_n, fam_n, ini_n)] += 1
+
+        # --- insieme di coppie (family_norm, given_norm) presenti nel batch ---
+        name_pairs = set()
+        for _a in agents_list:
+            fam_n = _norm(_a.get("family") or "")
+            giv_n = _norm(_a.get("given") or "")
+            name_pairs.add((fam_n, giv_n))
+
+        def _match_orcid(fam: Optional[str], giv: Optional[str], role: str) -> Optional[str]:
+            if not fam:
+                return None
+
+            role_n = (role or "").strip().lower()
+            fam_n = _norm(fam)
+            giv_n = _norm(giv) if giv else ""
+            init = _initial_from_given(giv)
+
+            # filtra candidati indice per family (tollerando containment)
+            def fam_ok(cf: str) -> bool:
+                cf_n = _norm(cf)
+                return cf_n == fam_n or cf_n in fam_n or fam_n in cf_n
+
+            cands = [(cf, cg, oc) for (cf, cg, oc) in candidates if fam_ok(cf)]
+            if not cands:
+                return None
+
+            # A) omonimi perfetti nello *stesso ruolo* → non apporre tag
+            if name_counts.get((role_n, fam_n, giv_n), 0) > 1:
+                return None
+
+            # 1) MATCH FORTE: given pieno uguale
+            strong = [(cf, cg, oc) for (cf, cg, oc) in cands if cg and giv_n and _norm(cg) == giv_n]
+            if len(strong) == 1:
+                return strong[0][2]
+            elif len(strong) > 1:
+                orcids = {oc for (_, _, oc) in strong if oc}
+                return orcids.pop() if len(orcids) == 1 else None
+
+            # --- inversion guard ---
+            # Se esiste nel batch la coppia invertita (family=cg, given=fam) per un candidato dell'indice,
+            # disabilita il fallback per iniziale (evita tagging del falso positivo).
+            inversion_present = any(
+                cg and (_norm(cg), fam_n) in name_pairs
+                for (_cf, cg, _oc) in cands
+            )
+            if inversion_present:
+                return None
+
+            # 2) FALLBACK PER INIZIALE (solo se UNIVOCO *nel medesimo ruolo*)
+            if init:
+                if initial_counts.get((role_n, fam_n, init), 0) > 1:
+                    return None
+                cands_init = [(cf, cg, oc) for (cf, cg, oc) in cands if _initial_from_given(cg) == init]
+                if len(cands_init) == 1:
+                    return cands_init[0][2]
+                elif len(cands_init) > 1:
+                    orcids = {oc for (_, _, oc) in cands_init if oc}
+                    return orcids.pop() if len(orcids) == 1 else None
+
+            return None
+
+        # --- 4) Costruzione liste ---
         for agent in agents_list:
-            cur_role = agent['role']
-            f_name = None
-            g_name = None
-            agent_string = None
-            if agent.get('family') and agent.get('given'):
-                f_name = agent['family']
-                g_name = agent['given']
-                agent_string = f_name + ', ' + g_name
-            elif agent.get('name'):
-                agent_string = agent['name']
-                f_name = agent_string.split(",")[0].strip() if "," in agent_string else None
-                g_name = agent_string.split(",")[-1].strip() if "," in agent_string else None
+            role = agent.get("role", "")
+            fam, giv, display = _format_person(agent)
+            if not display:
+                continue
 
-                if f_name and g_name:
-                    agent_string = f_name + ', ' + g_name
-            if agent_string is None:
-                if agent.get('family') and not agent.get('given'):
-                    if g_name:
-                        agent_string = agent['family'] + ', ' + g_name
-                    else:
-                        agent_string = agent['family'] + ', '
-                elif agent.get('given') and not agent.get('family'):
-                    if f_name:
-                        agent_string = f_name + ', ' + agent['given']
-                    else:
-                        agent_string = ', ' + agent['given']
-            orcid = None
-            if 'orcid' in agent:
-                if isinstance(agent['orcid'], list):
-                    orcid = str(agent['orcid'][0])
-                else:
-                    orcid = str(agent['orcid'])
-            elif 'ORCID' in agent:
-                if isinstance(agent['ORCID'], list):
-                    orcid = str(agent['ORCID'][0])
-                else:
-                    orcid = str(agent['ORCID'])
-            if orcid:
-                orcid = self.find_crossref_orcid(orcid, doi)
-            elif dict_orcid and f_name:
-                for ori in dict_orcid:
-                    orc_n: List[str] = dict_orcid[ori].split(', ')
-                    orc_f = orc_n[0].lower()
-                    orc_g = orc_n[1] if len(orc_n) == 2 else None
-                    if f_name.lower() in orc_f.lower() or orc_f.lower() in f_name.lower():
-                        if g_name and orc_g:
-                            if len([person for person in agents_list if 'family' in person if person['family'] if
-                                    person['family'].lower() in orc_f.lower() or orc_f.lower() in person[
-                                        'family'].lower()]) > 1:
-                                if len([person for person in agents_list if 'given' in person if person['given'] if
-                                        person['given'][0].lower() == orc_g[0].lower()]) > 1:
-                                    homonyms_list = [person for person in agents_list if 'given' in person if
-                                                     person['given'] if person['given'].lower() == orc_g.lower()]
-                                    if len(homonyms_list) > 1:
-                                        if [person for person in homonyms_list if person['role'] != cur_role]:
-                                            if orc_g.lower() == g_name.lower():
-                                                orcid = ori
-                                    else:
-                                        if orc_g.lower() == g_name.lower():
-                                            orcid = ori
-                                elif orc_g[0].lower() == g_name[0].lower():
-                                    orcid = ori
-                            elif any([person for person in agents_list if 'given' in person if person['given'] if
-                                      person['given'].lower() == f_name.lower()]):
-                                if orc_g.lower() == g_name.lower():
-                                    orcid = ori
-                            else:
-                                orcid = ori
-                        else:
-                            orcid = ori
+            oc = None
+            # 1) ORCID nei metadati
+            for key in ("orcid", "ORCID"):
+                if key in agent and agent[key]:
+                    raw = agent[key][0] if isinstance(agent[key], list) else agent[key]
+                    oc = self.find_crossref_orcid(raw, doi)
+                    break
 
-            if agent_string and orcid:
-                if not orcid.startswith("orcid:"):
-                    agent_string += ' [' + 'orcid:' + str(orcid) + ']'
-                else:
-                    agent_string += ' [' + str(orcid) + ']'
-            if agent_string:
-                if agent['role'] == 'author':
-                    authors_strings_list.append(agent_string)
-                elif agent['role'] == 'editor':
-                    editors_string_list.append(agent_string)
+            # 2) Indice DOI→ORCID
+            if not oc and candidates:
+                oc = _match_orcid(fam, giv, role)
+
+            # 3) Fallback Redis snapshot (se presente e univoca o coerente con l'indice)
+            if not oc and getattr(self, "_redis_values_ra", None):
+                for oc_snap in self._redis_values_ra:
+                    oc_norm = self.orcid_m.normalise(oc_snap, include_prefix=True)
+                    if oc_norm:
+                        if len(self._redis_values_ra) == 1 or (
+                                raw_index and oc_norm.split(":", 1)[1] in str(raw_index)):
+                            oc = oc_norm
+                            break
+
+            if oc:
+                if not oc.startswith("orcid:"):
+                    oc = f"orcid:{oc}"
+                display = f"{display} [{oc}]"
+                self.tmp_orcid_m.storage_manager.set_value(oc, True)
+
+            if role == "author":
+                authors_strings_list.append(display)
+            elif role == "editor":
+                editors_string_list.append(display)
+
         return authors_strings_list, editors_string_list
 
     def find_crossref_orcid(self, identifier, doi):
-        orcid = ""
         if not isinstance(identifier, str):
-            return orcid
+            return ""
 
         norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
         if not norm_orcid:
-            return orcid
-
-        # 1) Already known in tmp/persistent storage?
-        validity_value_orcid = self.validated_as({"schema": "orcid", "identifier": norm_orcid})
-        if validity_value_orcid is True:
-            return norm_orcid
-        if validity_value_orcid is False:
             return ""
 
-        # 2) DOI→ORCID index first (if DOI provided)
-        found_orcids = self.orcid_finder(doi) if doi else None
-        if found_orcids and norm_orcid.split(':')[1] in found_orcids:
+        validity = self.validated_as({"schema": "orcid", "identifier": norm_orcid})
+        if validity is True:
+            return norm_orcid
+        if validity is False:
+            return ""
+
+        norm_doi = self.doi_m.normalise(doi, include_prefix=True) if doi else None
+        alt_doi = doi if (doi and not str(doi).lower().startswith("doi:")) else None
+        found_orcids = set()
+
+        # DOI→ORCID index (robusto a vari formati)
+        for candidate in (norm_doi, alt_doi):
+            if not candidate:
+                continue
+            raw = self.orcid_finder(candidate)
+            if isinstance(raw, dict):
+                found_orcids.update(k.replace("orcid:", "").strip() for k in raw.keys())
+            elif isinstance(raw, (list, set, tuple)):
+                for v in raw:
+                    m = re.findall(r"(\d{4}-\d{4}-\d{4}-\d{3,4}[0-9X])", str(v))
+                    found_orcids.update(m)
+            elif isinstance(raw, str):
+                m = re.findall(r"(\d{4}-\d{4}-\d{4}-\d{3,4}[0-9X])", raw)
+                found_orcids.update(m)
+
+        bare_orcid = norm_orcid.split(":", 1)[1]
+        if bare_orcid in found_orcids:
             self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
             return norm_orcid
 
-        # 3) API OFF: only Redis snapshot
+        # API OFF → Redis snapshot fallback
         if not self.use_orcid_api:
             if norm_orcid in self._redis_values_ra:
                 self.tmp_orcid_m.storage_manager.set_value(norm_orcid, True)
                 return norm_orcid
             return ""
 
-        # 4) API ON: Redis snapshot + manager.is_valid()
+        # API ON → Redis + validazione manager
         norm_id_dict = {"id": norm_orcid, "schema": "orcid"}
         if norm_orcid in self.to_validated_id_list(norm_id_dict):
             return norm_orcid
