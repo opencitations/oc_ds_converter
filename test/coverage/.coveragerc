@@ -1,5 +1,5 @@
 # .coveragerc to control coverage.py
 [run]
-command_line = -m unittest discover -s test -p *_test.py
+command_line = -m pytest test/ -v
 omit =
     oc_ds_converter/run/*
