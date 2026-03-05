@@ -927,8 +927,8 @@ class TestDataciteProcessing(unittest.TestCase):
         }
 
         datacite_processor = DataciteProcessing(None, None)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [], '10.1594/pangaea.777220')
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [], '10.1594/pangaea.777220')
         agents_list = authors_list + editors_list
         csv_manager = CSVManager()
         csv_manager.data = {'10.1594/pangaea.777220': {'Lyle, Mitchell W [0000-0002-0861-0511]'}}
@@ -954,8 +954,8 @@ class TestDataciteProcessing(unittest.TestCase):
                             'nameIdentifiers': []}]}
 
         datacite_processor = DataciteProcessing(IOD, WANTED_DOIS)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [], entity_attr_dict["doi"])
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [], entity_attr_dict["doi"])
         agents_list = authors_list + editors_list
 
 
@@ -990,8 +990,8 @@ class TestDataciteProcessing(unittest.TestCase):
             "contributors": []
         }
         datacite_processor = DataciteProcessing(IOD, WANTED_DOIS)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [], '10.1594/pangaea.231378')
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [], '10.1594/pangaea.231378')
         agents_list = authors_list + editors_list
         authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.1594/pangaea.231378',
                                                                              agents_list)
@@ -1026,8 +1026,8 @@ class TestDataciteProcessing(unittest.TestCase):
             "contributors": []
         }
         datacite_processor = DataciteProcessing(None, None)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [], '10.12753/2066-026x-14-246')
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [], '10.12753/2066-026x-14-246')
         agents_list = authors_list + editors_list
         authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.12753/2066-026x-14-246',
                                                                              agents_list)
@@ -1065,8 +1065,8 @@ class TestDataciteProcessing(unittest.TestCase):
         }
         # Note : 'Cojocaru, John' is not one of the authors of the item, the name was made up for testing purposes
         datacite_processor = DataciteProcessing(None, None)
-        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [])
-        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [])
+        authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [], '10.12753/2066-026x-14-246')
+        editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [], '10.12753/2066-026x-14-246')
         agents_list = authors_list + editors_list
         authors_strings_list, _ = datacite_processor.get_agents_strings_list('10.12753/2066-026x-14-246',
                                                                              agents_list)
