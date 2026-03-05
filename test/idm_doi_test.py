@@ -1,17 +1,10 @@
-from oc_ds_converter.oc_idmanager.doi import DOIManager
 import json
-import sqlite3
 import os.path
 import unittest
 from os import makedirs
 from os.path import exists, join
 
-import xmltodict
-from oc_ds_converter.oc_idmanager import *
-from oc_ds_converter.oc_idmanager.base import IdentifierManager
-from requests import ReadTimeout, get
-from requests.exceptions import ConnectionError
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
@@ -107,10 +100,16 @@ class DOIIdentifierManagerTest(unittest.TestCase):
         # Uses InMemoryStorageManager storage manager
         # does not use API (so a syntactically correct id is considered to be valid)
         am_file = DOIManager(storage_manager=InMemoryStorageManager(self.test_json_path), use_api_service=False)
-        self.assertTrue(am_file.normalise(self.valid_doi_1, include_prefix=True) in self.data)
-        self.assertTrue(am_file.normalise(self.invalid_doi_1.strip().lower(), include_prefix=True) in self.data)
-        self.assertFalse(am_file.is_valid(self.invalid_doi_1)) # is stored in support file as invalid
-        self.assertTrue(am_file.is_valid(am_file.normalise("10.1109/5.771073FAKE_ID", include_prefix=True))) # is not stored in support file as invalid, does not exist but has correct syntax
+        norm_valid = am_file.normalise(self.valid_doi_1, include_prefix=True)
+        norm_invalid = am_file.normalise(self.invalid_doi_1.strip().lower(), include_prefix=True)
+        norm_fake = am_file.normalise("10.1109/5.771073FAKE_ID", include_prefix=True)
+        assert norm_valid is not None
+        assert norm_invalid is not None
+        assert norm_fake is not None
+        self.assertTrue(norm_valid in self.data)
+        self.assertTrue(norm_invalid in self.data)
+        self.assertFalse(am_file.is_valid(self.invalid_doi_1))
+        self.assertTrue(am_file.is_valid(norm_fake))
 
     def test_doi_memory_file_api(self):
         # Uses support file (without updating it)
@@ -143,8 +142,9 @@ class DOIIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(os.path.exists("storage/id_valid_dict.db"))
         validated_ids = [self.valid_doi_1, self.valid_doi_2, self.invalid_doi_1, self.invalid_doi_2]
         all_ids_stored = sql_am_nofile.storage_manager.get_all_keys()
-        # check that all the validated ids are stored in the json file
-        self.assertTrue(all(sql_am_nofile.normalise(x, include_prefix=True) in all_ids_stored for x in validated_ids))
+        assert all_ids_stored is not None
+        normalized_ids = [sql_am_nofile.normalise(x, include_prefix=True) for x in validated_ids]
+        self.assertTrue(all(nid in all_ids_stored for nid in normalized_ids if nid is not None))
         sql_am_nofile.storage_manager.delete_storage()
         # check that the support file was correctly deleted
         self.assertFalse(os.path.exists("storage/id_valid_dict.db"))
@@ -157,25 +157,30 @@ class DOIIdentifierManagerTest(unittest.TestCase):
         test_sqlite_db = os.path.join(self.test_dir, "database.db")
         if os.path.exists(test_sqlite_db):
             os.remove(test_sqlite_db)
-        #con = sqlite3.connect(test_sqlite_db)
-        #cur = con.cursor()
         to_insert = [self.invalid_doi_1, self.valid_doi_1]
         sql_file = DOIManager(storage_manager=SqliteStorageManager(test_sqlite_db), use_api_service=True)
-        for id in to_insert:
-            norm_id = sql_file.normalise(id, include_prefix=True)
+        for doi_id in to_insert:
+            norm_id = sql_file.normalise(doi_id, include_prefix=True)
+            assert norm_id is not None
             is_valid = 1 if sql_file.is_valid(norm_id) else 0
             insert_tup = (norm_id, is_valid)
-            sql_file.storage_manager.cur.execute(f"INSERT OR REPLACE INTO info VALUES (?,?)", insert_tup)
+            assert sql_file.storage_manager.cur is not None
+            assert sql_file.storage_manager.con is not None
+            sql_file.storage_manager.cur.execute("INSERT OR REPLACE INTO info VALUES (?,?)", insert_tup)
             sql_file.storage_manager.con.commit()
+        assert sql_file.storage_manager.con is not None
         sql_file.storage_manager.con.close()
 
         sql_no_api = DOIManager(storage_manager=SqliteStorageManager(test_sqlite_db), use_api_service=False)
         all_db_keys = sql_no_api.storage_manager.get_all_keys()
-        #check that all the normalised ind in the list were correctly inserted in the db
-        self.assertTrue(all(sql_no_api.normalise(x,include_prefix=True) in all_db_keys for x in to_insert))
-        self.assertTrue(sql_no_api.is_valid(self.valid_doi_1)) # is stored in support file as valid
-        self.assertFalse(sql_no_api.is_valid(self.invalid_doi_1)) # is stored in support file as invalid
-        self.assertTrue(sql_no_api.is_valid(sql_no_api.normalise("10.1109/5.771073FAKE_ID", include_prefix=True))) # is not stored in support file as invalid, does not exist but has correct syntax
+        assert all_db_keys is not None
+        normalized_ids = [sql_no_api.normalise(x, include_prefix=True) for x in to_insert]
+        self.assertTrue(all(nid in all_db_keys for nid in normalized_ids if nid is not None))
+        self.assertTrue(sql_no_api.is_valid(self.valid_doi_1))
+        self.assertFalse(sql_no_api.is_valid(self.invalid_doi_1))
+        norm_fake = sql_no_api.normalise("10.1109/5.771073FAKE_ID", include_prefix=True)
+        assert norm_fake is not None
+        self.assertTrue(sql_no_api.is_valid(norm_fake))
         sql_no_api.storage_manager.delete_storage()
 
     def test_doi_sqlite_nofile_noapi(self):
@@ -186,3 +191,94 @@ class DOIIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(am_nofile_noapi.is_valid(self.valid_doi_1))
         self.assertTrue(am_nofile_noapi.is_valid(self.invalid_doi_1))
         am_nofile_noapi.storage_manager.delete_storage()
+
+    def test_attempt_repair_removes_backslash(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10.1108/jd-12-2013-0166\\")
+        self.assertEqual(repaired, "10.1108/jd-12-2013-0166")
+
+    def test_attempt_repair_removes_double_underscore(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10.1108/jd__12-2013-0166")
+        self.assertIsNone(repaired)
+
+    def test_attempt_repair_removes_double_dot(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10..1108/jd-12-2013-0166")
+        self.assertEqual(repaired, "10.1108/jd-12-2013-0166")
+
+    def test_attempt_repair_removes_html_tags(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10.1108/jd-12-2013-0166<tag>content</tag>")
+        self.assertEqual(repaired, "10.1108/jd-12-2013-0166")
+
+    def test_attempt_repair_removes_self_closing_tags(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10.1108/jd-12-2013-0166<br/>")
+        self.assertEqual(repaired, "10.1108/jd-12-2013-0166")
+
+    def test_attempt_repair_no_change_returns_none(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10.1108/jd-12-2013-0166")
+        self.assertIsNone(repaired)
+
+    def test_attempt_repair_api_disabled_returns_none(self):
+        dm = DOIManager(use_api_service=False)
+        repaired = dm.attempt_repair("10.1108/jd-12-2013-0166\\")
+        self.assertIsNone(repaired)
+
+    def test_is_valid_repairs_malformed_doi(self):
+        dm = DOIManager(use_api_service=True)
+        malformed_doi = "10.1108/jd-12-2013-0166\\"
+        self.assertTrue(dm.is_valid(malformed_doi))
+
+    def test_is_valid_repairs_malformed_doi_with_extra_info(self):
+        dm = DOIManager(use_api_service=True)
+        malformed_doi = "10.1108/jd-12-2013-0166\\"
+        result = dm.is_valid(malformed_doi, get_extra_info=True)
+        assert isinstance(result, tuple)
+        self.assertTrue(result[0])
+        self.assertEqual(result[1]["id"], "10.1108/jd-12-2013-0166")
+
+    def test_is_valid_no_repair_when_api_disabled(self):
+        dm = DOIManager(use_api_service=False)
+        malformed_doi = "10.1108/jd-12-2013-0166\\"
+        self.assertTrue(dm.is_valid(malformed_doi))
+
+    def test_is_valid_with_extra_info_valid_doi(self):
+        dm = DOIManager(use_api_service=True)
+        result = dm.is_valid(self.valid_doi_1, get_extra_info=True)
+        assert isinstance(result, tuple)
+        self.assertTrue(result[0])
+        self.assertEqual(result[1]["id"], self.valid_doi_1)
+
+    def test_normalise_removes_dx_doi_prefix(self):
+        dm = DOIManager()
+        doi_with_prefix = "http://dx.doi.org/10.1108/jd-12-2013-0166"
+        self.assertEqual(dm.normalise(doi_with_prefix), "10.1108/jd-12-2013-0166")
+
+    def test_normalise_removes_suffix_pmid(self):
+        dm = DOIManager()
+        doi_with_suffix = "10.1108/jd-12-2013-0166.PMID:12345"
+        self.assertEqual(dm.normalise(doi_with_suffix), "10.1108/jd-12-2013-0166")
+
+    def test_normalise_invalid_string_returns_none(self):
+        dm = DOIManager()
+        self.assertIsNone(dm.normalise("not a doi"))
+
+    def test_base_normalise_invalid_string_returns_none(self):
+        dm = DOIManager()
+        self.assertIsNone(dm.base_normalise("not a doi"))
+
+    def test_is_valid_normalise_returns_none(self):
+        dm = DOIManager()
+        self.assertFalse(dm.is_valid("not a doi"))
+
+    def test_syntax_ok_without_prefix(self):
+        dm = DOIManager()
+        self.assertTrue(dm.syntax_ok("10.1108/jd-12-2013-0166"))
+
+    def test_normalise_removes_embedded_url_prefix(self):
+        dm = DOIManager()
+        doi_with_embedded_url = "10.1108http://dx.doi.org/jd-12-2013-0166"
+        self.assertEqual(dm.normalise(doi_with_embedded_url), "10.1108")

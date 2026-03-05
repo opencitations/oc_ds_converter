@@ -44,6 +44,8 @@ packages = ["oc_ds_converter"]
 dev = [
     "coverage>=7.10.7",
     "coverage-badge>=1.1.2",
+    "pyright>=1.1.408",
     "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
     "responses>=0.26.0",
 ]

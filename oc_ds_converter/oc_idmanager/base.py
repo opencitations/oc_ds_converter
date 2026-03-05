@@ -23,7 +23,9 @@ class IdentifierManager(metaclass=ABCMeta):
     for a particular identifier scheme. It provides the signatures of the methods
     for checking the validity of an identifier and for normalising it."""
 
-    def __init__(self, **params):
+    _headers: dict[str, str]
+
+    def __init__(self, **params: object) -> None:
         """Identifier manager constructor."""
         for key in params:
             setattr(self, key, params[key])
@@ -33,7 +35,9 @@ class IdentifierManager(metaclass=ABCMeta):
             "(http://opencitations.net; mailto:contact@opencitations.net)"
         }
 
-    def is_valid(self, id_string, get_extra_info=False):
+    def is_valid(
+        self, id_string: str, get_extra_info: bool = False
+    ) -> bool | tuple[bool, dict[str, str | bool]]:
         """Returns true if the id is valid, false otherwise.
 
         Args:
@@ -46,11 +50,11 @@ class IdentifierManager(metaclass=ABCMeta):
         """
         return True
 
-    def validated_as_id(self, id_string):
+    def validated_as_id(self, id_string: str) -> bool | None:
         return None
 
     @abstractmethod
-    def normalise(self, id_string, include_prefix=False):
+    def normalise(self, id_string: str, include_prefix: bool = False) -> str | None:
         """Returns the id normalized.
 
         Args:
@@ -61,7 +65,7 @@ class IdentifierManager(metaclass=ABCMeta):
         """
         pass
 
-    def check_digit(self, id_string):
+    def check_digit(self, id_string: str) -> bool:
         """Returns True, if the check digit on the id_string passes (this does not mean that the id is also registered).
         Not all id types have a check digit
 
@@ -72,8 +76,8 @@ class IdentifierManager(metaclass=ABCMeta):
         """
         return True
 
-    def syntax_ok(self, id_string):
-        """  Returns True if the syntax of the id string is correct, False otherwise.
+    def syntax_ok(self, id_string: str) -> bool:
+        """Returns True if the syntax of the id string is correct, False otherwise.
 
         Args:
             id_string (str): the id string to check
@@ -82,8 +86,13 @@ class IdentifierManager(metaclass=ABCMeta):
         """
         return True
 
-    def exists(self, id_string, get_extra_info=False, allow_extra_api=None):
-        """  Returns True if the id exists, False otherwise.
+    def exists(
+        self,
+        id_string: str,
+        get_extra_info: bool = False,
+        allow_extra_api: str | None = None,
+    ) -> bool | tuple[bool, dict[str, str | bool]]:
+        """Returns True if the id exists, False otherwise.
         Not all child classes check id existence because of API policies
 
         Args:
@@ -99,8 +108,13 @@ class IdentifierManager(metaclass=ABCMeta):
         """
         return True
 
-    def extra_info(self, api_response, choose_api=None, info_dict={}):
-        """  Returns a dictionary with extra info about the id, if available.
+    def extra_info(
+        self,
+        api_response: dict[str, object],
+        choose_api: str | None = None,
+        info_dict: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Returns a dictionary with extra info about the id, if available.
         Not all child classes check id existence because of API policies
 
         Args:
