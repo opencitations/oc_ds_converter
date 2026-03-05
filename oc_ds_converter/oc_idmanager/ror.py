@@ -18,7 +18,7 @@
 from json import loads
 from re import match, sub
 from time import sleep
-from urllib.parse import quote, unquote
+from urllib.parse import unquote
 
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get

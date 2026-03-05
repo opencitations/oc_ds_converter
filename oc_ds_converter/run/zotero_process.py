@@ -16,30 +16,24 @@
 
 
 import csv
+import json
 import os
 import sys
 import tarfile
 from argparse import ArgumentParser
-from tarfile import TarInfo
 from pathlib import Path
-from filelock import FileLock
+from tarfile import TarInfo
 
 import yaml
+from filelock import FileLock
 from tqdm import tqdm
-from pebble import ProcessFuture, ProcessPool
 
-
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
-    RedisStorageManager
-
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
-    InMemoryStorageManager
-
-from oc_ds_converter.zotero.zotero_processing import *
 from oc_ds_converter.lib.file_manager import normalize_path
-from oc_ds_converter.lib.jsonmanager import *
+from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.zotero.zotero_processing import ZoteroProcessing
 
 
 
@@ -105,7 +99,6 @@ def get_citations_and_metadata(file_name, csv_dir: str,
                                redis_storage_manager: bool,
                                testing: bool, cache: str, is_first_iteration:bool):
     if isinstance(file_name, tarfile.TarInfo):
-        file_tarinfo = file_name
         file_name = file_name.name
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
@@ -119,14 +112,13 @@ def get_citations_and_metadata(file_name, csv_dir: str,
 
     lock = FileLock(cache + ".lock")
     cache_dict = dict()
-    file_name = file_name
     write_new = False
     if os.path.exists(cache):
         with lock:
             with open(cache, "r", encoding="utf-8") as c:
                 try:
                     cache_dict = json.load(c)
-                except:
+                except json.JSONDecodeError:
                     write_new = True
     else:
         write_new = True

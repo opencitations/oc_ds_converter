@@ -25,21 +25,21 @@ import fakeredis
 import csv
 import json
 
+from pathlib import Path
+from typing import List, Optional, Tuple
+
 from bs4 import BeautifulSoup
+
+from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.oc_idmanager.doi import DOIManager
-from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
-from oc_ds_converter.lib.master_of_regex import *
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.isbn import ISBNManager
+from oc_ds_converter.oc_idmanager.issn import ISSNManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from oc_ds_converter.oc_idmanager.issn import ISSNManager
-from oc_ds_converter.oc_idmanager.isbn import ISBNManager
-from oc_ds_converter.datasource.redis import RedisDataSource
-from oc_ds_converter.preprocessing.datacite import DatacitePreProcessing
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.ra_processor import RaProcessor
-from typing import Dict, List, Tuple, Optional, Type, Callable
-from pathlib import Path
-from oc_ds_converter.lib.cleaner import Cleaner
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

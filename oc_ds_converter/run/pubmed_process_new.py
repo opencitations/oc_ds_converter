@@ -20,11 +20,8 @@ import sys
 from argparse import ArgumentParser
 from filelock import FileLock
 
-from datetime import datetime
 from pathlib import Path
-from os.path import exists
 
-import pandas as pd
 import yaml
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type

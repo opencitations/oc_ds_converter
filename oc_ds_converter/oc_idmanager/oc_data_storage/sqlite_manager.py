@@ -16,7 +16,6 @@
 import os.path
 import sqlite3
 import pathlib
-import urllib.parse
 from typing import Optional
 
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
@@ -91,7 +90,7 @@ class SqliteStorageManager(StorageManager):
             raise ValueError("value must be int boolean")
         validity = 1 if value else 0
         id_val = (id_name, validity)
-        self.cur.execute(f"INSERT OR REPLACE INTO info VALUES (?,?)", id_val)
+        self.cur.execute("INSERT OR REPLACE INTO info VALUES (?,?)", id_val)
         self.con.commit()
 
     def set_multi_value(self, list_of_tuples: list) -> None :
@@ -112,7 +111,7 @@ class SqliteStorageManager(StorageManager):
             else:
                 sqlite_list_copy.append((t[0], 0))
 
-        self.cur.executemany(f"INSERT OR REPLACE INTO info VALUES (?,?)", sqlite_list_copy)
+        self.cur.executemany("INSERT OR REPLACE INTO info VALUES (?,?)", sqlite_list_copy)
         self.con.commit()
 
     def get_value(self, id: str):

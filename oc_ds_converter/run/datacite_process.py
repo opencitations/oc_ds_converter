@@ -1,22 +1,21 @@
-from pathlib import Path
-import yaml
-from oc_ds_converter.lib.file_manager import normalize_path
-from oc_ds_converter.lib.jsonmanager import *
-from pebble import ProcessFuture, ProcessPool
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
-    RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
-    InMemoryStorageManager
-from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
-import json
 import csv
-from filelock import Timeout, FileLock
-from tqdm import tqdm
-from argparse import ArgumentParser
-import sys
+import json
 import os
+import sys
+from argparse import ArgumentParser
+from pathlib import Path
+
+import yaml
+from filelock import FileLock
+from pebble import ProcessPool
+from tqdm import tqdm
+
+from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
+from oc_ds_converter.lib.file_manager import normalize_path
+from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filepath:str,
@@ -124,7 +123,7 @@ def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filep
             for ndjson_file in all_input_ndjson:
                 for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
                     chunk_to_save = f'chunk_{idx}'
-                    future: ProcessFuture = executor.schedule(
+                    executor.schedule(
                         function=get_citations_and_metadata,
                         args=(
                         ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
@@ -134,7 +133,7 @@ def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filep
             for ndjson_file in all_input_ndjson:
                 for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
                     chunk_to_save = f'chunk_{idx}'
-                    future: ProcessFuture = executor.schedule(
+                    executor.schedule(
                         function=get_citations_and_metadata,
                         args=(
                         ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
@@ -185,7 +184,7 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
             with open(cache, "r", encoding="utf-8") as c:
                 try:
                     cache_dict = json.load(c)
-                except:
+                except json.JSONDecodeError:
                     write_new = True
     else:
         write_new = True

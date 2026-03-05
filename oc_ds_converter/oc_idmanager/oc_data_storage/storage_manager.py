@@ -15,7 +15,7 @@
 # SOFTWARE.
 
 
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
 
 class StorageManager(metaclass=ABCMeta):
     """This is the interface that must be implemented by any Storage manager

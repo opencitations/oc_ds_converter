@@ -25,23 +25,23 @@ from typing import Optional
 import os
 import os.path
 import json
-import csv
 
 from bs4 import BeautifulSoup
 from oc_ds_converter.oc_idmanager import DOIManager
 from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager import ISSNManager
 
-from oc_ds_converter.lib.master_of_regex import *
+from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
 import fakeredis
 from oc_ds_converter.datasource.redis import RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from typing import Dict, List, Tuple
-from oc_ds_converter.lib.cleaner import Cleaner
 from collections import defaultdict
+from typing import List, Tuple
+
+from oc_ds_converter.lib.cleaner import Cleaner
 
 
 
@@ -170,7 +170,7 @@ class CrossrefProcessing(RaProcessor):
 
     def csv_creator(self, item:dict) -> dict:
         row = dict()
-        if not 'DOI' in item:
+        if 'DOI' not in item:
             return row
         doi_manager = DOIManager(use_api_service=False)
         if isinstance(item['DOI'], list):
@@ -476,7 +476,6 @@ class CrossrefProcessing(RaProcessor):
             return m.group(0).lower() if m else ""
 
         # --- contatori per disambiguazione *per ruolo* (author/editor) ---
-        from collections import defaultdict
         name_counts = defaultdict(int)  # key: (role, fam_norm, given_norm)
         initial_counts = defaultdict(int)  # key: (role, fam_norm, initial)
 

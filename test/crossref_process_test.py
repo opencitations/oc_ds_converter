@@ -1,7 +1,7 @@
 import os.path
 import shutil
 import unittest
-from os.path import join
+from os.path import basename, join
 from oc_ds_converter.run.crossref_process import *
 from pathlib import Path
 

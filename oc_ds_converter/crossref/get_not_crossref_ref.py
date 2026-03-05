@@ -19,7 +19,6 @@ import os
 from argparse import ArgumentParser
 from functools import partial
 from multiprocessing import cpu_count
-from sys import platform
 from typing import List, Tuple
 
 from pebble import ProcessFuture, ProcessPool
@@ -134,7 +133,8 @@ def extract_metadata(output_dir:str, orcid_doi_filepath:str):
             if not metadata.get('id'):
                 metadata['id'] = doi
             registration_agency = metadata['ra']
-            metadata.pop('valid', None); metadata.pop('ra', None)
+            metadata.pop('valid', None)
+            metadata.pop('ra', None)
             locals()[f'{registration_agency}_counter'] = 0
             ra_output_dir = os.path.join(base_output_dir, registration_agency)
             pathoo(ra_output_dir)

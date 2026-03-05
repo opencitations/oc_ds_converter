@@ -5,17 +5,16 @@ import pathlib
 import re
 import warnings
 from os.path import exists
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import fakeredis
 from bs4 import BeautifulSoup
+
+from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.oc_idmanager.pmid import PMIDManager
-from oc_ds_converter.lib.cleaner import Cleaner
-from oc_ds_converter.lib.master_of_regex import *
-
-from oc_ds_converter.datasource.redis import RedisDataSource
 from oc_ds_converter.pubmed.finder_nih import NIHResourceFinder
 from oc_ds_converter.pubmed.get_publishers import ExtractPublisherDOI
 from oc_ds_converter.ra_processor import RaProcessor
@@ -288,7 +287,6 @@ class PubmedProcessing(RaProcessor):
         '''
         agent_list = ag_list
         if item.get("authors"):
-            multi_space = re.compile(r"\s+")
             authors_string = str(item.get("authors")).strip()
             authors_split_list = [a.strip() for a in authors_string.split(",") if a]
             for author in authors_split_list:
@@ -627,7 +625,7 @@ class PubmedProcessing(RaProcessor):
             try:
                 int_pmid = int(citing)
                 citing = "pmid:" + str(int_pmid)
-            except:
+            except ValueError:
                 return []
 
         references_string = item.get("references")
@@ -642,7 +640,7 @@ class PubmedProcessing(RaProcessor):
 
                     if norm_cited:
                         addressed_citations.add((citing, norm_cited))
-            except:
+            except ValueError:
                 pass
 
         addressed_citations_list = list(addressed_citations)

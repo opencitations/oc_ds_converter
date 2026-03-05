@@ -1,38 +1,30 @@
-import gzip
 import csv
-import json
-from os import makedirs
-import os
-import os.path
-from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
-from oc_ds_converter.oc_idmanager.doi import DOIManager
-from oc_ds_converter.oc_idmanager.pmid import PMIDManager
-from oc_ds_converter.oc_idmanager.pmcid import PMCIDManager
-from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
-
-from datetime import datetime
-from argparse import ArgumentParser
 import html
 import json
 import os
+import os.path
 import pathlib
 import re
 import warnings
 from os.path import exists
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Type, Callable
+from re import search
+from typing import Optional
 
 import fakeredis
 from bs4 import BeautifulSoup
+
 from oc_ds_converter.datasource.redis import RedisDataSource
-from re import search, match, sub
-from oc_ds_converter.lib.cleaner import Cleaner
-from oc_ds_converter.lib.master_of_regex import *
-from oc_ds_converter.pubmed.get_publishers import ExtractPublisherDOI
-from oc_ds_converter.ra_processor import RaProcessor
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
+from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
+from oc_ds_converter.oc_idmanager.pmcid import PMCIDManager
+from oc_ds_converter.oc_idmanager.pmid import PMIDManager
+from oc_ds_converter.pubmed.get_publishers import ExtractPublisherDOI
+from oc_ds_converter.ra_processor import RaProcessor
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -472,7 +464,7 @@ class OpenaireProcessing(RaProcessor):
                     try:
                         int_n = int(n)
                         list_of_id_n_int.append(int_n)
-                    except:
+                    except ValueError:
                         pass
                 if list_of_id_n_int:
                     last_assigned_id = str(max(list_of_id_n_int))

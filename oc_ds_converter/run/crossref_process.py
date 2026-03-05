@@ -16,29 +16,25 @@
 
 
 import csv
+import json
 import os
 import sys
 import tarfile
 from argparse import ArgumentParser
-from tarfile import TarInfo
 from pathlib import Path
-from filelock import FileLock
 
 import yaml
+from filelock import FileLock
+from pebble import ProcessPool
+from tarfile import TarInfo
 from tqdm import tqdm
-from pebble import ProcessFuture, ProcessPool
 
-
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
-    RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
-    InMemoryStorageManager
-
-from oc_ds_converter.crossref.crossref_processing import *
+from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.lib.file_manager import normalize_path
-from oc_ds_converter.lib.jsonmanager import *
+from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None,
@@ -97,7 +93,7 @@ def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                 if isinstance(filename, str) and filename.startswith("._"):
                     continue
 
-                future: ProcessFuture = executor.schedule(
+                executor.schedule(
                     function=get_citations_and_metadata,
                     args=(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
@@ -112,7 +108,7 @@ def preprocess(crossref_json_dir:str, publishers_filepath:str, orcid_doi_filepat
                 if isinstance(filename, str) and filename.startswith("._"):
                     continue
 
-                future: ProcessFuture = executor.schedule(
+                executor.schedule(
                         function=get_citations_and_metadata,
                         args=(
                         filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
@@ -149,7 +145,6 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                                redis_storage_manager: bool,
                                testing: bool, cache: str, is_first_iteration:bool, use_orcid_api: bool):
     if isinstance(file_name, tarfile.TarInfo):
-        file_tarinfo = file_name
         file_name = file_name.name
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
@@ -163,14 +158,13 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
 
     lock = FileLock(cache + ".lock")
     cache_dict = dict()
-    file_name = file_name
     write_new = False
     if os.path.exists(cache):
         with lock:
             with open(cache, "r", encoding="utf-8") as c:
                 try:
                     cache_dict = json.load(c)
-                except:
+                except json.JSONDecodeError:
                     write_new = True
     else:
         write_new = True

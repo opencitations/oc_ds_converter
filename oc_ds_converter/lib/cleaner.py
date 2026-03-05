@@ -26,10 +26,12 @@ from typing import Tuple, Union
 from dateutil.parser import parse
 from oc_ds_converter.oc_idmanager import DOIManager, ISBNManager, ISSNManager, ORCIDManager
 
-from oc_ds_converter.lib.master_of_regex import *
-from oc_ds_converter.lib.master_of_regex import (invalid_vi_patterns,
-                                                 issues_valid_patterns,
-                                                 volumes_valid_patterns)
+from oc_ds_converter.lib.master_of_regex import (
+    comma_and_spaces,
+    invalid_vi_patterns,
+    issues_valid_patterns,
+    volumes_valid_patterns,
+)
 
 
 class Cleaner:

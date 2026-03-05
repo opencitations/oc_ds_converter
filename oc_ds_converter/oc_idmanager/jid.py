@@ -9,7 +9,7 @@ from requests import ReadTimeout, get
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 # from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from typing import Type, Optional
+from typing import Optional
 
 
 class JIDManager(IdentifierManager):

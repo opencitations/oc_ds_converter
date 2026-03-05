@@ -18,31 +18,26 @@
 
 
 import html
+import json
+import os
+import os.path
 import re
 import warnings
 from pathlib import Path
-from typing import Optional
-import os
-import os.path
-import json
-import csv
+from typing import List, Optional, Tuple
 
-from bs4 import BeautifulSoup
-from oc_ds_converter.oc_idmanager import DOIManager
-from oc_ds_converter.oc_idmanager import ISBNManager
-from oc_ds_converter.oc_idmanager import ISSNManager
-from oc_ds_converter.oc_idmanager import ORCIDManager
-
-from oc_ds_converter.lib.master_of_regex import *
 import fakeredis
+from bs4 import BeautifulSoup
+
+from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.datasource.redis import RedisDataSource
-from oc_ds_converter.ra_processor import RaProcessor
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.lib.cleaner import Cleaner
+from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
+from oc_ds_converter.oc_idmanager import DOIManager, ISBNManager, ISSNManager, ORCIDManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
-from typing import Dict, List, Tuple
-from oc_ds_converter.lib.cleaner import Cleaner
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.ra_processor import RaProcessor
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -255,7 +250,6 @@ class ZoteroProcessing(RaProcessor):
         row = dict()
 
         doi_manager = DOIManager(use_api_service=False)
-        isbn_manager = ISBNManager()
 
         if item.get("DOI"):
             if isinstance(item['DOI'], list):

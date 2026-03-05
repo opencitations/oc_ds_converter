@@ -39,12 +39,12 @@ def get_all_files(is_dir_or_targz_file:str, cache_filepath:str|None=None) -> Tup
     if isdir(is_dir_or_targz_file):
         for cur_dir, _, cur_files in walk(is_dir_or_targz_file):
             for cur_file in cur_files:
-                if (cur_file.endswith(".json") or cur_file.endswith(".json.gz")) and not basename(cur_file).startswith(".") and not cur_file in cache:
+                if (cur_file.endswith(".json") or cur_file.endswith(".json.gz")) and not basename(cur_file).startswith(".") and cur_file not in cache:
                     result.append(cur_dir + sep + cur_file)
     elif is_dir_or_targz_file.endswith("tar.gz"):
         targz_fd = tarfile.open(is_dir_or_targz_file, "r:gz", encoding="utf-8")
         for cur_file in targz_fd:
-            if cur_file.name.endswith(".json") and not basename(cur_file.name).startswith(".") and not cur_file.name in cache:
+            if cur_file.name.endswith(".json") and not basename(cur_file.name).startswith(".") and cur_file.name not in cache:
                 result.append(cur_file)
     else:
         print("It is not possible to process the input path.")
@@ -84,12 +84,12 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
 
         for cur_dir, cur_subdir, cur_files in walk(i_dir_or_compr):
             for cur_file in cur_files:
-                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and not cur_file in cache:
+                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and cur_file not in cache:
                     result.append(os.path.join(cur_dir, cur_file))
     elif i_dir_or_compr.endswith("tar.gz"):
         targz_fd = tarfile.open(i_dir_or_compr, "r:gz", encoding="utf-8")
         for cur_file in targz_fd:
-            if cur_file.name.endswith(req_type) and not basename(cur_file.name).startswith(".") and not cur_file in cache:
+            if cur_file.name.endswith(req_type) and not basename(cur_file.name).startswith(".") and cur_file not in cache:
                 result.append(cur_file)
         #targz_fd.close()
     elif i_dir_or_compr.endswith(".tar"):
@@ -99,7 +99,7 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
 
         for cur_dir, cur_subdir, cur_files in walk(dest_dir):
             for cur_file in cur_files:
-                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and not cur_file in cache:
+                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and cur_file not in cache:
                     result.append(cur_dir + sep + cur_file)
 
         targz_fd.close()
@@ -113,7 +113,7 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
             zip_ref.extractall(dest_dir)
         for cur_dir, cur_subdir, cur_files in walk(dest_dir):
             for cur_file in cur_files:
-                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and not cur_file in cache:
+                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and cur_file not in cache:
                     result.append(cur_dir + sep + cur_file)
 
     elif i_dir_or_compr.endswith("zst"):
@@ -129,7 +129,7 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
                     decomp.copy_stream(compressed, destination)
         for cur_dir, cur_subdir, cur_files in walk(dest_dir):
             for cur_file in cur_files:
-                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and not cur_file in cache:
+                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and cur_file not in cache:
                     result.append(cur_dir + sep + cur_file)
     else:
         print("It is not possible to process the input path.", i_dir_or_compr)

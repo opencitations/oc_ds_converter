@@ -27,7 +27,7 @@ from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 #from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from typing import Optional, Type, Callable
+from typing import Optional
 
 
 class ArXivManager(IdentifierManager):
@@ -43,8 +43,8 @@ class ArXivManager(IdentifierManager):
             self.storage_manager = storage_manager
 
         self._p = "arxiv:"
-        self._api = f'https://export.arxiv.org/api/query?search_query=all:'
-        self._api_v = f'https://arxiv.org/abs/'
+        self._api = 'https://export.arxiv.org/api/query?search_query=all:'
+        self._api_v = 'https://arxiv.org/abs/'
         self._headers = {
             "User-Agent": "Identifier Manager / OpenCitations Indexes "
                           "(http://opencitations.net; mailto:contact@opencitations.net)"

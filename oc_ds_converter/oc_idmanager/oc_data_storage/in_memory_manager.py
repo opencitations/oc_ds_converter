@@ -16,12 +16,10 @@
 
 from __future__ import annotations
 
-from typing import List, Dict
 
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 import os
 import json
-import urllib.parse
 from pathlib import Path
 
 

@@ -1,21 +1,25 @@
-import functools
+import csv
+import gzip
+import json
+import os
 import os.path
 import sys
+from argparse import ArgumentParser
+from os import makedirs
+from pathlib import Path
 from tarfile import TarInfo
 
 import yaml
-from oc_ds_converter.lib.file_manager import normalize_path
-from oc_ds_converter.lib.jsonmanager import *
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
-    InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
-    RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
-from oc_ds_converter.openaire.openaire_processing import *
-from pebble import ProcessFuture, ProcessPool
+from filelock import FileLock
+from pebble import ProcessPool
 from tqdm import tqdm
-from filelock import Timeout, FileLock
+
+from oc_ds_converter.lib.file_manager import normalize_path
+from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
 
 
 def preprocess(
@@ -80,8 +84,8 @@ def preprocess(
         elif redis_storage_manager or max_workers > 1:
             with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
                 for filename in all_files:
-                    future:ProcessFuture = executor.schedule(
-                        function = get_citations_and_metadata,
+                    executor.schedule(
+                        function=get_citations_and_metadata,
                         args=(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing, cache, target)
                     )
 
@@ -122,7 +126,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
             with open(cache, "r", encoding="utf-8") as c:
                 try:
                     cache_dict = json.load(c)
-                except:
+                except json.JSONDecodeError:
                     write_new = True
     else:
         write_new = True
@@ -171,7 +175,6 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     filepath_citations_ne = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}')
 
     filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
-    filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
     pathoo(filepath)
 
     def get_all_redis_ids_and_save_updates(sli_da):

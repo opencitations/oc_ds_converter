@@ -13,7 +13,6 @@
 # DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
 # ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 # SOFTWARE.
-import json
 import re
 from json import loads
 from re import match, sub
@@ -27,7 +26,7 @@ from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 #from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from typing import Type, Optional
+from typing import Optional
 
 # POSSIBLE EXTENSION: adding a new parameter in order to directly use the input orcid - doi map in the orcid manager
 class ORCIDManager(IdentifierManager):
