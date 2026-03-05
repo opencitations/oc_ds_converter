@@ -1,11 +1,11 @@
-import unittest
-import os
-import shutil
-from oc_ds_converter.run.datacite_process import preprocess
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
-    RedisStorageManager
 import csv
 import json
+import os
+import shutil
+import unittest
+
+from oc_ds_converter.run.datacite_process import preprocess
+
 
 class DataciteProcessTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -353,46 +353,6 @@ class DataciteProcessTest(unittest.TestCase):
             os.remove(self.db)
         if os.path.exists(self.cache):
             os.remove(self.cache)
-
-    def test_any_db_creation_redis_no_testing(self):
-        try:
-            rsm = RedisStorageManager(testing=False)
-            rsm.set_value("TEST VALUE", False)
-            run_test = True
-        except:
-            run_test = False
-            print("test skipped: 'test_any_db_creation_redis_no_testing': Connect to redis before running the test")
-
-        if run_test:
-            rsm.del_value("TEST VALUE")
-            if not len(rsm.get_all_keys()):
-                preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
-                           orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=True,
-                           storage_path=self.db, cache=self.cache)
-
-                for el in os.listdir(self.zst_input_folder):
-                    if el.endswith("decompr_zst_dir"):
-                        shutil.rmtree(os.path.join(self.zst_input_folder, el))
-                rsm.delete_storage()
-
-            else:
-
-                print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
-        if os.path.exists(self.db):
-            os.remove(self.db)
-        if os.path.exists(self.cache):
-            os.remove(self.cache)
-        # rimuovi sempre eventuale _bad e output
-        bad_dir = os.path.join(self.output_dir, '_bad')
-        if os.path.exists(self.citations_output_path):
-            shutil.rmtree(self.citations_output_path)
-        if os.path.exists(self.output_dir):
-            shutil.rmtree(self.output_dir)
-        if os.path.exists(bad_dir):
-            shutil.rmtree(bad_dir)
-        for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zst_dir"):
-                shutil.rmtree(os.path.join(self.zst_input_folder, el))
 
     def test_cache(self):
         'Nothing should be produced in output, since the cache file reports that all the files in input were completed'

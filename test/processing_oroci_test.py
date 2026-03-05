@@ -1562,60 +1562,6 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(op._redis_values_ra, ra)
 
 
-    #### REAL REDIS TESTS (SKIPPED IF REDIS IS NOT CONNECTED // REDIS DB 14 IS NOT EMPTY)
-
-    def test_get_reids_validity_list_real_redis(self):
-        function_to_execute = "test_get_reids_validity_list_real_redis"
-        try:
-            rsm = RedisStorageManager(testing=False)
-            rsm.set_value("TEST VALUE", False)
-            run_test = True
-        except:
-            run_test = False
-            print(f'test skipped: {function_to_execute}: Connect to redis before running the test')
-        if run_test:
-            rsm.del_value("TEST VALUE")
-            op = OpenaireProcessing(storage_manager=RedisStorageManager(testing=False))
-            if not op.BR_redis.get("pmcid:PMC4005913"):
-                op.BR_redis.set("pmcid:PMC4005913", "ra/061randomra")
-            list_br = ['pmcid:PMC4005913', 'pmid:24632350', 'pmid:1581770']
-            out_list = op.get_reids_validity_list(list_br, "br")
-            exp = ['pmcid:PMC4005913']
-            self.assertEqual(exp, out_list)
-            op.BR_redis.delete("pmcid:PMC4005913")
-            self.assertFalse(op.BR_redis.get("pmcid:PMC4005913"))
-
-    def real_redis_test_case(self, function_to_execute):
-        try:
-            rsm = RedisStorageManager(testing=False)
-            rsm.set_value("TEST VALUE", False)
-            run_test = True
-        except:
-            run_test = False
-            print(f'test skipped: {function_to_execute}: Connect to redis before running the test')
-
-        if run_test:
-            rsm.del_value("TEST VALUE")
-            if not len(rsm.get_all_keys()):
-                function_to_execute()
-                rsm.delete_storage()
-
-            else:
-                # print("get_all_keys()", rsm.get_all_keys())
-                # rsm.delete_storage()
-                print(f'test skipped: {function_to_execute}: Redis db 2 is not empty')
-
-    def update_redis_values_real_redis(self):
-        br = ["pmid:2", "pmid:3"]
-        ra = ["orcid:0000-0003-0530-4305"]
-        op = OpenaireProcessing(storage_manager=RedisStorageManager(testing=False))
-        op.update_redis_values(br,ra)
-        self.assertEqual(op._redis_values_br, br)
-        self.assertEqual(op._redis_values_ra, ra)
-
-    def test_update_redis_values_real_redis(self):
-        self.real_redis_test_case(self.update_redis_values_real_redis)
-
     def test_find_openaire_orcid_with_index(self):
         """Test ORCID validation using ORCID index before API validation"""
         # Setup

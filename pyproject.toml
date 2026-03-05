@@ -1,43 +1,47 @@
-[tool.poetry]
+[project]
 name = "oc-ds-converter"
 version = "1.0.4"
 description = "A library for converting metadata provided by various data sources, e.g. Crossref, DataCite, JaLC, and mEDRA, into the format used by OpenCitations Meta."
-authors = ["arcangelo7 <arcangelomas@gmail.com>"]
+authors = [
+    { name = "Arcangelo Massari", email = "arcangelo.massari@unibo.it" },
+    { name = "Arianna Moretti", email = "arianna.moretti4@unibo.it" },
+    { name = "Marta Soricetti", email = "marta.soricetti@unibo.it" },
+    { name = "Elia Rizzetto", email = "elia.rizzetto2@unibo.it" },
+    { name = "Ivan Heibi", email = "ivan.heibi2@unibo.it" },
+]
 license = "ISC"
 readme = "README.md"
-packages = [{include = "oc_ds_converter"}]
+requires-python = ">=3.9,<3.14"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "fakeredis>=2.34.1",
+    "filelock>=3.19.1",
+    "lxml>=4.9.2,<6.0.0",
+    "ndjson>=0.3.1",
+    "pandas>=2.3.3",
+    "pebble>=5.2.0",
+    "python-dateutil>=2.9.0.post0",
+    "pyyaml>=6.0.3",
+    "redis>=7.0.1",
+    "requests>=2.32.5",
+    "tqdm>=4.67.3",
+    "validators>=0.35.0",
+    "xmltodict>=1.0.4",
+    "zstandard>=0.25.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9,<3.14"
-beautifulsoup4 = "^4.12.1"
-requests = "^2.28.2"
-tqdm = "^4.65.0"
-PyYAML = "^6.0"
-redis = "^4.5.5"
-ndjson = "^0.3.1"
-zstandard = "^0.21.0"
-python-dateutil = "^2.8.2"
-validators = "^0.20.0"
-lxml = ">=4.9.2,<6.0.0"
-pandas = "^2.2.3"
-xmltodict = "^0.13.0"
-pebble = "^5.0.3"
-fakeredis = "^2.14.0"
-packaging = "^23.1"
-poetry = "^1.5.1"
-self = "^2020.12.3"
-update = "^0.0.1"
-filelock = "^3.12.2"
-six = "^1.16.0"
-
-[tool.poetry.group.dev.dependencies]
-wget = "^3.2"
-coverage = "^7.2.5"
-coverage-badge = "^1.1.0"
+[project.scripts]
+test = "test.run_all_tests:main"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry.scripts]
-test = 'test.run_all_tests:main'
+[tool.hatch.build.targets.wheel]
+packages = ["oc_ds_converter"]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.10.7",
+    "coverage-badge>=1.1.2",
+]

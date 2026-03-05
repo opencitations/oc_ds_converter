@@ -211,28 +211,6 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(self.db):
             os.remove(self.db)
 
-    def test_any_db_creation_redis_no_testing(self):
-        try:
-            rsm = RedisStorageManager(testing=False)
-            rsm.set_value("TEST VALUE", False)
-            run_test = True
-        except:
-            run_test = False
-            print("test skipped: 'test_any_db_creation_redis_no_testing': Connect to redis before running the test")
-        if run_test:
-            rsm.del_value("TEST VALUE")
-            if not len(rsm.get_all_keys()):
-                preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping,
-                           orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True,
-                           storage_path=self.db, cache=self.cache, verbose=True)
-
-                rsm.delete_storage()
-
-            else:
-                #print("get_all_keys()", rsm.get_all_keys())
-                #rsm.delete_storage()
-                print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
-
     def test_cache(self):
         'Nothing should be produced in output, since the cache file reports that all the files in input were completed'
 

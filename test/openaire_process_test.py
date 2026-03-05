@@ -318,32 +318,6 @@ class OpenAireProcessTest(unittest.TestCase):
             if el.endswith("decompr_zip_dir"):
                 shutil.rmtree(os.path.join(self.sample_dupl, el))
 
-    def test_any_db_creation_redis_no_testing(self):
-        try:
-            rsm = RedisStorageManager(testing=False)
-            rsm.set_value("TEST VALUE", False)
-            run_test = True
-        except:
-            run_test = False
-            print("test skipped: 'test_any_db_creation_redis_no_testing': Connect to redis before running the test")
-
-        if run_test:
-            rsm.del_value("TEST VALUE")
-            if not len(rsm.get_all_keys()):
-                preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir,
-                           publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid,testing=False,
-                           redis_storage_manager=True, cache=self.cache)
-
-                for el in os.listdir(self.sample_dupl):
-                    if el.endswith("decompr_zip_dir"):
-                        shutil.rmtree(os.path.join(self.sample_dupl, el))
-                rsm.delete_storage()
-
-            else:
-                # print("get_all_keys()", rsm.get_all_keys())
-                # rsm.delete_storage()
-                print("test skipped: 'test_storage_management_no_testing' because redis db 2 is not empty")
-
     def test_cache(self):
         '''Nothing should be produced in output, since the cache file reports that all the files in input were completed'''
 

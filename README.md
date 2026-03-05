@@ -1,8 +1,8 @@
 [<img src="https://img.shields.io/badge/powered%20by-OpenCitations-%239931FC?labelColor=2D22DE" />](http://opencitations.net)
-[![Run tests](https://github.com/opencitations/ra_processor/actions/workflows/run_tests.yml/badge.svg)](https://github.com/opencitations/oc_meta/actions/workflows/run_tests.yml)
-![Coverage](https://raw.githubusercontent.com/opencitations/ra_processor/main/test/coverage/coverage.svg)
+[![Run tests](https://github.com/opencitations/oc_ds_converter/actions/workflows/run_tests.yml/badge.svg)](https://github.com/opencitations/oc_ds_converter/actions/workflows/run_tests.yml)
+![Coverage](https://raw.githubusercontent.com/opencitations/oc_ds_converter/main/test/coverage/coverage.svg)
 <!-- ![PyPI](https://img.shields.io/pypi/pyversions/oc_meta) -->
-![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/opencitations/ra_processor)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/opencitations/oc_ds_converter)
 
 # OpenCitations Data Sources Converter
 
@@ -177,21 +177,21 @@ For adding a new type of Storage Manager, i.e. relying on another storage system
 3. define all the storage-type-specific required methods, i.e.: `set_value`, to add a single key-value pair to the storage, `set_multi_value`, to store a list of key-value tuple pairs all at once,  `get_value`, to retrieve the value associated to a specific key, `del_value`, to delete a key-value pair, `delete_storage`, to delete all the data previously saved in the storage system, and `get_all_keys`, to retrieve the list of all the keys in the storage.
 
 ### Test
-The repository is managed with [poetry](https://python-poetry.org/docs/). To activate the virtual environment:
+The repository is managed with [uv](https://docs.astral.sh/uv/). To install dependencies:
 ```
-poetry shell
+uv sync
 ```
 To add a package as a dependency to the project:
 ```
-poetry add <package>
+uv add <package>
 ```
-To run all tests with poetry: 
+To run all tests:
 ```
-poetry run test
+uv run pytest
 ```
 To run specific tests:
 ```
-python -m unittest discover -s test -p "*.py" 
+uv run python -m unittest discover -s test -p "*.py"
 ```
 
 
