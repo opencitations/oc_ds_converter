@@ -1,9 +1,17 @@
 name: Run tests
+
 on:
   push:
-    branches: [main]
+    branches:
+      - "**"
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  COVERAGE_REPORT_PATH: htmlcov
 
 jobs:
   CheckCoverage:
@@ -11,56 +19,56 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
     steps:
-      - uses: actions/checkout@v6
+    - uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          python-version: ${{ matrix.python-version }}
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        python-version: ${{ matrix.python-version }}
 
-      - name: Install Python
-        run: uv python install
+    - name: Install Python
+      run: uv python install
 
-      - name: Install dependencies
-        run: uv sync --locked --all-extras --dev
+    - name: Install dependencies
+      run: uv sync --locked --all-extras --dev
 
-      - name: Check the coverage
-        run: uv run coverage run --rcfile=test/coverage/.coveragerc
+    - name: Run tests with coverage
+      run: |
+        uv run coverage run --rcfile=test/coverage/.coveragerc
+        uv run coverage xml
+        echo "=== Coverage Report ==="
+        uv run coverage report
+        echo "COVERAGE=$(uv run coverage report | grep TOTAL | awk '{print $4}')" >> $GITHUB_ENV
 
-      - name: Generate the badge
-        if: matrix.python-version == '3.12'
-        run: |
-          mv .coverage test/coverage/
-          cd test/coverage/
-          rm -f coverage.svg
-          uv run coverage-badge -o coverage.svg
+    - name: Generate HTML coverage report and badge JSON
+      run: |
+        uv run coverage html -d htmlcov
+        COVERAGE_NUM=$(echo ${{ env.COVERAGE }} | sed 's/%//')
+        if (( $(echo "$COVERAGE_NUM >= 90" | bc -l) )); then
+          COLOR="green"
+        elif (( $(echo "$COVERAGE_NUM >= 75" | bc -l) )); then
+          COLOR="yellow"
+        elif (( $(echo "$COVERAGE_NUM >= 60" | bc -l) )); then
+          COLOR="orange"
+        else
+          COLOR="red"
+        fi
+        cat > htmlcov/coverage.json << EOF
+        {
+          "schemaVersion": 1,
+          "label": "coverage",
+          "message": "${{ env.COVERAGE }}",
+          "color": "$COLOR"
+        }
+        EOF
 
-      - uses: actions/upload-artifact@v7
-        if: matrix.python-version == '3.12'
-        with:
-          name: coverage-artifact
-          path: test/coverage/
-
-  PublishBadge:
-    runs-on: ubuntu-latest
-    needs: CheckCoverage
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: coverage-artifact
-          path: test/coverage/
-
-      - name: Publish the badge on the GitHub repo
-        run: |
-          git pull
-          git add test/coverage/.coverage
-          git add test/coverage/coverage.svg
-          git config --global user.name 'arcangelo7'
-          git config --global user.email 'arcangelomas@gmail.com'
-          git commit -m 'Coverage updated' || echo "No changes to commit"
-          git push
+    - name: Upload coverage artifact
+      if: matrix.python-version == '3.10' && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v7
+      with:
+        name: coverage-report
+        path: ${{ env.COVERAGE_REPORT_PATH }}

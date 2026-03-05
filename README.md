@@ -1,6 +1,6 @@
 [<img src="https://img.shields.io/badge/powered%20by-OpenCitations-%239931FC?labelColor=2D22DE" />](http://opencitations.net)
 [![Run tests](https://github.com/opencitations/oc_ds_converter/actions/workflows/run_tests.yml/badge.svg)](https://github.com/opencitations/oc_ds_converter/actions/workflows/run_tests.yml)
-![Coverage](https://raw.githubusercontent.com/opencitations/oc_ds_converter/main/test/coverage/coverage.svg)
+[![Coverage](https://img.shields.io/endpoint?url=https://opencitations.github.io/oc_ds_converter/coverage.json)](https://opencitations.github.io/oc_ds_converter/)
 <!-- ![PyPI](https://img.shields.io/pypi/pyversions/oc_meta) -->
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/opencitations/oc_ds_converter)
 
