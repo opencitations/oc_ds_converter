@@ -31,7 +31,7 @@ jobs:
         run: uv run coverage run --rcfile=test/coverage/.coveragerc
 
       - name: Generate the badge
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.12'
         run: |
           mv .coverage test/coverage/
           cd test/coverage/
@@ -39,7 +39,7 @@ jobs:
           uv run coverage-badge -o coverage.svg
 
       - uses: actions/upload-artifact@v7
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.12'
         with:
           name: coverage-artifact
           path: test/coverage/
