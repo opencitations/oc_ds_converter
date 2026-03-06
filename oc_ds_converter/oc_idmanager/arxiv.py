@@ -121,13 +121,13 @@ class ArXivManager(IdentifierManager):
 
             try:
                 id_string = unquote(id_string)
-                arxiv_string = search("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)", id_string).group(0)
+                arxiv_string = search(r"(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)", id_string).group(0)
 
                 return "%s%s" % (self._p if include_prefix else "", arxiv_string)
             except:
                 try:
                     id_string = unquote(id_string)
-                    arxiv_string = search("(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?", id_string).group(0)
+                    arxiv_string = search(r"(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?", id_string).group(0)
                     return "%s%s" % (self._p if include_prefix else "", arxiv_string+"v1")
                 except:
                     return None
@@ -138,7 +138,7 @@ class ArXivManager(IdentifierManager):
     def syntax_ok(self, id_string):
         if not id_string.startswith(self._p):
             id_string = self._p + id_string
-        return True if match("arxiv:(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?$", id_string) else False
+        return True if match(r"arxiv:(\d{4}.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?\/\d{7})(v\d+)?$", id_string) else False
 
 
     def exists(self, arxiv_full, get_extra_info=False, allow_extra_api=None):

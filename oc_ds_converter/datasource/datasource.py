@@ -17,24 +17,24 @@ from abc import ABCMeta, abstractmethod
 
 
 class DataSource(metaclass=ABCMeta):
-    def __init__(self, service):
+    def __init__(self, service: str) -> None:
         self._service = service
 
-    def new(self):
+    def new(self) -> dict[str, object]:
         return {"date": None, "valid": False, "issn": [], "orcid": []}
 
     @abstractmethod
-    def get(self, resource_id):
+    def get(self, resource_id: str) -> object:
         pass
 
     @abstractmethod
-    def mget(self, resources_id):
+    def mget(self, resources_id: list[str]) -> list[object]:
         pass
 
     @abstractmethod
-    def set(self, resource_id, value):
+    def set(self, resource_id: str, value: object) -> object:
         pass
 
     @abstractmethod
-    def mset(self, resources):
+    def mset(self, resources: dict[str, object]) -> object:
         pass

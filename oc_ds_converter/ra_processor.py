@@ -29,7 +29,7 @@ from oc_ds_converter.lib.master_of_regex import orcid_pattern
 
 
 class RaProcessor(object):
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath: str = None, citing_entities: str = None):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, citing_entities: str | None = None):
         self.doi_set = CSVManager.load_csv_column_as_set(doi_csv, 'id') if doi_csv else None
         self.publishers_mapping = self.load_publishers_mapping(publishers_filepath) if publishers_filepath else None
         orcid_index = orcid_index if orcid_index else None
@@ -135,15 +135,17 @@ class RaProcessor(object):
                     editors_string_list.append(agent_string)
         return authors_strings_list, editors_string_list
 
-    def orcid_finder(self, doi: str) -> dict:
-        found = dict()
+    def orcid_finder(self, doi: str) -> dict[str, str]:
+        found: dict[str, str] = {}
         doi = doi.lower()
-        people:  List[str] = self.orcid_index.get_value(doi)
+        people = self.orcid_index.get_value(doi)
         if people:
             for person in people:
-                orcid = re.search(orcid_pattern, person).group(0)
-                name: str = person[:person.find(orcid)-1]
-                found[orcid] = name.strip().lower()
+                match = re.search(orcid_pattern, person)
+                if match:
+                    orcid = match.group(0)
+                    name: str = person[:person.find(orcid)-1]
+                    found[orcid] = name.strip().lower()
         return found
 
     def unzip_citing_entities(self, citing_entities):
@@ -198,30 +200,34 @@ class RaProcessor(object):
             func(id, ids)
 
     @staticmethod
-    def load_publishers_mapping(publishers_filepath: str) -> dict:
-        publishers_mapping: Dict[str, Dict[str, set]] = dict()
+    def load_publishers_mapping(publishers_filepath: str) -> dict[str, dict[str, str | set[str]]]:
+        publishers_mapping: dict[str, dict[str, str | set[str]]] = {}
         with open(publishers_filepath, 'r', encoding='utf-8') as f:
             data = DictReader(f)
             for row in data:
-                id = row['id']
-                publishers_mapping.setdefault(id, dict())
-                publishers_mapping[id]['name'] = row['name']
-                publishers_mapping[id].setdefault('prefixes', set()).add(row['prefix'])
+                pub_id = row['id']
+                if pub_id not in publishers_mapping:
+                    publishers_mapping[pub_id] = {'name': row['name'], 'prefixes': set()}
+                else:
+                    publishers_mapping[pub_id]['name'] = row['name']
+                prefixes = publishers_mapping[pub_id]['prefixes']
+                if isinstance(prefixes, set):
+                    prefixes.add(row['prefix'])
         return publishers_mapping
     
     @staticmethod
-    def issn_worker(issnid:str, ids:list):
+    def issn_worker(issnid: str, ids: list) -> None:
         issn_manager = ISSNManager()
-        issnid = issn_manager.normalise(issnid, include_prefix=False)
-        if issn_manager.check_digit(issnid) and f'issn:{issnid}' not in ids:
-            ids.append('issn:' + issnid)
+        norm_issnid = issn_manager.normalise(issnid, include_prefix=False)
+        if norm_issnid and issn_manager.check_digit(norm_issnid) and f'issn:{norm_issnid}' not in ids:
+            ids.append('issn:' + norm_issnid)
 
     @staticmethod
-    def isbn_worker(isbnid, ids:list):
+    def isbn_worker(isbnid: str, ids: list) -> None:
         isbn_manager = ISBNManager()
-        isbnid = isbn_manager.normalise(isbnid, include_prefix=False)
-        if isbn_manager.check_digit(isbnid) and f'isbn:{isbnid}' not in ids:
-            ids.append('isbn:' + isbnid)
+        norm_isbnid = isbn_manager.normalise(isbnid, include_prefix=False)
+        if norm_isbnid and isbn_manager.check_digit(norm_isbnid) and f'isbn:{norm_isbnid}' not in ids:
+            ids.append('isbn:' + norm_isbnid)
 
     @staticmethod
     def uppercase_initials(inp_str: str):

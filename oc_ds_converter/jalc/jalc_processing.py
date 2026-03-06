@@ -42,7 +42,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class JalcProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_jalc: str = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing=True):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_jalc: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True):
         """This class is responsible for producing CSV tables to be used as input for the META process
         aimed at ingesting data from the sources."""
         super(JalcProcessing, self).__init__(orcid_index, doi_csv)
@@ -140,16 +140,17 @@ class JalcProcessing(RaProcessor):
         with open(path, "w", encoding="utf-8") as fd:
             json.dump(dict_to_be_saved, fd, ensure_ascii=False, indent=4)
 
-    def csv_creator(self, item:dict) -> dict:
+    def csv_creator(self, item: dict) -> dict:
         """This is the method that actually creates the csv table for Meta process given an entity dictionary"""
         doi = item["doi"]
         if (doi and self.doi_set and doi in self.doi_set) or (doi and not self.doi_set):
             norm_id = self.doi_m.normalise(doi, include_prefix=True)
-            title = self.get_ja(item['title_list'])[0]['title'] if 'title_list' in item else ''
+            title_list = item.get('title_list')
+            title = self.get_ja(title_list)[0]['title'] if title_list else ''
             authors_list = self.get_authors(item)
             authors_string_list, editors_string_list = self.get_agents_strings_list(doi, authors_list)
-            issue = item['issue'] if 'issue' in item else ''
-            volume = item['volume'] if 'volume' in item else ''
+            issue = item.get('issue', '')
+            volume = item.get('volume', '')
             publisher = self.get_publisher_name(item)
 
             metadata = {
@@ -166,6 +167,7 @@ class JalcProcessing(RaProcessor):
                 'editor': ''
             }
             return self.normalise_unicode(metadata)
+        return {}
 
         
     @classmethod
@@ -218,15 +220,19 @@ class JalcProcessing(RaProcessor):
 
 
     def get_authors(self, data: dict) -> list:
-        authors = list()
-        if data.get("creator_list"):
-            creators = data.get("creator_list")
+        authors: list[dict[str, str]] = []
+        creators = data.get("creator_list")
+        if creators:
             for c in creators:
-                agent = {"role": "author"}
-                names = c['names'] if 'names' in c else ''
-                ja_name = self.get_ja(names)[0]
-                last_name = ja_name['last_name'] if 'last_name' in ja_name else ''
-                first_name = ja_name['first_name'] if 'first_name' in ja_name else ''
+                agent: dict[str, str] = {"role": "author"}
+                names = c.get('names', [])
+                if names:
+                    ja_name = self.get_ja(names)[0]
+                    last_name = ja_name.get('last_name', '')
+                    first_name = ja_name.get('first_name', '')
+                else:
+                    last_name = ''
+                    first_name = ''
                 full_name = ''
                 if last_name:
                     full_name += last_name
@@ -252,48 +258,48 @@ class JalcProcessing(RaProcessor):
         if 'journal_id_list' in data:
             for v in data['journal_id_list']:
                 if isinstance(v, dict):
-                    if v.get("journal_id"):
-                        if v.get("type").lower().strip() in ["issn", "jid"]:
-                            schema = v.get("type").lower().strip()
-                            venue_id = v.get("journal_id")
+                    journal_id = v.get("journal_id")
+                    id_type = v.get("type")
+                    if journal_id and id_type:
+                        schema = id_type.lower().strip()
+                        if schema in ["issn", "jid"]:
                             tmp_id_man = self.get_id_manager(schema, self.venue_tmp_id_man_dict)
                             if tmp_id_man:
-                                norm_id = tmp_id_man.normalise(venue_id, include_prefix=True)
+                                norm_id = tmp_id_man.normalise(journal_id, include_prefix=True)
                                 journal_ids.append(norm_id)
         return f"{venue_name} [{' '.join(journal_ids)}]" if journal_ids else venue_name
 
 
     @classmethod
-    def get_type(cls, data:dict) -> str:
-        if data.get('content_type'):
-            content_type = data['content_type']
-            if content_type == 'JA':
-                br_type = 'journal article'
-            elif content_type == 'BK':
-                br_type = 'book'
-            elif content_type == 'RD':
-                br_type = 'dataset'
-            elif content_type == 'EL':
-                br_type = 'other'
-            elif content_type == 'GD':
-                br_type = 'other'
-            return br_type
-        else:
-            return ''
+    def get_type(cls, data: dict) -> str:
+        content_type = data.get('content_type')
+        if content_type == 'JA':
+            return 'journal article'
+        elif content_type == 'BK':
+            return 'book'
+        elif content_type == 'RD':
+            return 'dataset'
+        elif content_type == 'EL':
+            return 'other'
+        elif content_type == 'GD':
+            return 'other'
+        return ''
     
     @classmethod
-    def get_pub_date(cls, data) -> str:
-        pub_date_dict = data['publication_date'] if 'publication_date' in data else ''
-        pub_date_list = list()
-        year = pub_date_dict['publication_year'] if 'publication_year' in pub_date_dict else ''
+    def get_pub_date(cls, data: dict) -> str:
+        pub_date_dict = data.get('publication_date')
+        if not pub_date_dict or not isinstance(pub_date_dict, dict):
+            return ''
+        pub_date_list: list[str] = []
+        year = pub_date_dict.get('publication_year', '')
         if year:
-            pub_date_list.append(year)
-            month = pub_date_dict['publication_month'] if 'publication_month' in pub_date_dict else ''
+            pub_date_list.append(str(year))
+            month = pub_date_dict.get('publication_month', '')
             if month:
-                pub_date_list.append(month)
-                day = pub_date_dict['publication_day'] if 'publication_day' in pub_date_dict else ''
+                pub_date_list.append(str(month))
+                day = pub_date_dict.get('publication_day', '')
                 if day:
-                    pub_date_list.append(day)
+                    pub_date_list.append(str(day))
         return '-'.join(pub_date_list)
 
 

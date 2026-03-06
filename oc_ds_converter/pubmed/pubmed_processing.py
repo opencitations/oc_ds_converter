@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class PubmedProcessing(RaProcessor):
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_pubmed: str = None, journals_filepath: str = None, testing:bool = True):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_pubmed: str | None = None, journals_filepath: str | None = None, testing: bool = True):
         super(PubmedProcessing, self).__init__(orcid_index, doi_csv)
         self.nihrf = NIHResourceFinder()
         self.doi_m = DOIManager()

@@ -27,7 +27,7 @@ class InMemoryStorageManager(StorageManager):
     """A concrete implementation of the ``StorageManager`` interface that persistently stores
     the IDs validity values within a in-memory dictionary, which is eventually saved in a json file."""
 
-    def __init__(self, json_file_path: str =None, **params) -> None:
+    def __init__(self, json_file_path: str | None = None, **params) -> None:
         """
         Constructor of the ``InMemoryStorageManager`` class.
         """
@@ -56,7 +56,7 @@ class InMemoryStorageManager(StorageManager):
             json.dump(self.id_value_dict, file)
             file.close()
 
-    def set_full_value(self, id: str, value: dict) -> None:
+    def set_full_value(self, id: str, value: dict[str, str | bool | object]) -> None:
         """
         It allows to set the counter value of provenance entities.
 
@@ -71,10 +71,10 @@ class InMemoryStorageManager(StorageManager):
         if not isinstance(value, dict):
             raise ValueError("value must be dict")
         if id_name in self.id_value_dict:
-            new_info = {k:v for k,v in value.items() if k not in self.id_value_dict[id_name]}
+            new_info = {k: v for k, v in value.items() if k not in self.id_value_dict[id_name]}
             self.id_value_dict[id_name].update(new_info)
         else:
-            self.id_value_dict[id_name] = value
+            self.id_value_dict[id_name] = dict(value)
 
     def set_value(self, id: str, value: bool) -> None:
         """
@@ -88,7 +88,6 @@ class InMemoryStorageManager(StorageManager):
         :return: None
         """
         id_name = str(id)
-
         if not isinstance(value, bool):
             raise ValueError("value must be boolean")
         if id_name in self.id_value_dict:
@@ -96,7 +95,7 @@ class InMemoryStorageManager(StorageManager):
         else:
             self.id_value_dict[id_name] = {"valid": value}
 
-    def get_value(self, id: str):
+    def get_value(self, id: str) -> bool | None:
         """
         It allows to read the value of the "valid" key of the identifier's dict.
 
@@ -104,32 +103,29 @@ class InMemoryStorageManager(StorageManager):
         :type id: str
         :return: The requested id value.
         """
-
         id_name = str(id)
         id_in_dict = self.id_value_dict.get(id_name)
         if id_in_dict:
             return id_in_dict["valid"]
-        else:
-            return None
+        return None
 
     def store_file(self) -> None:
         """
         It stores in a file the dictionary with the validation results
         """
-        file = open(self.storage_filepath, "w", encoding='utf8')
-        json.dump(self.id_value_dict, file, indent=4)
-        file.close()
+        with open(self.storage_filepath, "w", encoding='utf8') as file:
+            json.dump(self.id_value_dict, file, indent=4)
 
-    def delete_storage(self):
-        self.id_value_dict = dict()
+    def delete_storage(self) -> None:
+        self.id_value_dict = {}
         if os.path.exists(self.storage_filepath):
             os.remove(self.storage_filepath)
 
-    def get_all_keys(self):
-        return self.id_value_dict.keys()
+    def get_all_keys(self) -> list[str]:
+        return list(self.id_value_dict.keys())
 
-    def get_validity_dict(self):
+    def get_validity_dict(self) -> dict[str, bool]:
         return {k: v["valid"] for k, v in self.id_value_dict.items()}
 
-    def get_validity_list_of_tuples(self):
+    def get_validity_list_of_tuples(self) -> list[tuple[str, bool]]:
         return [(k, v["valid"]) for k, v in self.id_value_dict.items()]

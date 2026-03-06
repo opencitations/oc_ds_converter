@@ -45,7 +45,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class DataciteProcessing(RaProcessor):
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_dc: str = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing=True, use_orcid_api: bool = True):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_dc: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True, use_orcid_api: bool = True):
         super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
         # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
         if storage_manager is None:
@@ -532,8 +532,8 @@ class DataciteProcessing(RaProcessor):
             except TypeError:
                 print(row)
                 raise(TypeError)
+        return {}
 
-    #added
     def to_validated_id_list(self, norm_id_dict):
         valid_id_list = []
         norm_id = norm_id_dict.get("id")
@@ -588,23 +588,23 @@ class DataciteProcessing(RaProcessor):
         publisher = item.get("publisher")
         if publisher:
             txt = publisher.lower().strip()
-            if re.match("\(?:unav\)?", txt):
+            if re.match(r"\(?:unav\)?", txt):
                 publisher = ""
-            elif re.match("\(?:unkn\)?", txt):
+            elif re.match(r"\(?:unkn\)?", txt):
                 publisher = ""
-            elif re.match(".*publ?isher not identified.*", txt):
+            elif re.match(r".*publ?isher not identified.*", txt):
                 publisher = ""
-            elif re.match("^\[?unknown]?(:*\[?unknown]?)*$", txt.replace(' ', '')):
+            elif re.match(r"^\[?unknown]?(:*\[?unknown]?)*$", txt.replace(' ', '')):
                 publisher = ""
-            elif re.match("^not yet(?: published)?$", txt):
+            elif re.match(r"^not yet(?: published)?$", txt):
                 publisher = ""
-            elif re.match("[\[({]*s\.*[ln]\.*[)}\]]*([,:][\[({]*s\.*n\.*[)}\]]*)*", txt.replace(' ', '')):
+            elif re.match(r"[\[({]*s\.*[ln]\.*[)}\]]*([,:][\[({]*s\.*n\.*[)}\]]*)*", txt.replace(' ', '')):
                 publisher = ""
-            elif re.match("^(publisher )*not(?: specified\.*)|^(publisher )*not(?: provided\.*)$", txt):
+            elif re.match(r"^(publisher )*not(?: specified\.*)|^(publisher )*not(?: provided\.*)$", txt):
                 publisher = ""
-            elif re.match("^not known$", txt):
+            elif re.match(r"^not known$", txt):
                 publisher = ""
-            elif re.match("^(information )?not available.*", txt):
+            elif re.match(r"^(information )?not available.*", txt):
                 publisher = ""
         else:
             publisher = ""
@@ -617,16 +617,11 @@ class DataciteProcessing(RaProcessor):
         publisher = data['publisher']
         prefix = data['prefix']
 
-        if self.publishers_mapping:
-            if prefix:
-                if prefix in self.publishers_mapping:
-                    name = self.publishers_mapping[prefix]["name"]
-                    member = self.publishers_mapping[prefix]["datacite_member"]
-                    name_and_id = f'{name} [datacite:{member}]' if member else name
-                else:
-                    name_and_id = publisher
-        else:
-            name_and_id = publisher
+        name_and_id = publisher
+        if self.publishers_mapping and prefix and prefix in self.publishers_mapping:
+            name = self.publishers_mapping[prefix]["name"]
+            member = self.publishers_mapping[prefix]["datacite_member"]
+            name_and_id = f'{name} [datacite:{member}]' if member else name
 
         return name_and_id
 
@@ -641,7 +636,7 @@ class DataciteProcessing(RaProcessor):
                 cont_title = (container["title"].lower()).replace('\n', '')
                 ven_soup = BeautifulSoup(cont_title, 'html.parser')
                 ventit = html.unescape(ven_soup.get_text())
-                ambiguous_brackets = re.search('\[\s*((?:[^\s]+:[^\s]+)?(?:\s+[^\s]+:[^\s]+)*)\s*\]', ventit)
+                ambiguous_brackets = re.search(r'\[\s*((?:[^\s]+:[^\s]+)?(?:\s+[^\s]+:[^\s]+)*)\s*\]', ventit)
                 if ambiguous_brackets:
                     match = ambiguous_brackets.group(1)
                     open_bracket = ventit.find(match) - 1

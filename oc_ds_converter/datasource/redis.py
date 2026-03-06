@@ -31,68 +31,70 @@ class RedisDataSource(DataSource):
         conf_file = config_filepath if config_filepath != 'config.ini' else join(cur_path, config_filepath)
         config.read(conf_file)
         if service == "DB-META-RA":
-            self._r =  redis.Redis(
-                            host='127.0.0.1',
-                            port=int(config.get('redis', 'port')),
-                            db=(config.get('database 0', 'db')),
-                            password=None,
-                            decode_responses=True
-                        )
+            self._r = redis.Redis(
+                host='127.0.0.1',
+                port=int(config.get('redis', 'port')),
+                db=int(config.get('database 0', 'db')),
+                password=None,
+                decode_responses=True
+            )
         elif service == "DB-META-BR":
             self._r = redis.Redis(
-                    host='127.0.0.1',
-                    port=int(config.get('redis', 'port')),
-                    db=(config.get('database 1', 'db')),
-                    password=None,
-                    decode_responses=True
-                )
+                host='127.0.0.1',
+                port=int(config.get('redis', 'port')),
+                db=int(config.get('database 1', 'db')),
+                password=None,
+                decode_responses=True
+            )
         elif service == "PROCESS-DB":
-            self._r =  redis.Redis(
-                            host='127.0.0.1',
-                            port=int(config.get('redis', 'port')),
-                            db=(config.get('database 2', 'db')),
-                            password=None,
-                            decode_responses=True
-                        )
+            self._r = redis.Redis(
+                host='127.0.0.1',
+                port=int(config.get('redis', 'port')),
+                db=int(config.get('database 2', 'db')),
+                password=None,
+                decode_responses=True
+            )
 
         else:
             raise ValueError
 
-    def get(self, resource_id):
+    def get(self, resource_id: str) -> object:
         redis_data = self._r.get(resource_id)
-        if redis_data != None:
-            if isinstance(redis_data, str) or isinstance(redis_data, int):
+        if redis_data is not None:
+            if isinstance(redis_data, (str, int)):
                 return redis_data
-            else:
-                return json.loads(redis_data)
-        else:
-            return None
+            return json.loads(redis_data)
+        return None
 
-    def mget(self, resources_id):
+    def mget(self, resources_id: list[str]) -> list[object]:
         if resources_id:
-            return [x if x and isinstance(x, (int,str,bool)) else json.loads(x) if x and isinstance(x, bytes) else None for x in self._r.mget(resources_id)]
-        else:
-            return[]
-        # return {
-        #     resources_id[i]: json.loads(v) if not v is None else None
-        #     for i, v in enumerate(self._r.mget(resources_id))
-        # }
+            result: list[object] = []
+            for x in self._r.mget(resources_id):
+                if x and isinstance(x, (int, str, bool)):
+                    result.append(x)
+                elif x and isinstance(x, bytes):
+                    result.append(json.loads(x))
+                else:
+                    result.append(None)
+            return result
+        return []
 
-    def flushdb(self):
+    def flushdb(self) -> None:
         batch_size = 1000
-        keys = self._r.keys('*')
+        keys = list(self._r.keys('*'))
         for i in range(0, len(keys), batch_size):
             self._r.delete(*keys[i:i+batch_size])
 
-    def delete(self, resource_id):
+    def delete(self, resource_id: str) -> None:
         self._r.delete(resource_id)
 
-    def scan_iter(self, match="*"):
+    def scan_iter(self, match: str = "*") -> object:
         return self._r.scan_iter(match=match)
 
-    def set(self, resource_id, value):
+    def set(self, resource_id: str, value: object) -> object:
         return self._r.set(resource_id, json.dumps(value))
 
-    def mset(self, resources):
+    def mset(self, resources: dict[str, object]) -> object:
         if resources:
             return self._r.mset({k: v for k, v in resources.items()})
+        return None

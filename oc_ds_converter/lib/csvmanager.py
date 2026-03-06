@@ -28,7 +28,7 @@ class CSVManager(object):
     easily queried. In addition, it allows one to store new information in the CSV,
     if needed.
     '''
-    def __init__(self, output_path:str=None, line_threshold=10000, low_memory:bool=False):
+    def __init__(self, output_path: str | None = None, line_threshold: int = 10000, low_memory: bool = False):
         self.output_path = output_path
         self.data:Dict[str, set] = {}
         self.data_to_store = list()

@@ -17,14 +17,15 @@
 
 from abc import ABCMeta
 
+
 class StorageManager(metaclass=ABCMeta):
     """This is the interface that must be implemented by any Storage manager
     for a particular storage approach. It provides the signatures of the methods
     for string and retrieving data."""
 
-    def __init__(self, **params):
-        self.cur = None
-        self.con = None
+    _headers: dict[str, str]
+
+    def __init__(self, **params: object) -> None:
         """Storage manager constructor."""
         for key in params:
             setattr(self, key, params[key])
@@ -34,24 +35,24 @@ class StorageManager(metaclass=ABCMeta):
             "(http://opencitations.net; mailto:contact@opencitations.net)"
         }
 
-    def set_value(self, id, value):
+    def set_value(self, id: str, value: bool) -> None:
         pass
 
-    def set_full_value(self, id, value):
+    def set_full_value(self, id: str, value: dict[str, str | bool | object]) -> None:
         pass
 
-    def get_value(self, id):
+    def get_value(self, id: str) -> bool | None:
         pass
 
-    def set_multi_value(self, list_of_tuples):
+    def set_multi_value(self, list_of_tuples: list[tuple[str, bool]]) -> None:
         pass
 
-    def delete_storage(self):
+    def delete_storage(self) -> None:
         pass
 
-    def store_file(self):
+    def store_file(self) -> None:
         pass
 
-    def get_all_keys(self):
-        pass
+    def get_all_keys(self) -> list[str]:
+        return []
 

@@ -18,9 +18,9 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filepath:str,
-        csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None,
-        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target=50000, use_orcid_api: bool = True) -> None:
+def preprocess(datacite_ndjson_dir: str, publishers_filepath: str, orcid_doi_filepath: str,
+        csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
+        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target: int = 50000, use_orcid_api: bool = True) -> None:
 
     els_to_be_skipped = []
     if not testing and os.path.isdir(datacite_ndjson_dir):
@@ -159,11 +159,11 @@ def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filep
         storage_manager.delete_storage()
 
 
-def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citations_dir: str, csv_dir: str, chunk_to_save:str,
-                               orcid_index: str,
-                               doi_csv: str, publishers_filepath: str, storage_path: str,
+def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citations_dir: str, csv_dir: str, chunk_to_save: str,
+                               orcid_index: str | None,
+                               doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str, is_first_iteration:bool, use_orcid_api: bool):
+                               testing: bool, cache: str | None, is_first_iteration: bool, use_orcid_api: bool):
 
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
@@ -431,7 +431,7 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
                 continue
         save_files(data_object, index_citations_to_csv, False)
 
-def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
     if not redis_storage_manager:
         if storage_path:
             if not os.path.exists(storage_path):

@@ -21,8 +21,8 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str,
-               csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None,
+def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
+               csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
                testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
 
     els_to_be_skipped=[]
@@ -134,10 +134,10 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
         storage_manager.delete_storage()
 
 def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, csv_dir: str,
-                               orcid_index: str,
-                               doi_csv: str, publishers_filepath_jalc: str, storage_path: str,
+                               orcid_index: str | None,
+                               doi_csv: str | None, publishers_filepath_jalc: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str, is_first_iteration:bool):
+                               testing: bool, cache: str | None, is_first_iteration: bool):
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
         if not cache.endswith(".json"):
@@ -366,7 +366,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                                 citation["cited"] = target_id
                                 index_citations_to_csv.append(citation)
         save_files(data_cited, index_citations_to_csv, False)
-def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
     if not redis_storage_manager:
         if storage_path:
             if not os.path.exists(storage_path):

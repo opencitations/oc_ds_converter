@@ -37,7 +37,7 @@ from oc_ds_converter.zotero.zotero_processing import ZoteroProcessing
 
 
 
-def preprocess(zotero_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None,
+def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
                testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
 
     if cache is None:
@@ -94,10 +94,10 @@ def preprocess(zotero_json_dir:str, publishers_filepath:str, orcid_doi_filepath:
 
 
 def get_citations_and_metadata(file_name, csv_dir: str,
-                               orcid_index: str,
-                               doi_csv: str, publishers_filepath: str, storage_path: str,
+                               orcid_index: str | None,
+                               doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str, is_first_iteration:bool):
+                               testing: bool, cache: str | None, is_first_iteration: bool):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
@@ -274,7 +274,7 @@ def get_citations_and_metadata(file_name, csv_dir: str,
     save_files(data_citing)
 
 
-def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
     if not redis_storage_manager:
         if storage_path:
             if not os.path.exists(storage_path):

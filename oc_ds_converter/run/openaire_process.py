@@ -23,9 +23,9 @@ from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
 
 
 def preprocess(
-        openaire_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str, 
-        csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None, 
-        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target=50000) -> None:
+        openaire_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
+        csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
+        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target: int = 50000) -> None:
 
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(openaire_json_dir)
@@ -103,7 +103,7 @@ def preprocess(
         storage_manager.delete_storage()
 
 
-def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str, doi_csv: str, publishers_filepath_openaire: str, storage_path: str, redis_storage_manager: bool, testing: bool, cache:str, target=50000):
+def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str | None, doi_csv: str | None, publishers_filepath_openaire: str | None, storage_path: str | None, redis_storage_manager: bool, testing: bool, cache: str | None, target: int = 50000):
 
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
 
@@ -397,7 +397,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
     data, index_citations_to_csv = save_files(data, index_citations_to_csv, last_part_processed, is_last_sf=True)
     pbar.close()
 
-def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
     if not redis_storage_manager:
         if storage_path:
             if not os.path.exists(storage_path):

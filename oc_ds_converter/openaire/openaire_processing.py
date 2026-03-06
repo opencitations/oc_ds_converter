@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class OpenaireProcessing(RaProcessor):
-    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_openaire: str = None, testing:bool = True, storage_manager:Optional[StorageManager] = None):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_openaire: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None):
         super(OpenaireProcessing, self).__init__(orcid_index, doi_csv)
         if storage_manager is None:
             self.storage_manager = SqliteStorageManager()

@@ -51,9 +51,9 @@ def to_meta_file(cur_n, lines, interval, csv_dir):
         return lines
 
 
-def preprocess(pubmed_csv_dir: str, publishers_filepath: str, orcid_doi_filepath: str, csv_dir: str,
-               journals_filepath: str, wanted_doi_filepath: str = None, verbose: bool = False, interval=1000,
-               testing=True, cache: str = None) -> None:
+def preprocess(pubmed_csv_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str,
+               journals_filepath: str | None, wanted_doi_filepath: str | None = None, verbose: bool = False, interval: int = 1000,
+               testing: bool = True, cache: str | None = None) -> None:
     if not interval:
         interval = 1000
     else:
