@@ -9,8 +9,9 @@ from os import makedirs
 from pathlib import Path
 
 import yaml
+from concurrent.futures import ProcessPoolExecutor
 from filelock import FileLock
-from pebble import ProcessPool
+from multiprocessing import get_context
 from tqdm import tqdm
 
 from oc_ds_converter.jalc.jalc_processing import JalcProcessing
@@ -104,22 +105,19 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
 
 
     elif redis_storage_manager or max_workers > 1:
-
-        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for zip_file in all_input_zip:
-                executor.schedule(
-                    function=get_citations_and_metadata,
-                    args=(
+                executor.submit(
+                    get_citations_and_metadata,
                     zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, True))
+                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, True)
 
-        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for zip_file in all_input_zip:
-                executor.schedule(
-                    function=get_citations_and_metadata,
-                    args=(
+                executor.submit(
+                    get_citations_and_metadata,
                     zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, False))
+                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, False)
 
     if cache:
         if os.path.exists(cache):

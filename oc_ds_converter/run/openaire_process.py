@@ -10,8 +10,9 @@ from pathlib import Path
 from tarfile import TarInfo
 
 import yaml
+from concurrent.futures import ProcessPoolExecutor
 from filelock import FileLock
-from pebble import ProcessPool
+from multiprocessing import get_context
 from tqdm import tqdm
 
 from oc_ds_converter.lib.file_manager import normalize_path
@@ -82,11 +83,11 @@ def preprocess(
 
 
         elif redis_storage_manager or max_workers > 1:
-            with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
                 for filename in all_files:
-                    executor.schedule(
-                        function=get_citations_and_metadata,
-                        args=(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing, cache, target)
+                    executor.submit(
+                        get_citations_and_metadata,
+                        tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing, cache, target
                     )
 
 

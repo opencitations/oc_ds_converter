@@ -5,7 +5,9 @@ from argparse import ArgumentParser
 from os import makedirs, sep, walk
 from os.path import basename, exists
 
-from pebble import ProcessPool
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import get_context
+
 from tqdm import tqdm
 
 from oc_ds_converter.lib.file_manager import normalize_path
@@ -98,9 +100,9 @@ def preprocessing(jalc_json_dir:str, output_dir:str, max_workers:int = 1):
             process_zip(zip_file, output_dir)
 
     else:
-        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for zip_file in tqdm(zip_files, desc="Processing ZIP Files"):
-                executor.schedule(function=process_zip, args=[zip_file, output_dir])
+                executor.submit(process_zip, zip_file, output_dir)
 
 
     # At the end of the process, create a ZIP archive of the output_dir and rename it

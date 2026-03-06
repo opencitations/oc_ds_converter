@@ -21,7 +21,9 @@ from functools import partial
 from multiprocessing import cpu_count
 from typing import List, Tuple
 
-from pebble import ProcessFuture, ProcessPool
+from concurrent.futures import Future, ProcessPoolExecutor
+from multiprocessing import get_context
+
 from tqdm import tqdm
 
 from oc_ds_converter.lib.csvmanager import CSVManager
@@ -45,13 +47,10 @@ def extract_dois_from_dump(crossref_json_dir:str, output_dir:str, max_workers:in
     doi_manager = DOIManager(use_api_service=False)
     print('[INFO] Extracting DOIs from the Crossref dump')
     pbar = tqdm(total=len(all_files))
-    #if platform.startswith('linux') or platform == 'darwin':
-        #os.sched_setaffinity(0, set(range(0, max_workers)))
-    with ProcessPool(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
         for filename in all_files:
-            future:ProcessFuture = executor.schedule(
-                function=get_dois, 
-                args=(filename, targz_fd, doi_manager))
+            future: Future[Tuple[List[dict], List[dict]]] = executor.submit(
+                get_dois, filename, targz_fd, doi_manager)
             future.add_done_callback(partial(task_done, output_dir, filename, pbar))
     pbar.close()
 
@@ -71,7 +70,7 @@ def get_dois(filepath:str, targz_fd, doi_manager:DOIManager) -> Tuple[List[dict]
                             dois_in_references.append({'id': cited})
     return file_dois, dois_in_references
 
-def task_done(output_dir:str, filename:str, pbar:tqdm, task_output:ProcessFuture) -> None:
+def task_done(output_dir: str, filename: str, pbar: tqdm, task_output: Future[Tuple[List[dict], List[dict]]]) -> None:
     filename = os.path.basename(filename).replace('.json', '').replace('.gz', '') + '.csv'
     crossref, ref_dois = task_output.result()
     crossref_dir = os.path.join(output_dir, 'crossref')

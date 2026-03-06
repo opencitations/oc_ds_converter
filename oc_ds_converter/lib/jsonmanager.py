@@ -95,7 +95,7 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
     elif i_dir_or_compr.endswith(".tar"):
         dest_dir = i_dir_or_compr.replace('.tar', '') + "_decompr_zip_dir"
         targz_fd = tarfile.open(i_dir_or_compr, "r:*", encoding="utf-8")
-        targz_fd.extractall(dest_dir)
+        targz_fd.extractall(dest_dir, filter='data')
 
         for cur_dir, cur_subdir, cur_files in walk(dest_dir):
             for cur_file in cur_files:

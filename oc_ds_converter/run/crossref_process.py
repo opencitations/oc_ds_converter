@@ -24,8 +24,9 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import yaml
+from concurrent.futures import ProcessPoolExecutor
 from filelock import FileLock
-from pebble import ProcessPool
+from multiprocessing import get_context
 from tarfile import TarInfo
 from tqdm import tqdm
 
@@ -37,7 +38,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(crossref_json_dir: str, publishers_filepath: str, orcid_doi_filepath: str, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
+def preprocess(crossref_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
                testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, use_orcid_api: bool = True) -> None:
 
     if verbose:
@@ -64,8 +65,7 @@ def preprocess(crossref_json_dir: str, publishers_filepath: str, orcid_doi_filep
     if verbose:
         print(f'[INFO: crossref_process] Getting all files from {crossref_json_dir}')
     all_files, targz_fd = get_all_files_by_type(crossref_json_dir, ".json", cache)
-    if verbose:
-        pbar = tqdm(total=len(all_files))
+    pbar = tqdm(total=len(all_files)) if verbose else None
 
     if not redis_storage_manager or max_workers == 1:
         for filename in all_files:
@@ -86,33 +86,25 @@ def preprocess(crossref_json_dir: str, publishers_filepath: str, orcid_doi_filep
                                        testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api)
 
     elif redis_storage_manager or max_workers > 1:
-
-        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for filename in all_files:
-                # skip elements starting with ._
                 if isinstance(filename, str) and filename.startswith("._"):
                     continue
-
-                executor.schedule(
-                    function=get_citations_and_metadata,
-                    args=(
+                executor.submit(
+                    get_citations_and_metadata,
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, True, use_orcid_api))
-
+                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, True, use_orcid_api)
 
         print("End of FIRST iteration: all the citing entities csv tables should have been produced by now")
 
-        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for filename in all_files:
-                # skip elements starting with ._
                 if isinstance(filename, str) and filename.startswith("._"):
                     continue
-
-                executor.schedule(
-                        function=get_citations_and_metadata,
-                        args=(
-                        filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, False, use_orcid_api))
+                executor.submit(
+                    get_citations_and_metadata,
+                    filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
+                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, False, use_orcid_api)
 
         print("End of SECOND iteration: all the cited entities csv tables + all the citations tables should have been produced by now")
 
@@ -132,7 +124,8 @@ def preprocess(crossref_json_dir: str, publishers_filepath: str, orcid_doi_filep
         if os.path.exists(lock_file):
             os.remove(lock_file)
 
-    pbar.close() if verbose else None
+    if pbar is not None:
+        pbar.close()
     # added to avoid order-releted issues in sequential tests runs
     if testing:
         storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
@@ -186,8 +179,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         crossref_csv = CrossrefProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                       publishers_filepath=publishers_filepath,
                                       storage_manager=storage_manager, testing=testing, citing=True, use_orcid_api=use_orcid_api)
-
-    elif not is_first_iteration:
+    else:
         crossref_csv = CrossrefProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                   publishers_filepath=publishers_filepath,
                                   storage_manager=storage_manager, testing=testing, citing=False, use_orcid_api=use_orcid_api)
@@ -196,7 +188,8 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
     data_cited = []
 
     source_data = load_json(filename, targz_fd)
-    #here I create a list containing all the entities dicts
+    if source_data is None:
+        return
     source_dict = source_data['items']
 
 
@@ -324,10 +317,11 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         get_all_redis_ids_and_save_updates(source_dict, is_first_iteration_par=True)
         # prima l'ultimo file va processato
         for entity in tqdm(source_dict):
-            #pbar.update()
             if entity:
                 #per i citanti la validazione non serve, se è normalizzabile va direttamente alla crezione tabelle Meta
                 norm_source_id = crossref_csv.tmp_doi_m.normalise(entity['DOI'], include_prefix=True)
+                if norm_source_id is None:
+                    continue
 
                 # if the id is not in the redis database, it means that it was not processed and that it is not in the csv output tables yet.
 
@@ -335,13 +329,11 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                     # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
                     # time of the csv files creation process) and create a meta csv row for the entity in this case only
                     crossref_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
-
-                    if norm_source_id:
-                        source_tab_data = crossref_csv.csv_creator(entity)
-                        if source_tab_data:
-                            processed_source_id = source_tab_data["id"]
-                            if processed_source_id:
-                                data_citing.append(source_tab_data)
+                    source_tab_data = crossref_csv.csv_creator(entity)
+                    if source_tab_data:
+                        processed_source_id = source_tab_data["id"]
+                        if processed_source_id:
+                            data_citing.append(source_tab_data)
 
         save_files(data_citing, index_citations_to_csv, True)
 
@@ -397,29 +389,22 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
 
         save_files(data_cited, index_citations_to_csv, False)
 
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
-    if not redis_storage_manager:
-        if storage_path:
-            if not os.path.exists(storage_path):
-            # if parent dir does not exist, it is created
-                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager(storage_path)
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager(storage_path)
-
-        if not storage_path and not redis_storage_manager:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-    elif redis_storage_manager:
-        if testing:
-            storage_manager = RedisStorageManager(testing=True)
-        else:
-            storage_manager = RedisStorageManager(testing=False)
-    return storage_manager
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
+    if redis_storage_manager:
+        return RedisStorageManager(testing=testing)
+    if storage_path:
+        if not os.path.exists(storage_path):
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        if storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+        raise ValueError(f"Storage path must end with .db or .json, got: {storage_path}")
+    new_path_dir = os.path.join(os.getcwd(), "storage")
+    if not os.path.exists(new_path_dir):
+        os.makedirs(new_path_dir)
+    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
