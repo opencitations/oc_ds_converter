@@ -70,9 +70,9 @@ class TestGetViaRequests(unittest.TestCase):
         mock_response.status_code = 500
         mock_get.return_value = mock_response
 
-        result = get_via_requests("https://api.crossref.org/members")
+        with self.assertRaises(ConnectionError):
+            get_via_requests("https://api.crossref.org/members")
 
-        self.assertIsNone(result)
         self.assertEqual(mock_get.call_count, 5)
         self.assertEqual(mock_sleep.call_count, 5)
 

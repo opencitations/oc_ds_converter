@@ -16,3 +16,4 @@ cache.json
 report_output_folder/
 dist/
 .coverage
+CLAUDE.md

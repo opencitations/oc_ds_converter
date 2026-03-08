@@ -116,9 +116,6 @@ class CrossrefProcessing(RaProcessor):
             elif self.tmp_orcid_m.is_valid(norm_id):
                 valid_id_list.append(norm_id)
 
-        else:
-            print("Schema not accepted:", schema, "in", norm_id_dict, ". Use 'orcid' or 'doi'.")
-
         return valid_id_list
 
     def memory_to_storage(self):
@@ -144,9 +141,7 @@ class CrossrefProcessing(RaProcessor):
             if validity_value is None:
                 validity_value = self.doi_m.validated_as_id(identifier)
             return validity_value
-        else:
-            print("invalid schema in ", id_dict, ". schema should be either doi or orcid.")
-            return None
+        return None
 
 
     def get_id_manager(self, schema_or_id, id_man_dict):
@@ -391,15 +386,7 @@ class CrossrefProcessing(RaProcessor):
                 break  # trovato qualcosa nell'indice
 
         # --- 2) Parser indice → lista candidati (family, given, orcid normalizzato) ---
-        def _extract_orcid(text: str) -> Optional[str]:
-            if not isinstance(text, str):
-                return None
-            m = re.search(r'(\d{4}-\d{4}-\d{4}-[0-9]{3}[0-9X])', text)
-            return f"orcid:{m.group(1)}" if m else None
-
         def _split_name(text: str) -> Tuple[str, Optional[str]]:
-            if not isinstance(text, str):
-                return "", None
             base = re.sub(r'\s*\[.*?\]\s*$', '', text).strip()
             if ',' in base:
                 fam, giv = [p.strip() for p in base.split(',', 1)]
@@ -410,7 +397,7 @@ class CrossrefProcessing(RaProcessor):
             return base, None
 
         candidates: List[Tuple[str, Optional[str], str]] = []
-        if isinstance(raw_index, dict):
+        if raw_index:
             for k, v in raw_index.items():
                 oc = k if str(k).lower().startswith("orcid:") else f"orcid:{k}"
                 oc_norm = self.orcid_m.normalise(oc, include_prefix=True)
@@ -418,23 +405,6 @@ class CrossrefProcessing(RaProcessor):
                     continue
                 fam, giv = _split_name(v)
                 candidates.append((fam.lower(), (giv or "").lower() or None, oc_norm))
-        elif isinstance(raw_index, (list, set, tuple)):
-            for v in raw_index:
-                oc = _extract_orcid(str(v))
-                if not oc:
-                    continue
-                oc_norm = self.orcid_m.normalise(oc, include_prefix=True)
-                if not oc_norm:
-                    continue
-                fam, giv = _split_name(str(v))
-                candidates.append((fam.lower(), (giv or "").lower() or None, oc_norm))
-        elif isinstance(raw_index, str):
-            oc = _extract_orcid(raw_index)
-            if oc:
-                oc_norm = self.orcid_m.normalise(oc, include_prefix=True)
-                if oc_norm:
-                    fam, giv = _split_name(raw_index)
-                    candidates.append((fam.lower(), (giv or "").lower() or None, oc_norm))
 
         # --- 3) Pulizia agenti ---
         agents_list = [
@@ -529,7 +499,7 @@ class CrossrefProcessing(RaProcessor):
             # disabilita il fallback per iniziale (evita tagging del falso positivo).
             inversion_present = any(
                 cg and (_norm(cg), fam_n) in name_pairs
-                for (_cf, cg, _oc) in cands
+                for (_, cg, _) in cands
             )
             if inversion_present:
                 return None
@@ -607,20 +577,13 @@ class CrossrefProcessing(RaProcessor):
         alt_doi = doi if (doi and not str(doi).lower().startswith("doi:")) else None
         found_orcids = set()
 
-        # DOI→ORCID index (robusto a vari formati)
+        # DOI→ORCID index
         for candidate in (norm_doi, alt_doi):
             if not candidate:
                 continue
             raw = self.orcid_finder(candidate)
-            if isinstance(raw, dict):
+            if raw:
                 found_orcids.update(k.replace("orcid:", "").strip() for k in raw.keys())
-            elif isinstance(raw, (list, set, tuple)):
-                for v in raw:
-                    m = re.findall(r"(\d{4}-\d{4}-\d{4}-\d{3,4}[0-9X])", str(v))
-                    found_orcids.update(m)
-            elif isinstance(raw, str):
-                m = re.findall(r"(\d{4}-\d{4}-\d{4}-\d{3,4}[0-9X])", raw)
-                found_orcids.update(m)
 
         bare_orcid = norm_orcid.split(":", 1)[1]
         if bare_orcid in found_orcids:

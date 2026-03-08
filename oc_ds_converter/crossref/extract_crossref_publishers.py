@@ -23,59 +23,51 @@ from time import sleep
 
 from requests import get
 
+from oc_ds_converter.lib.console import create_progress
+
 MAX_TRY = 5
 SLEEPING_TIME = 5
 csv_headers = (
     "id", "name", "prefix"
 )
 headers = {
-    "User-Agent": 
+    "User-Agent":
     "OpenCitations "
     "(http://opencitations.net; mailto:contact@opencitations.net)"
 }
 
 
-def get_via_requests(get_url):
-    tentative = 0
-    print("")
-
-    while tentative < MAX_TRY:
-        tentative += 1
-
+def get_via_requests(get_url: str) -> dict | None:
+    for _ in range(MAX_TRY):
         try:
-            print("Getting data from", get_url, "- tentative:", tentative)
             r = get(get_url, headers=headers, timeout=10)
             if r.status_code == 200:
-                print("\tdata downloaded")
                 r.encoding = "utf-8"
-
                 return loads(r.text)
             elif r.status_code == 404:
                 return None
             else:
-                print("\tdata not downloaded, trying again in ", SLEEPING_TIME, "seconds - status:", r.status_code)
                 sleep(SLEEPING_TIME)
-        except Exception as e:
-            print("\tdata not downloaded, trying again in ", SLEEPING_TIME, "seconds - exception:", str(e))
+        except Exception:
             sleep(SLEEPING_TIME)
+    raise ConnectionError(f"Failed to fetch {get_url} after {MAX_TRY} attempts")
 
 
-def get_publishers(offset):
+def get_publishers(offset: int) -> tuple[list, int, int] | None:
     get_url = "https://api.crossref.org/members?rows=1000&offset=" + str(offset)
     req = get_via_requests(get_url)
-    
+
     if req is not None:
         r_json = req.get("message")
         if r_json is not None:
             offset += 1000
-            print("\tnext offset is", offset)
             total_results = int(r_json.get("total-results"))
             items = r_json.get("items")
-
             return items, offset, total_results
-                
+    return None
 
-def process(out_path):
+
+def process(out_path: str) -> None:
     pub_ids = set()
 
     if exists(out_path):
@@ -84,38 +76,36 @@ def process(out_path):
             for row in csv_reader:
                 pub_ids.add(row["id"])
 
-    # cursor = "*"
     offset = 0
     tot = 10000000000
-    pub_count = 0
-    while offset < tot:
-        response = get_publishers(offset)
-        if response is None:
-            break
-        result, offset, tot = response
 
-        if result is not None:
-            for publisher in result:
-                pub_count += 1
-                cur_id = str(publisher["id"])
-                if cur_id not in pub_ids:
-                    pub_ids.add(cur_id)
-                    cur_name = html.unescape(publisher["primary-name"])
-                    prefixes = set()
-                    for prefix in publisher["prefix"]:
-                        prefix_value = prefix["value"]
-                        if prefix_value not in prefixes:
-                            prefixes.add(prefix_value)
-                            store_csv_on_file(out_path, csv_headers, {
-                                "id": cur_id, "name": cur_name, "prefix": prefix_value})
-    
-    if pub_count == tot:
-        print("\n\nAll publishers correctly downloaded")
-    else:
-        print("\n\nOnly %s of the total %s publishers "
-              "have been downloaded" % (pub_count, tot))
+    with create_progress() as progress:
+        task = progress.add_task("[green]Downloading publishers", total=tot)
 
-def store_csv_on_file(f_path, header, json_obj):
+        while offset < tot:
+            response = get_publishers(offset)
+            if response is None:
+                break
+            result, offset, tot = response
+            progress.update(task, total=tot)
+
+            if result is not None:
+                for publisher in result:
+                    progress.update(task, advance=1)
+                    cur_id = str(publisher["id"])
+                    if cur_id not in pub_ids:
+                        pub_ids.add(cur_id)
+                        cur_name = html.unescape(publisher["primary-name"])
+                        prefixes = set()
+                        for prefix in publisher["prefix"]:
+                            prefix_value = prefix["value"]
+                            if prefix_value not in prefixes:
+                                prefixes.add(prefix_value)
+                                store_csv_on_file(out_path, csv_headers, {
+                                    "id": cur_id, "name": cur_name, "prefix": prefix_value})
+
+
+def store_csv_on_file(f_path: str, header: tuple, json_obj: dict) -> None:
     f_exists = exists(f_path)
     with open(f_path, "a", encoding="utf8", newline='') as f:
         dw = DictWriter(f=f, fieldnames=header, delimiter=',', quotechar='"', quoting=QUOTE_NONNUMERIC)
