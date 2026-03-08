@@ -245,8 +245,8 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                             ent_all_br, ent_all_ra = dc_csv.extract_all_ids(entity, False)
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
-        redis_validity_values_br = dc_csv.get_reids_validity_list(all_br, "br")
-        redis_validity_values_ra = dc_csv.get_reids_validity_list(all_ra, "ra")
+        redis_validity_values_br = dc_csv.get_redis_validity_list(all_br, "br")
+        redis_validity_values_ra = dc_csv.get_redis_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
 
     def save_files(ent_list, citation_list, is_first_iteration_par:bool):

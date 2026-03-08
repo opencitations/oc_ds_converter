@@ -57,7 +57,7 @@ class TestCrossrefProcessing(unittest.TestCase):
                'doi:10.1097/dmp.0b013e318194898d', 'doi:10.1378/chest.07-2693',
                'doi:10.1016/s0196-0644(99)70224-6', 'doi:10.1097/01.ccm.0000151072.17826.72',
                'doi:10.1097/01.bcr.0000155527.76205.a2', 'doi:10.2105/ajph.2009.162677'}
-        br_valid_list = c_processing.get_reids_validity_list(br, "br")
+        br_valid_list = c_processing.get_redis_validity_list(br, "br")
         exp_br_valid_list = []
         self.assertEqual(br_valid_list, exp_br_valid_list)
         c_processing.storage_manager.delete_storage()
@@ -73,9 +73,9 @@ class TestCrossrefProcessing(unittest.TestCase):
               'doi:10.1016/s0196-0644(99)70224-6', 'doi:10.1097/01.ccm.0000151072.17826.72',
               'doi:10.1097/01.bcr.0000155527.76205.a2', 'doi:10.2105/ajph.2009.162677'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
-        br_valid_list = c_processing.get_reids_validity_list(br, "br")
+        br_valid_list = c_processing.get_redis_validity_list(br, "br")
         exp_br_valid_list = []
-        ra_valid_list = c_processing.get_reids_validity_list(ra, "ra")
+        ra_valid_list = c_processing.get_redis_validity_list(ra, "ra")
         self.assertEqual(br_valid_list, exp_br_valid_list)
         exp_ra_valid_list = []
         self.assertEqual(ra_valid_list, exp_ra_valid_list)
@@ -90,9 +90,9 @@ class TestCrossrefProcessing(unittest.TestCase):
               'doi:10.1177/003335490812300219'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
 
-        br_validity_dict = c_processing.get_reids_validity_list(br, "br")
+        br_validity_dict = c_processing.get_redis_validity_list(br, "br")
         exp_br_valid_list = ['doi:10.2105/ajph.2006.101626']
-        ra_validity_dict = c_processing.get_reids_validity_list(ra, "ra")
+        ra_validity_dict = c_processing.get_redis_validity_list(ra, "ra")
         exp_ra_valid_list = ['orcid:0000-0002-8090-6886']
         self.assertEqual(br_validity_dict, exp_br_valid_list)
         self.assertEqual(ra_validity_dict, exp_ra_valid_list)
@@ -111,9 +111,9 @@ class TestCrossrefProcessing(unittest.TestCase):
               'doi:10.1177/003335490812300219'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
 
-        br_validity_dict = c_processing.get_reids_validity_list(br, "br")
+        br_validity_dict = c_processing.get_redis_validity_list(br, "br")
         exp_br_valid_list = ['doi:10.2105/ajph.2006.101626']
-        ra_validity_dict = c_processing.get_reids_validity_list(ra, "ra")
+        ra_validity_dict = c_processing.get_redis_validity_list(ra, "ra")
         exp_ra_valid_list = ['orcid:0000-0002-8090-6886']
         self.assertEqual(br_validity_dict, exp_br_valid_list)
         self.assertEqual(ra_validity_dict, exp_ra_valid_list)

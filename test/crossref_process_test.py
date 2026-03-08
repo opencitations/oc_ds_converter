@@ -219,12 +219,12 @@ class CrossrefProcessTest(unittest.TestCase):
         citations_output_path = self.output + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        cache_dict = {'first_iteration': [], 'second_iteration': []}
+        cache_dict = {'citing': [], 'cited': []}
         targz_fd = tarfile.open(self.targz_cited_input, "r:gz", encoding="utf-8")
         for cur_file in targz_fd:
             if cur_file.name.endswith('.json') and not basename(cur_file.name).startswith("."):
-                cache_dict['first_iteration'].append(Path(cur_file.name).name)
-                cache_dict['second_iteration'].append(Path(cur_file.name).name)
+                cache_dict['citing'].append(Path(cur_file.name).name)
+                cache_dict['cited'].append(Path(cur_file.name).name)
 
         with open(self.cache, "w") as write_cache:
             json.dump(cache_dict, write_cache)

@@ -343,7 +343,7 @@ class JalcProcessing(RaProcessor):
                     all_br.append(norm_id)
             return all_br
 
-    def get_reids_validity_list(self, id_list):
+    def get_redis_validity_list(self, id_list):
         ids = list(id_list)
         validity = self.BR_redis.mexists_as_set(ids)
         return [ids[i] for i, v in enumerate(validity) if v]

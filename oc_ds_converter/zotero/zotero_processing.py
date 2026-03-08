@@ -489,7 +489,7 @@ class ZoteroProcessing(RaProcessor):
         all_ra = list(all_ra)
         return all_br, all_ra
 
-    def get_reids_validity_list(self, id_list, redis_db):
+    def get_redis_validity_list(self, id_list, redis_db):
         ids = list(id_list)
         if redis_db == "ra":
             validity = self.RA_redis.mexists_as_set(ids)

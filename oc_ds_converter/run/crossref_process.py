@@ -27,19 +27,19 @@ from pathlib import Path
 from tarfile import TarInfo
 
 import yaml
-from filelock import FileLock
+from filelock import BaseFileLock, FileLock
 
 from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.crossref.extract_crossref_publishers import process as extract_publishers
 from oc_ds_converter.lib.console import console, create_progress
-from oc_ds_converter.lib.file_manager import normalize_path
+from oc_ds_converter.lib.file_manager import normalize_path, pathoo
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def _run_iteration_sequential(
+def _run_iteration(
     all_files: list[str | TarInfo],
     targz_fd: tarfile.TarFile | None,
     preprocessed_citations_dir: str,
@@ -51,59 +51,42 @@ def _run_iteration_sequential(
     redis_storage_manager: bool,
     testing: bool,
     cache: str | None,
-    is_first_iteration: bool,
+    processing_citing: bool,
     use_orcid_api: bool,
+    max_workers: int = 1,
 ) -> None:
-    iteration_label = "citing entities" if is_first_iteration else "cited entities"
-    iteration_num = "First" if is_first_iteration else "Second"
+    iteration_label = "citing entities" if processing_citing else "cited entities"
+    iteration_num = "First" if processing_citing else "Second"
+
     with create_progress() as progress:
         task = progress.add_task(f"[green]{iteration_num} iteration ({iteration_label})", total=len(all_files))
-        for filename in all_files:
-            get_citations_and_metadata(
-                filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
-                testing, cache, is_first_iteration=is_first_iteration, use_orcid_api=use_orcid_api
-            )
-            progress.update(task, advance=1)
 
-
-def _run_iteration_parallel(
-    all_files: list[str | TarInfo],
-    targz_fd: tarfile.TarFile | None,
-    preprocessed_citations_dir: str,
-    csv_dir: str,
-    orcid_doi_filepath: str | None,
-    wanted_doi_filepath: str | None,
-    publishers_filepath: str | None,
-    storage_path: str | None,
-    redis_storage_manager: bool,
-    testing: bool,
-    cache: str | None,
-    is_first_iteration: bool,
-    use_orcid_api: bool,
-    max_workers: int,
-) -> None:
-    iteration_label = "citing entities" if is_first_iteration else "cited entities"
-    iteration_num = "First" if is_first_iteration else "Second"
-    with create_progress() as progress:
-        task = progress.add_task(f"[green]{iteration_num} iteration ({iteration_label})", total=len(all_files))
-        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
-            futures = []
+        if max_workers == 1:
             for filename in all_files:
-                if isinstance(filename, str) and filename.startswith("._"):
-                    progress.update(task, advance=1)
-                    continue
-                future = executor.submit(
-                    get_citations_and_metadata,
+                get_citations_and_metadata(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                     wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
-                    testing, cache, is_first_iteration, use_orcid_api
+                    testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api
                 )
-                futures.append(future)
-            for future in futures:
-                future.result()
                 progress.update(task, advance=1)
-    console.print(f'[green]{iteration_num} iteration complete[/green]')
+        else:
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
+                futures = []
+                for filename in all_files:
+                    if isinstance(filename, str) and filename.startswith("._"):
+                        progress.update(task, advance=1)
+                        continue
+                    future = executor.submit(
+                        get_citations_and_metadata,
+                        filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+                        wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
+                        testing, cache, processing_citing, use_orcid_api
+                    )
+                    futures.append(future)
+                for future in futures:
+                    future.result()
+                    progress.update(task, advance=1)
+            console.print(f'[green]{iteration_num} iteration complete[/green]')
 
 
 def _delete_cache_files(cache_path: str) -> None:
@@ -112,6 +95,153 @@ def _delete_cache_files(cache_path: str) -> None:
     lock_file = cache_path + ".lock"
     if os.path.exists(lock_file):
         os.remove(lock_file)
+
+
+def _extract_redis_ids_and_update(
+    processor: CrossrefProcessing,
+    entity_list: list[dict],
+    processing_citing: bool,
+) -> None:
+    all_br: list[str] = []
+    all_ra: list[str] = []
+
+    for entity in entity_list:
+        if entity and "reference" in entity:
+            has_doi_references = bool([x for x in entity["reference"] if x.get("DOI")])
+            if has_doi_references:
+                ent_all_br, ent_all_ra = processor.extract_all_ids(entity, processing_citing)
+                all_br.extend(ent_all_br)
+                all_ra.extend(ent_all_ra)
+
+    redis_validity_values_br = processor.get_redis_validity_list(all_br, "br")
+    redis_validity_values_ra = processor.get_redis_validity_list(all_ra, "ra")
+    processor.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
+
+
+def _save_output_files(
+    entity_rows: list[dict],
+    citation_rows: list[dict],
+    metadata_output_base: str,
+    citation_links_output_base: str,
+    processor: CrossrefProcessing,
+    processing_citing: bool,
+    cache_path: str,
+    lock: BaseFileLock,
+    filename: str,
+) -> None:
+    if entity_rows:
+        suffix = "_citing.csv" if processing_citing else "_cited.csv"
+        filepath = metadata_output_base + suffix
+        with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
+            dict_writer = csv.DictWriter(
+                output_file, entity_rows[0].keys(), delimiter=',', quotechar='"',
+                quoting=csv.QUOTE_NONNUMERIC, escapechar='\\'
+            )
+            dict_writer.writeheader()
+            dict_writer.writerows(entity_rows)
+    processor.memory_to_storage()
+
+    if not processing_citing and citation_rows:
+        filepath = citation_links_output_base + ".csv"
+        with open(filepath, 'w', newline='', encoding='utf-8') as output_file:
+            dict_writer = csv.DictWriter(
+                output_file, citation_rows[0].keys(), delimiter=',', quotechar='"',
+                quoting=csv.QUOTE_NONNUMERIC, escapechar='\\'
+            )
+            dict_writer.writeheader()
+            dict_writer.writerows(citation_rows)
+
+    processor.memory_to_storage()
+    _mark_file_completed(cache_path, lock, filename, processing_citing)
+
+
+def _mark_file_completed(
+    cache_path: str,
+    lock: BaseFileLock,
+    filename: str,
+    processing_citing: bool,
+) -> None:
+    iteration_key = "citing" if processing_citing else "cited"
+    with lock:
+        cache_dict: dict[str, list[str]] = {}
+        if os.path.exists(cache_path):
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cache_dict = json.load(f)
+
+        if iteration_key not in cache_dict:
+            cache_dict[iteration_key] = []
+
+        file_basename = Path(filename).name
+        if file_basename not in cache_dict[iteration_key]:
+            cache_dict[iteration_key].append(file_basename)
+
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache_dict, f)
+
+
+def _process_citing_entities(
+    processor: CrossrefProcessing,
+    source_dict: list[dict],
+) -> list[dict]:
+    citing_entity_rows: list[dict] = []
+    for entity in source_dict:
+        if entity:
+            # For citing entities, validation is not needed; if normalizable, proceed directly to Meta table creation
+            norm_source_id = processor.tmp_doi_m.normalise(entity['DOI'], include_prefix=True)
+            if norm_source_id is None:
+                continue
+
+            # If the id is not in the storage, it means it was not processed and is not in the csv output tables yet
+            if not processor.doi_m.storage_manager.get_value(norm_source_id):
+                # Add the id as valid to the temporary storage manager and create a meta csv row
+                processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
+                source_tab_data = processor.csv_creator(entity)
+                if source_tab_data:
+                    processed_source_id = source_tab_data["id"]
+                    if processed_source_id:
+                        citing_entity_rows.append(source_tab_data)
+    return citing_entity_rows
+
+
+def _process_cited_entities(
+    processor: CrossrefProcessing,
+    source_dict: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    cited_entity_rows: list[dict] = []
+    citation_rows: list[dict] = []
+
+    for entity in source_dict:
+        if entity and "reference" in entity:
+            has_doi_references = [x for x in entity["reference"] if x.get("DOI")]
+            if has_doi_references:
+                norm_source_id = processor.doi_m.normalise(entity['DOI'], include_prefix=True)
+
+                cit_list_entities = [x.get("DOI") for x in has_doi_references]
+                cit_list_entities_dois = [x for x in cit_list_entities if x]
+                if cit_list_entities_dois:
+                    valid_target_ids: list[str] = []
+                    for cited_entity in cit_list_entities_dois:
+                        norm_id = processor.doi_m.normalise(cited_entity, include_prefix=True)
+                        if norm_id:
+                            norm_id_dict_to_val = {"schema": "doi", "identifier": norm_id}
+                            stored_validity = processor.validated_as(norm_id_dict_to_val)
+                            if stored_validity is None:
+                                norm_id_dict = {"id": norm_id, "schema": "doi"}
+                                if norm_id in processor.to_validated_id_list(norm_id_dict):
+                                    cited_entity_dict = {"DOI": norm_id}
+                                    target_tab_data = processor.csv_creator(cited_entity_dict)
+                                    if target_tab_data:
+                                        processed_target_id = target_tab_data.get("id")
+                                        if processed_target_id:
+                                            cited_entity_rows.append(target_tab_data)
+                                            valid_target_ids.append(norm_id)
+                            elif stored_validity is True:
+                                valid_target_ids.append(norm_id)
+
+                    for target_id in valid_target_ids:
+                        citation_rows.append({"citing": norm_source_id, "cited": target_id})
+
+    return cited_entity_rows, citation_rows
 
 
 def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, storage_path: str | None = None,
@@ -153,12 +283,9 @@ def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: 
         testing, cache
     )
 
-    if not redis_storage_manager or max_workers == 1:
-        _run_iteration_sequential(*iteration_args, is_first_iteration=True, use_orcid_api=use_orcid_api)
-        _run_iteration_sequential(*iteration_args, is_first_iteration=False, use_orcid_api=use_orcid_api)
-    else:
-        _run_iteration_parallel(*iteration_args, is_first_iteration=True, use_orcid_api=use_orcid_api, max_workers=max_workers)
-        _run_iteration_parallel(*iteration_args, is_first_iteration=False, use_orcid_api=use_orcid_api, max_workers=max_workers)
+    workers = 1 if not redis_storage_manager else max_workers
+    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=workers)
+    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=workers)
 
     # DELETE CACHE AND .LOCK FILE
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
@@ -174,7 +301,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                                orcid_index: str | None,
                                doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str | None, is_first_iteration: bool, use_orcid_api: bool):
+                               testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
@@ -206,200 +333,49 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
 
     # skip if in cache
     filename = file_name
-    if cache_dict.get("first_iteration"):
-        if is_first_iteration and filename in cache_dict["first_iteration"]:
+    if cache_dict.get("citing"):
+        if processing_citing and filename in cache_dict["citing"]:
             return
-    if cache_dict.get("second_iteration"):
-        if not is_first_iteration and filename in cache_dict["second_iteration"]:
+    if cache_dict.get("cited"):
+        if not processing_citing and filename in cache_dict["cited"]:
             return
 
     crossref_csv = CrossrefProcessing(
         orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath=publishers_filepath,
-        storage_manager=storage_manager, testing=testing, citing=is_first_iteration, use_orcid_api=use_orcid_api
+        storage_manager=storage_manager, testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api
     )
-    index_citations_to_csv = []
-    data_citing = []
-    data_cited = []
 
     source_data = load_json(filename, targz_fd)
     if source_data is None:
         return
     source_dict = source_data['items']
 
-
     filename = filename.name if isinstance(filename, TarInfo) else filename
     filename_without_ext = filename.replace('.json', '').replace('.tar', '').replace('.gz', '')
     filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
     pathoo(filepath)
 
-    filepath_ne = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}')
-    filepath_citations_ne = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}')
+    metadata_output_base = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}')
+    citation_links_output_base = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}')
 
     filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
     pathoo(filepath_citations)
 
-    #  √ REDIS UPDATE
-    def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par:bool):
-        all_br = []
-        all_ra = []
+    _extract_redis_ids_and_update(crossref_csv, source_dict, processing_citing)
 
-        # RETRIEVE ALL THE IDENTIFIERS TO BE VALIDATED THAT MAY BE IN REDIS
-        # DOI, ORCID,
-        for entity in sli_da:  # for each bibliographical entity in the list
-            if entity and "reference" in entity:
-                # filtering out entities without citations
-                has_doi_references = True if [x for x in entity["reference"] if x.get("DOI")] else False
-                if has_doi_references:
-                    ent_all_br, ent_all_ra = crossref_csv.extract_all_ids(entity, is_first_iteration_par)
-                    all_br.extend(ent_all_br)
-                    # ERRORE CORRETTO all_ra -> ent_all_ra
-                    all_ra.extend(ent_all_ra)
+    if processing_citing:
+        citing_entity_rows = _process_citing_entities(crossref_csv, source_dict)
+        _save_output_files(
+            citing_entity_rows, [], metadata_output_base, citation_links_output_base,
+            crossref_csv, True, cache, lock, filename
+        )
+    else:
+        cited_entity_rows, citation_rows = _process_cited_entities(crossref_csv, source_dict)
+        _save_output_files(
+            cited_entity_rows, citation_rows, metadata_output_base, citation_links_output_base,
+            crossref_csv, False, cache, lock, filename
+        )
 
-        redis_validity_values_br = crossref_csv.get_reids_validity_list(all_br, "br")
-        redis_validity_values_ra = crossref_csv.get_reids_validity_list(all_ra, "ra")
-        crossref_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
-
-    def save_files(ent_list, citation_list, is_first_iteration_par: bool):
-        if ent_list:
-            # Filename of the source json, At first iteration, we will generate a CSV file containing all the
-            # citing entities metadata, at the second iteration we will generate a cited entities metadata file
-            # and the citations csv file
-            if is_first_iteration_par:
-                filename_str = filepath_ne+"_citing.csv"
-            else:
-                filename_str = filepath_ne+"_cited.csv"
-            with open(filename_str, 'w', newline='', encoding='utf-8') as output_file:
-                dict_writer = csv.DictWriter(output_file, ent_list[0].keys(), delimiter=',', quotechar='"',
-                                             quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
-                dict_writer.writeheader()
-                dict_writer.writerows(ent_list)
-            ent_list = []
-        crossref_csv.memory_to_storage()
-
-        if not is_first_iteration_par:
-            if citation_list:
-                filename_cit_str = filepath_citations_ne + ".csv"
-                with open(filename_cit_str, 'w', newline='', encoding='utf-8') as output_file_citations:
-                    dict_writer = csv.DictWriter(output_file_citations, citation_list[0].keys(), delimiter=',',
-                                                 quotechar='"', quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
-                    dict_writer.writeheader()
-                    dict_writer.writerows(citation_list)
-                citation_list = []
-
-        crossref_csv.memory_to_storage()
-        task_done(is_first_iteration_par)
-        return ent_list, citation_list
-
-    def task_done(is_first_iteration_par: bool) -> None:
-        iteration_key = "first_iteration" if is_first_iteration_par else "second_iteration"
-        if iteration_key not in cache_dict:
-            cache_dict[iteration_key] = set()
-
-        for k, v in cache_dict.items():
-            cache_dict[k] = set(v)
-
-        cache_dict[iteration_key].add(Path(file_name).name)
-
-        with lock:
-            with open(cache, 'r', encoding='utf-8') as aux_file:
-                cur_cache_dict = json.load(aux_file)
-
-                for k,v in cur_cache_dict.items():
-                    cur_cache_dict[k] = set(v)
-                    if not cache_dict.get(k) and cur_cache_dict.get(k):
-                        cache_dict[k] = v
-                    elif cache_dict[k] != v:
-                        zip_files_processed_values_list = cache_dict[k]
-                        cur_zip_files_processed_values_list = cur_cache_dict[k]
-
-                        # unione set e poi lista
-                        list_updated = list(cur_zip_files_processed_values_list.union(zip_files_processed_values_list))
-                        cache_dict[k] = list_updated
-
-                for k,v in cache_dict.items():
-                    if k not in cur_cache_dict:
-                        cur_cache_dict[k] = v
-
-            for k,v in cache_dict.items():
-                if isinstance(v, set):
-                    cache_dict[k] = list(v)
-
-            with open(cache, 'w', encoding='utf-8') as aux_file:
-                json.dump(cache_dict, aux_file)
-
-    if is_first_iteration:
-        get_all_redis_ids_and_save_updates(source_dict, is_first_iteration_par=True)
-        # prima l'ultimo file va processato
-        for entity in source_dict:
-            if entity:
-                # per i citanti la validazione non serve, se è normalizzabile va direttamente alla crezione tabelle Meta
-                norm_source_id = crossref_csv.tmp_doi_m.normalise(entity['DOI'], include_prefix=True)
-                if norm_source_id is None:
-                    continue
-
-                # if the id is not in the redis database, it means that it was not processed and that it is not in the csv output tables yet.
-                if not crossref_csv.doi_m.storage_manager.get_value(norm_source_id):
-                    # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
-                    # time of the csv files creation process) and create a meta csv row for the entity in this case only
-                    crossref_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
-                    source_tab_data = crossref_csv.csv_creator(entity)
-                    if source_tab_data:
-                        processed_source_id = source_tab_data["id"]
-                        if processed_source_id:
-                            data_citing.append(source_tab_data)
-
-        save_files(data_citing, index_citations_to_csv, True)
-
-    '''cited entities:
-    - look for the DOI in the temporary manager and in the storage manager:
-        - if found as valid -> do not create the Meta table, but include the cited entity in the citations' tables;
-        - if not found -> look for the doi in Redis server and later call the API if needed -> if the DOI is valid create the
-        table for Meta and include the cited entity in the citations' tables
-        - if found as not valid -> next entity'''
-
-    if not is_first_iteration:
-        get_all_redis_ids_and_save_updates(source_dict, is_first_iteration_par=False)
-        for entity in source_dict:
-            if entity and "reference" in entity:
-                # filtering out entities without citations
-                has_doi_references = [x for x in entity["reference"] if x.get("DOI")]
-                if has_doi_references:
-                    norm_source_id = crossref_csv.doi_m.normalise(entity['DOI'], include_prefix=True)
-
-                    cit_list_entities = [x.get("DOI") for x in has_doi_references]
-                    cit_list_entities_dois = [x for x in cit_list_entities if x]
-                    # filtering out entities with citations without dois
-                    if cit_list_entities_dois:
-
-                        valid_target_ids = []
-                        for cited_entity in cit_list_entities_dois:
-
-                            # / START: BR ID VALIDATION
-                            norm_id = crossref_csv.doi_m.normalise(cited_entity, include_prefix=True)
-                            if norm_id:
-                                norm_id_dict_to_val = {"schema":"doi"}
-                                norm_id_dict_to_val["identifier"] = norm_id
-                                stored_validity = crossref_csv.validated_as(norm_id_dict_to_val)
-                                if stored_validity is None:
-                                    norm_id_dict = {"id": norm_id, "schema":"doi"}
-                                    if norm_id in crossref_csv.to_validated_id_list(norm_id_dict):
-                                        cited_entity_dict = {"DOI": norm_id}
-                                        target_tab_data = crossref_csv.csv_creator(cited_entity_dict)
-                                        if target_tab_data:
-                                            processed_target_id = target_tab_data.get("id")
-                                            if processed_target_id:
-                                                data_cited.append(target_tab_data)
-                                                valid_target_ids.append(norm_id)
-                                elif stored_validity is True:
-                                    valid_target_ids.append(norm_id)
-
-                        for target_id in valid_target_ids:
-                            citation = dict()
-                            citation["citing"] = norm_source_id
-                            citation["cited"] = target_id
-                            index_citations_to_csv.append(citation)
-
-        save_files(data_cited, index_citations_to_csv, False)
 
 def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
     if redis_storage_manager:
@@ -417,11 +393,6 @@ def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, t
     if not os.path.exists(new_path_dir):
         os.makedirs(new_path_dir)
     return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-
-def pathoo(path:str) -> None:
-    if not os.path.exists(os.path.dirname(path)):
-        os.makedirs(os.path.dirname(path))
-
 
 if __name__ == '__main__':  # pragma: no cover
     arg_parser = ArgumentParser('crossref_process.py', description='This script creates CSV files from Crossref JSON files, enriching them through of a DOI-ORCID index')

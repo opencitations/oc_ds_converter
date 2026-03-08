@@ -397,7 +397,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                         if not is_first_iteration_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, False)
                             all_br = all_br + ent_all_br
-        redis_validity_values_br = jalc_csv.get_reids_validity_list(all_br)
+        redis_validity_values_br = jalc_csv.get_redis_validity_list(all_br)
         jalc_csv.update_redis_values(redis_validity_values_br)
 
     def save_files(ent_list, citation_list, is_first_iteration_par: bool):

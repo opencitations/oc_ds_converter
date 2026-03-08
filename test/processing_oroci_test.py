@@ -53,28 +53,28 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertCountEqual(['orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'], allids[1])
         opp.storage_manager.delete_storage()
 
-    def test_get_reids_validity_list(self):
+    def test_get_redis_validity_list(self):
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
 
         opp = OpenaireProcessing()
-        br_valid_list = opp.get_reids_validity_list(br, "br")
+        br_valid_list = opp.get_redis_validity_list(br, "br")
         exp_exp_br_valid_list = []
-        ra_valid_list = opp.get_reids_validity_list(ra, "ra")
+        ra_valid_list = opp.get_redis_validity_list(ra, "ra")
         exp_exp_ra_valid_list = []
         self.assertEqual(ra_valid_list, exp_exp_ra_valid_list)
         self.assertEqual(br_valid_list, exp_exp_br_valid_list)
 
         opp.storage_manager.delete_storage()
 
-    def test_get_reids_validity_list_redis(self):
+    def test_get_redis_validity_list_redis(self):
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
 
         opp = OpenaireProcessing(storage_manager=RedisStorageManager(testing=True))
-        br_valid_list = opp.get_reids_validity_list(br, "br")
+        br_valid_list = opp.get_redis_validity_list(br, "br")
         exp_exp_br_valid_list = []
-        ra_valid_list = opp.get_reids_validity_list(ra, "ra")
+        ra_valid_list = opp.get_redis_validity_list(ra, "ra")
         exp_exp_ra_valid_list = []
         self.assertEqual(ra_valid_list, exp_exp_ra_valid_list)
         self.assertEqual(br_valid_list, exp_exp_br_valid_list)
@@ -88,9 +88,9 @@ class TestOpenaireProcessing(unittest.TestCase):
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
 
-        br_validity_dict = opp.get_reids_validity_list(br, "br")
+        br_validity_dict = opp.get_redis_validity_list(br, "br")
         exp_br_valid_list = ["pmid:24484640"]
-        ra_validity_dict = opp.get_reids_validity_list(ra, "ra")
+        ra_validity_dict = opp.get_redis_validity_list(ra, "ra")
         exp_ra_valid_list = ['orcid:0000-0002-8090-6886']
         self.assertEqual(br_validity_dict, exp_br_valid_list)
         self.assertEqual(ra_validity_dict, exp_ra_valid_list)
@@ -110,9 +110,9 @@ class TestOpenaireProcessing(unittest.TestCase):
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
 
-        br_validity_dict = opp.get_reids_validity_list(br, "br")
+        br_validity_dict = opp.get_redis_validity_list(br, "br")
         exp_br_valid_list = ["pmid:24484640"]
-        ra_validity_dict = opp.get_reids_validity_list(ra, "ra")
+        ra_validity_dict = opp.get_redis_validity_list(ra, "ra")
         exp_ra_valid_list = ['orcid:0000-0002-8090-6886']
         self.assertEqual(br_validity_dict, exp_br_valid_list)
         self.assertEqual(ra_validity_dict, exp_ra_valid_list)

@@ -65,7 +65,7 @@ class TestDataciteProcessing(unittest.TestCase):
     def test_get_redis_validity_list_br(self):
         dcp = DataciteProcessing()
         br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25", "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
-        br_valid_list = dcp.get_reids_validity_list(br, "br")
+        br_valid_list = dcp.get_redis_validity_list(br, "br")
         exp_br_valid_list = []
         self.assertEqual(br_valid_list, exp_br_valid_list)
         dcp.storage_manager.delete_storage()
@@ -73,7 +73,7 @@ class TestDataciteProcessing(unittest.TestCase):
     def test_get_redis_validity_list_ra(self):
         dcp = DataciteProcessing()
         ra = {"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"}
-        ra_valid_list = dcp.get_reids_validity_list(ra, "ra")
+        ra_valid_list = dcp.get_redis_validity_list(ra, "ra")
         exp_ra_valid_list = []
         self.assertEqual(ra_valid_list, exp_ra_valid_list)
         dcp.storage_manager.delete_storage()
@@ -82,7 +82,7 @@ class TestDataciteProcessing(unittest.TestCase):
         dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
         br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25",
               "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
-        br_valid_list = dcp.get_reids_validity_list(br, "br")
+        br_valid_list = dcp.get_redis_validity_list(br, "br")
         exp_br_valid_list = []
         self.assertEqual(br_valid_list, exp_br_valid_list)
         dcp.storage_manager.delete_storage()
@@ -96,9 +96,9 @@ class TestDataciteProcessing(unittest.TestCase):
               "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
 
         ra = {"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"}
-        br_validity_dict = dcp.get_reids_validity_list(br, "br")
+        br_validity_dict = dcp.get_redis_validity_list(br, "br")
         exp_br_valid_list = ["doi:10.15407/scin11.06.057"]
-        ra_validity_dict = dcp.get_reids_validity_list(ra, "ra")
+        ra_validity_dict = dcp.get_redis_validity_list(ra, "ra")
         exp_ra_valid_list = ["orcid:0000-0001-8513-8700"]
         self.assertEqual(br_validity_dict, exp_br_valid_list)
         self.assertEqual(ra_validity_dict, exp_ra_valid_list)
@@ -117,9 +117,9 @@ class TestDataciteProcessing(unittest.TestCase):
               "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
 
         ra = {"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"}
-        br_validity_dict = dcp.get_reids_validity_list(br, "br")
+        br_validity_dict = dcp.get_redis_validity_list(br, "br")
         exp_br_valid_list = ["doi:10.15407/scin11.06.057"]
-        ra_validity_dict = dcp.get_reids_validity_list(ra, "ra")
+        ra_validity_dict = dcp.get_redis_validity_list(ra, "ra")
         exp_ra_valid_list = ["orcid:0000-0001-8513-8700"]
         self.assertEqual(br_validity_dict, exp_br_valid_list)
         self.assertEqual(ra_validity_dict, exp_ra_valid_list)

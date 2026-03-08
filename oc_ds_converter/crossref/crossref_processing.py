@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # Copyright 2019-2020 Fabio Mariani <fabio.mariani555@gmail.com>
-# Copyright 2021-2022 Arcangelo Massari <arcangelo.massari@unibo.it>
+# Copyright 2021-2026 Arcangelo Massari <arcangelo.massari@unibo.it>
 # Copyright 2023-2025 Arianna Moretti <arianna.moretti4@unibo.it>
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -358,7 +358,7 @@ class CrossrefProcessing(RaProcessor):
         all_ra = list(all_ra)
         return all_br, all_ra
 
-    def get_reids_validity_list(self, id_list, redis_db):
+    def get_redis_validity_list(self, id_list, redis_db):
         ids = list(id_list)
         if redis_db == "ra":
             validity = self.RA_redis.mexists_as_set(ids)

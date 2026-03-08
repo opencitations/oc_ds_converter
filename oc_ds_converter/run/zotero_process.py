@@ -164,8 +164,8 @@ def get_citations_and_metadata(file_name, csv_dir: str,
                 all_br.extend(ent_all_br)
                 all_ra.extend(all_ra) # sarà vuoto
 
-        redis_validity_values_br = zotero_csv.get_reids_validity_list(all_br, "br")
-        redis_validity_values_ra = zotero_csv.get_reids_validity_list(all_ra, "ra") # sarà vuoto
+        redis_validity_values_br = zotero_csv.get_redis_validity_list(all_br, "br")
+        redis_validity_values_ra = zotero_csv.get_redis_validity_list(all_ra, "ra") # sarà vuoto
         zotero_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
 
     def save_files(ent_list):
