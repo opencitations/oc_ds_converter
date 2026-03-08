@@ -31,6 +31,7 @@ from tarfile import TarInfo
 
 from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.crossref.extract_crossref_publishers import process as extract_publishers
+from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis, load_orcid_index_to_redis
 from oc_ds_converter.lib.console import console, create_progress
 from oc_ds_converter.lib.file_manager import normalize_path, pathoo
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
@@ -259,13 +260,17 @@ def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: 
     if not os.path.exists(publishers_filepath):
         publishers_filepath = None
 
-    if orcid_doi_filepath or wanted_doi_filepath:
-        what = []
-        if orcid_doi_filepath:
-            what.append('DOI-ORCID index')
-        if wanted_doi_filepath:
-            what.append('wanted DOIs CSV')
-        console.print(f'[cyan]Processing: {"; ".join(what)}[/cyan]')
+    orcid_index_redis = OrcidIndexRedis(testing=testing)
+    if orcid_doi_filepath:
+        console.print('[cyan]Updating DOI-ORCID index in Redis...[/cyan]')
+        orcid_index_redis.clear()
+        load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
+        console.print('[green]DOI-ORCID index updated in Redis[/green]')
+    else:
+        console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
+
+    if wanted_doi_filepath:
+        console.print('[cyan]Processing: wanted DOIs CSV[/cyan]')
 
     # create output dir for citation data
     preprocessed_citations_dir = csv_dir + "_citations"
@@ -278,7 +283,7 @@ def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: 
     console.print(f'[cyan]Found {total_files} files to process[/cyan]')
 
     iteration_args = (
-        all_files, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+        all_files, targz_fd, preprocessed_citations_dir, csv_dir, None,
         wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
         testing, cache
     )
@@ -342,7 +347,8 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
 
     crossref_csv = CrossrefProcessing(
         orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath=publishers_filepath,
-        storage_manager=storage_manager, testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api
+        storage_manager=storage_manager, testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api,
+        use_redis_orcid_index=True
     )
 
     source_data = load_json(file_name, targz_fd)
@@ -403,11 +409,13 @@ if __name__ == '__main__':  # pragma: no cover
     arg_parser.add_argument('-out', '--output', dest='csv_dir', required=required,
                             help='Directory where CSV will be stored')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
-                            help='DOI-ORCID index filepath, to enrich data')
+                            help='Directory containing DOI-ORCID index CSV files. If specified, updates the Redis '
+                                 'DOI-ORCID index database. If not specified, uses the existing index in Redis.')
     arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
                             help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
-                        help='The cache file path. This file will be deleted at the end of the process')
+                            help='Path to a JSON file for caching processed files. Tracks which files have been '
+                                 'processed to allow resuming. Deleted at the end of successful processing.')
     arg_parser.add_argument('-sp', '--storage_path', dest='storage_path', required=False,
                             help='path of the file where to store data concerning validated pids information.'
                                  'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'

@@ -32,6 +32,7 @@ from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager import ISSNManager
 
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
+from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
@@ -48,8 +49,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class CrossrefProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True, use_orcid_api: bool = True):
-        super(CrossrefProcessing, self).__init__(orcid_index, doi_csv, publishers_filepath)
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False):
+        orcid_index_obj = OrcidIndexRedis(testing=testing) if use_redis_orcid_index and orcid_index is None else orcid_index
+        super(CrossrefProcessing, self).__init__(orcid_index_obj, doi_csv, publishers_filepath)
         self.citing = citing
         self.use_orcid_api = use_orcid_api
 

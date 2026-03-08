@@ -18,22 +18,33 @@ import os
 import re
 import unicodedata
 from csv import DictReader
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 from zipfile import ZipFile
 
 from oc_ds_converter.oc_idmanager import ISBNManager, ISSNManager, ORCIDManager
 
+from oc_ds_converter.datasource.orcid_index import OrcidIndexInterface
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.master_of_regex import orcid_pattern
 
 
 class RaProcessor(object):
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, citing_entities: str | None = None):
+    def __init__(
+        self,
+        orcid_index: str | OrcidIndexInterface | None = None,
+        doi_csv: str | None = None,
+        publishers_filepath: str | None = None,
+        citing_entities: str | None = None,
+    ):
         self.doi_set = CSVManager.load_csv_column_as_set(doi_csv, 'id') if doi_csv else None
         self.publishers_mapping = self.load_publishers_mapping(publishers_filepath) if publishers_filepath else None
-        orcid_index = orcid_index if orcid_index else None
-        self.orcid_index = CSVManager(orcid_index)
+        if orcid_index is None:
+            self.orcid_index: OrcidIndexInterface = CSVManager(None)
+        elif isinstance(orcid_index, str):
+            self.orcid_index = CSVManager(orcid_index)
+        else:
+            self.orcid_index = orcid_index
         if citing_entities:
             self.unzip_citing_entities(citing_entities)
             self.citing_entities_set = CSVManager.load_csv_column_as_set(citing_entities, 'id') if citing_entities else None

@@ -68,38 +68,36 @@ class FakeRedisWrapper:
 
 
 class RedisDataSource(DataSource):
+    _SERVICE_TO_DB_SECTION: dict[str, str] = {
+        "DB-META-RA": "database 0",
+        "DB-META-BR": "database 1",
+        "PROCESS-DB": "database 2",
+        "DOI-ORCID-INDEX": "database 3",
+    }
+
     def __init__(self, service: str, config_filepath: str = 'config.ini') -> None:
         super().__init__(service)
+        if service not in self._SERVICE_TO_DB_SECTION:
+            raise ValueError(f"Unknown service: {service}")
+
         config = configparser.ConfigParser(allow_no_value=True)
         cur_path = os.path.dirname(os.path.abspath(__file__))
         conf_file = config_filepath if config_filepath != 'config.ini' else join(cur_path, config_filepath)
         config.read(conf_file)
-        if service == "DB-META-RA":
-            self._r = redis.Redis(
-                host='127.0.0.1',
-                port=int(config.get('redis', 'port')),
-                db=int(config.get('database 0', 'db')),
-                password=None,
-                decode_responses=True
-            )
-        elif service == "DB-META-BR":
-            self._r = redis.Redis(
-                host='127.0.0.1',
-                port=int(config.get('redis', 'port')),
-                db=int(config.get('database 1', 'db')),
-                password=None,
-                decode_responses=True
-            )
-        elif service == "PROCESS-DB":
-            self._r = redis.Redis(
-                host='127.0.0.1',
-                port=int(config.get('redis', 'port')),
-                db=int(config.get('database 2', 'db')),
-                password=None,
-                decode_responses=True
-            )
-        else:
-            raise ValueError(f"Unknown service: {service}")
+
+        host = config.get('redis', 'host')
+        port = int(config.get('redis', 'port'))
+        password = config.get('redis', 'password') or None
+        db_section = self._SERVICE_TO_DB_SECTION[service]
+        db = int(config.get(db_section, 'db'))
+
+        self._r = redis.Redis(
+            host=host,
+            port=port,
+            db=db,
+            password=password,
+            decode_responses=True
+        )
 
     def get(self, resource_id: str) -> str | int | object | None:
         redis_data = self._r.get(resource_id)
