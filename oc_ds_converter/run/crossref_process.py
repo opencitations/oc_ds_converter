@@ -39,6 +39,81 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
+def _run_iteration_sequential(
+    all_files: list[str | TarInfo],
+    targz_fd: tarfile.TarFile | None,
+    preprocessed_citations_dir: str,
+    csv_dir: str,
+    orcid_doi_filepath: str | None,
+    wanted_doi_filepath: str | None,
+    publishers_filepath: str | None,
+    storage_path: str | None,
+    redis_storage_manager: bool,
+    testing: bool,
+    cache: str | None,
+    is_first_iteration: bool,
+    use_orcid_api: bool,
+) -> None:
+    iteration_label = "citing entities" if is_first_iteration else "cited entities"
+    iteration_num = "First" if is_first_iteration else "Second"
+    with create_progress() as progress:
+        task = progress.add_task(f"[green]{iteration_num} iteration ({iteration_label})", total=len(all_files))
+        for filename in all_files:
+            get_citations_and_metadata(
+                filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+                wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
+                testing, cache, is_first_iteration=is_first_iteration, use_orcid_api=use_orcid_api
+            )
+            progress.update(task, advance=1)
+
+
+def _run_iteration_parallel(
+    all_files: list[str | TarInfo],
+    targz_fd: tarfile.TarFile | None,
+    preprocessed_citations_dir: str,
+    csv_dir: str,
+    orcid_doi_filepath: str | None,
+    wanted_doi_filepath: str | None,
+    publishers_filepath: str | None,
+    storage_path: str | None,
+    redis_storage_manager: bool,
+    testing: bool,
+    cache: str | None,
+    is_first_iteration: bool,
+    use_orcid_api: bool,
+    max_workers: int,
+) -> None:
+    iteration_label = "citing entities" if is_first_iteration else "cited entities"
+    iteration_num = "First" if is_first_iteration else "Second"
+    with create_progress() as progress:
+        task = progress.add_task(f"[green]{iteration_num} iteration ({iteration_label})", total=len(all_files))
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
+            futures = []
+            for filename in all_files:
+                if isinstance(filename, str) and filename.startswith("._"):
+                    progress.update(task, advance=1)
+                    continue
+                future = executor.submit(
+                    get_citations_and_metadata,
+                    filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+                    wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
+                    testing, cache, is_first_iteration, use_orcid_api
+                )
+                futures.append(future)
+            for future in futures:
+                future.result()
+                progress.update(task, advance=1)
+    console.print(f'[green]{iteration_num} iteration complete[/green]')
+
+
+def _delete_cache_files(cache_path: str) -> None:
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+    lock_file = cache_path + ".lock"
+    if os.path.exists(lock_file):
+        os.remove(lock_file)
+
+
 def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, storage_path: str | None = None,
                testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, use_orcid_api: bool = True) -> None:
 
@@ -72,85 +147,22 @@ def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: 
     total_files = len(all_files)
     console.print(f'[cyan]Found {total_files} files to process[/cyan]')
 
+    iteration_args = (
+        all_files, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+        wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
+        testing, cache
+    )
+
     if not redis_storage_manager or max_workers == 1:
-        with create_progress() as progress:
-            task = progress.add_task("[green]First iteration (citing entities)", total=total_files)
-            for filename in all_files:
-                # skip elements starting with ._
-                #if filename.startswith("._"):
-                   # continue
-                get_citations_and_metadata(filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath, storage_path,
-                                           redis_storage_manager,
-                                           testing, cache, is_first_iteration=True, use_orcid_api=use_orcid_api)
-                progress.update(task, advance=1)
-
-        with create_progress() as progress:
-            task = progress.add_task("[green]Second iteration (cited entities)", total=total_files)
-            for filename in all_files:
-                # skip elements starting with ._
-                #if filename.startswith("._"):
-                #    continue
-                get_citations_and_metadata(filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath, storage_path,
-                                           redis_storage_manager,
-                                           testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api)
-                progress.update(task, advance=1)
-
-    elif redis_storage_manager or max_workers > 1:
-        with create_progress() as progress:
-            task = progress.add_task("[green]First iteration (citing entities)", total=total_files)
-            with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
-                futures = []
-                for filename in all_files:
-                    if isinstance(filename, str) and filename.startswith("._"):
-                        progress.update(task, advance=1)
-                        continue
-                    future = executor.submit(
-                        get_citations_and_metadata,
-                        filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, True, use_orcid_api)
-                    futures.append(future)
-                for future in futures:
-                    future.result()
-                    progress.update(task, advance=1)
-
-        console.print('[green]First iteration complete[/green]')
-
-        with create_progress() as progress:
-            task = progress.add_task("[green]Second iteration (cited entities)", total=total_files)
-            with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
-                futures = []
-                for filename in all_files:
-                    if isinstance(filename, str) and filename.startswith("._"):
-                        progress.update(task, advance=1)
-                        continue
-                    future = executor.submit(
-                        get_citations_and_metadata,
-                        filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, False, use_orcid_api)
-                    futures.append(future)
-                for future in futures:
-                    future.result()
-                    progress.update(task, advance=1)
-
-        console.print('[green]Second iteration complete[/green]')
+        _run_iteration_sequential(*iteration_args, is_first_iteration=True, use_orcid_api=use_orcid_api)
+        _run_iteration_sequential(*iteration_args, is_first_iteration=False, use_orcid_api=use_orcid_api)
+    else:
+        _run_iteration_parallel(*iteration_args, is_first_iteration=True, use_orcid_api=use_orcid_api, max_workers=max_workers)
+        _run_iteration_parallel(*iteration_args, is_first_iteration=False, use_orcid_api=use_orcid_api, max_workers=max_workers)
 
     # DELETE CACHE AND .LOCK FILE
-    if cache:
-        if os.path.exists(cache):
-            os.remove(cache)
-        lock_file = cache + ".lock"
-        if os.path.exists(lock_file):
-            os.remove(lock_file)
-    else:
-        # fallback if cache path not provided
-        fallback = os.path.join(os.getcwd(), "cache.json")
-        if os.path.exists(fallback):
-            os.remove(fallback)
-        lock_file = fallback + ".lock"
-        if os.path.exists(lock_file):
-            os.remove(lock_file)
+    cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
+    _delete_cache_files(cache_path)
 
     # added to avoid order-related issues in sequential tests runs
     if testing:
@@ -201,14 +213,10 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         if not is_first_iteration and filename in cache_dict["second_iteration"]:
             return
 
-    if is_first_iteration:
-        crossref_csv = CrossrefProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                      publishers_filepath=publishers_filepath,
-                                      storage_manager=storage_manager, testing=testing, citing=True, use_orcid_api=use_orcid_api)
-    else:
-        crossref_csv = CrossrefProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                  publishers_filepath=publishers_filepath,
-                                  storage_manager=storage_manager, testing=testing, citing=False, use_orcid_api=use_orcid_api)
+    crossref_csv = CrossrefProcessing(
+        orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath=publishers_filepath,
+        storage_manager=storage_manager, testing=testing, citing=is_first_iteration, use_orcid_api=use_orcid_api
+    )
     index_citations_to_csv = []
     data_citing = []
     data_cited = []
@@ -242,10 +250,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                 # filtering out entities without citations
                 has_doi_references = True if [x for x in entity["reference"] if x.get("DOI")] else False
                 if has_doi_references:
-                    if is_first_iteration_par:
-                        ent_all_br, ent_all_ra = crossref_csv.extract_all_ids(entity, True)
-                    else:
-                        ent_all_br, ent_all_ra = crossref_csv.extract_all_ids(entity, False)
+                    ent_all_br, ent_all_ra = crossref_csv.extract_all_ids(entity, is_first_iteration_par)
                     all_br.extend(ent_all_br)
                     # ERRORE CORRETTO all_ra -> ent_all_ra
                     all_ra.extend(ent_all_ra)
@@ -282,27 +287,18 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                 citation_list = []
 
         crossref_csv.memory_to_storage()
-        if is_first_iteration_par:
-            task_done(is_first_iteration_par=True)
-        else:
-            task_done(is_first_iteration_par=False)
+        task_done(is_first_iteration_par)
         return ent_list, citation_list
 
     def task_done(is_first_iteration_par: bool) -> None:
-        if is_first_iteration_par and "first_iteration" not in cache_dict.keys():
-            cache_dict["first_iteration"] = set()
+        iteration_key = "first_iteration" if is_first_iteration_par else "second_iteration"
+        if iteration_key not in cache_dict:
+            cache_dict[iteration_key] = set()
 
-        if not is_first_iteration_par and "second_iteration" not in cache_dict.keys():
-            cache_dict["second_iteration"] = set()
-
-        for k,v in cache_dict.items():
+        for k, v in cache_dict.items():
             cache_dict[k] = set(v)
 
-        if is_first_iteration_par:
-            cache_dict["first_iteration"].add(Path(file_name).name)
-
-        if not is_first_iteration_par:
-            cache_dict["second_iteration"].add(Path(file_name).name)
+        cache_dict[iteration_key].add(Path(file_name).name)
 
         with lock:
             with open(cache, 'r', encoding='utf-8') as aux_file:
@@ -447,10 +443,9 @@ if __name__ == '__main__':  # pragma: no cover
                                  'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
                                  'and a ".json" file if you chose InMemoryStorageManager')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
-                            help='parameter to define if the script is to be run in testing mode. Pay attention:'
-                                 'by default the script is run in test modality and thus the data managed by redis, '
-                                 'stored in a specific redis db, are not retrieved nor permanently saved, since an '
-                                 'instance of a FakeRedis class is created and deleted by the end of the process.')
+                            help='Run in testing mode: uses in-memory FakeRedis instead of real Redis, '
+                                 'skips publisher data update from Crossref API, and cleans up storage at the end. '
+                                 'Use this flag for tests only, not for production runs.')
     arg_parser.add_argument('-r', '--redis_storage_manager', dest='redis_storage_manager', action='store_true',
                             required=False,
                             help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
