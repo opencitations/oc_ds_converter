@@ -326,11 +326,11 @@ class CrossrefProcessing(RaProcessor):
         return name_and_id
 
     # UPDATED
-    def extract_all_ids(self, entity_dict, is_first_iteration: bool):
+    def extract_all_ids(self, entity_dict, is_citing: bool):
         all_br = set()
         all_ra = set()
 
-        if is_first_iteration:
+        if is_citing:
             # VALIDATE RESPONSIBLE AGENTS IDS FOR THE CITING ENTITY
             if entity_dict.get("author"):
                 for author in entity_dict["author"]:

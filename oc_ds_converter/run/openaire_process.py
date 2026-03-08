@@ -76,7 +76,7 @@ def preprocess(
 
     all_input_tar = os.listdir(openaire_json_dir)
     for tar in all_input_tar:
-        all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type, cache)
+        all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type)
         if not redis_storage_manager or max_workers == 1:
             for filename in all_files:
                 get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager, testing, cache, target)

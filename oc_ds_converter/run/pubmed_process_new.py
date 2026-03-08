@@ -112,12 +112,12 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        wanted_doi_filepath, publishers_filepath, storage_path,
                                        redis_storage_manager,
-                                       testing, cache, is_first_iteration=True)
+                                       testing, cache, is_citing=True)
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        wanted_doi_filepath, publishers_filepath, storage_path,
                                        redis_storage_manager,
-                                       testing, cache, is_first_iteration=False)
+                                       testing, cache, is_citing=False)
 
 
     elif redis_storage_manager or max_workers > 1:
@@ -225,10 +225,10 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
     # NON è PREVISTO CHE NEL CASO IN CUI SIA STATA COMPLETATA LA PRIMA ITERAZIONE SI PASSI ALLA SECONDA. SONO DUE PROCESSI DISTINTI, IL SECONDO INIZIA QUANDO FINISCE IL PRIMO
     # è FONDAMENTALE CHE ALLA FINE DI OGNI SINGOLO PROCESSO LA CACHE VENGA AGGIORNATA (RICORDA IN TASK DONE)
     list_of_tuples_to_process = []
-    is_first_iteration = True
+    is_citing = True
     # aprire la cache, strutturata come dizionario di liste di tuple, non più come stringa
     # IS FIRST ITERATION SERVE A DETERMINARE SE TUTTE LE ROW DEL CSV SONO STATE PROCESSATE ALMENO UNA VOLTA (PER L'ESTRAZIONE DELLE ENTITà)
-    # IN CASO AFFERMATIVO, SI PASSA A PROCESSARE LE CITAZIONI ("second_iteration")
+    # IN CASO AFFERMATIVO, SI PASSA A PROCESSARE LE CITAZIONI ("cited")
     # PER VERIFICARE QUESTO, ALLA CHIAVE "FIRST_ITERATION" DEL DIZIONARIO DEVE ESSERE PRESENTE UNA LISTA DI TUPLE CHE COPRA GLI INTERVALLI
     # DALLA PRIMA ALL'ULTIMA RIGA DEL CSV. QUINDI TRA GLI 1s DELLE TUPLE DEVE ESSERE PRESENTE IL NUMERO n_total_rows -1 E NON DEVONO ESSERCI INTERVALLI SCOPERTI
 
@@ -246,34 +246,34 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
 
 
     # VERIFICARE PUNTO DI PARTENZA
-    if not cache_dict.get("first_iteration") and not cache_dict.get("second_iteration"):
+    if not cache_dict.get("citing") and not cache_dict.get("cited"):
         # CASO 0 : inizio del processo, nessuna iterazione è stata iniziata.
-        is_first_iteration = True
+        is_citing = True
         first_row_to_be_processed = 0
         list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval, n_total_rows)
 
-        return list_of_tuples_to_process, is_first_iteration
+        return list_of_tuples_to_process, is_citing
 
-    elif not cache_dict.get("first_iteration") and cache_dict.get("second_iteration"):
+    elif not cache_dict.get("citing") and cache_dict.get("cited"):
         # CASO 1: risulta iniziata la seconda iterazione ma non la prima: comportamento anomalo, return None
         return None
 
-    elif cache_dict.get("second_iteration") and cache_dict.get("first_iteration"):
+    elif cache_dict.get("cited") and cache_dict.get("citing"):
         # CASO 2: Seconda iterazione iniziata
-        is_first_iteration = False
+        is_citing = False
 
-        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("second_iteration"),
+        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("cited"),
                                                                              interval)
         if len(all_missing_chunks) == 0:
             # CASO 2.1: Seconda iterazione iniziata, nessun chunk saltato
 
             if first_row_to_be_processed == n_total_rows:
                 # CASO 2.1.1 Seconda iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
-                return list_of_tuples_to_process, is_first_iteration
+                return list_of_tuples_to_process, is_citing
             else:
                 # CASO 2.1.2 Seconda iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
                 list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval, n_total_rows)
-                return list_of_tuples_to_process, is_first_iteration
+                return list_of_tuples_to_process, is_citing
         else:
             # CASO 2.2: Seconda iterazione iniziata, con chunk saltati
             list_of_tuples_to_process.extend(all_missing_chunks)
@@ -281,24 +281,24 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
             extra_list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval,
                                                                 n_total_rows)
             list_of_tuples_to_process.extend(extra_list_of_tuples_to_process)
-            return list_of_tuples_to_process, is_first_iteration
+            return list_of_tuples_to_process, is_citing
 
-    elif not cache_dict.get("second_iteration") and cache_dict.get("first_iteration"):
+    elif not cache_dict.get("cited") and cache_dict.get("citing"):
         # CASO 3: Prima iterazione iniziata
-        is_first_iteration = True
-        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("first_iteration"),
+        is_citing = True
+        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("citing"),
                                                                              interval)
         if len(all_missing_chunks) == 0:
             # CASO 3.1: Prima iterazione iniziata, nessun chunk saltato
 
             if first_row_to_be_processed == n_total_rows:
                 # CASO 3.1.1 Prima iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
-                return list_of_tuples_to_process, is_first_iteration
+                return list_of_tuples_to_process, is_citing
             else:
                 # CASO 3.1.2 Prima iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
                 list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval,
                                                                     n_total_rows)
-                return list_of_tuples_to_process, is_first_iteration
+                return list_of_tuples_to_process, is_citing
         else:
             # CASO 3.2: Prima iterazione iniziata, con chunk saltati
             list_of_tuples_to_process.extend(all_missing_chunks)
@@ -306,14 +306,14 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
             extra_list_of_tuples_to_process = new_chunks_distribution(n_processes, first_row_to_be_processed, interval,
                                                                       n_total_rows)
             list_of_tuples_to_process.extend(extra_list_of_tuples_to_process)
-            return list_of_tuples_to_process, is_first_iteration
+            return list_of_tuples_to_process, is_citing
 
 
 def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str,
                                doi_csv: str, publishers_filepath_jalc: str, storage_path: str,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str, is_first_iteration:bool):
+                               testing: bool, cache: str, is_citing:bool):
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
         if not cache.endswith(".json"):
@@ -343,18 +343,18 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
 
     # skip if in cache DA CAMBIARE CON ASSEGNAZIONE DEI TASK
     filename = Path(zip_file).name
-    if cache_dict.get("first_iteration"):
-        if is_first_iteration and filename in cache_dict["first_iteration"]:
+    if cache_dict.get("citing"):
+        if is_citing and filename in cache_dict["citing"]:
             return
-    if cache_dict.get("second_iteration"):
-        if not is_first_iteration and filename in cache_dict["second_iteration"]:
+    if cache_dict.get("cited"):
+        if not is_citing and filename in cache_dict["cited"]:
             return
 
-    if is_first_iteration:
+    if is_citing:
         jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                       publishers_filepath_jalc=publishers_filepath_jalc,
                                       storage_manager=storage_manager, testing=testing, citing=True)
-    elif not is_first_iteration:
+    elif not is_citing:
         jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                   publishers_filepath_jalc=publishers_filepath_jalc,
                                   storage_manager=storage_manager, testing=testing, citing=False)
@@ -381,7 +381,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
     pathoo(filepath)
     pathoo(filepath_citations)
 
-    def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par: bool):
+    def get_all_redis_ids_and_save_updates(sli_da, is_citing_par: bool):
         all_br = []
         for entity in sli_da:
             if entity:
@@ -392,18 +392,18 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                     cit_list_doi = [x for x in cit_list if x.get("doi")]
                     # filtering out entities with citations without dois
                     if cit_list_doi:
-                        '''if is_first_iteration_par:
+                        '''if is_citing_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, True)'''
-                        if not is_first_iteration_par:
+                        if not is_citing_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, False)
                             all_br = all_br + ent_all_br
         redis_validity_values_br = jalc_csv.get_redis_validity_list(all_br)
         jalc_csv.update_redis_values(redis_validity_values_br)
 
-    def save_files(ent_list, citation_list, is_first_iteration_par: bool):
+    def save_files(ent_list, citation_list, is_citing_par: bool):
         if ent_list:
             # qua il filename sarà quello della cartella zippata, tipo “105834_citing” o "105834_cited"
-            if is_first_iteration_par:
+            if is_citing_par:
                 filename_str = filepath_ne+"_citing.csv"
             else:
                 filename_str = filepath_ne+"_cited.csv"
@@ -413,7 +413,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                 dict_writer.writeheader()
                 dict_writer.writerows(ent_list)
             ent_list = []
-        if not is_first_iteration_par:
+        if not is_citing_par:
             if citation_list:
                 filename_cit_str = filepath_citations_ne + ".csv"
                 with open(filename_cit_str, 'w', newline='', encoding='utf-8') as output_file_citations:
@@ -424,27 +424,27 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                 citation_list = []
 
         jalc_csv.memory_to_storage()
-        if is_first_iteration_par:
-            task_done(is_first_iteration_par=True)
+        if is_citing_par:
+            task_done(is_citing_par=True)
         else:
-            task_done(is_first_iteration_par=False)
+            task_done(is_citing_par=False)
         return ent_list, citation_list
 
-    def task_done(is_first_iteration_par: bool) -> None:
+    def task_done(is_citing_par: bool) -> None:
         # AGGIORNARE LA CACHE SCRIVENDO L'INTERVALLO COMPLETATO
         try:
             with lock:
                 with open(cache, 'r', encoding='utf-8') as aux_file:
                     cur_cache_dict = json.load(aux_file)
-                    if is_first_iteration_par:
-                        if "first_iteration" not in cur_cache_dict.keys():
-                            cur_cache_dict["first_iteration"] = list()
-                        cur_cache_dict["first_iteration"].append(assigned_chunk)
+                    if is_citing_par:
+                        if "citing" not in cur_cache_dict.keys():
+                            cur_cache_dict["citing"] = list()
+                        cur_cache_dict["citing"].append(assigned_chunk)
 
                     else:
-                        if "second_iteration" not in cur_cache_dict.keys():
-                            cur_cache_dict["second_iteration"] = list()
-                        cur_cache_dict["second_iteration"].append(assigned_chunk)
+                        if "cited" not in cur_cache_dict.keys():
+                            cur_cache_dict["cited"] = list()
+                        cur_cache_dict["cited"].append(assigned_chunk)
 
                 with open(cache, 'w', encoding='utf-8') as aux_file:
                     json.dump(cache_dict, aux_file)
@@ -453,7 +453,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
             print(e)
 
 
-    if is_first_iteration:
+    if is_citing:
         # prima l'ultimo file va processato
         for entity in tqdm(source_dict):
             if entity:
@@ -483,8 +483,8 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         table for Meta and include the cited entity in the citations' tables
         - if found as not valid -> next entity'''
 
-    if not is_first_iteration:
-        get_all_redis_ids_and_save_updates(source_dict, is_first_iteration_par=False)
+    if not is_citing:
+        get_all_redis_ids_and_save_updates(source_dict, is_citing_par=False)
         for entity in tqdm(source_dict):
             if entity:
                 d = entity.get("data")

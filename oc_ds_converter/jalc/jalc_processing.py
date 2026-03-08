@@ -320,11 +320,11 @@ class JalcProcessing(RaProcessor):
         self.storage_manager.set_multi_value(kv_in_memory)
         self.temporary_manager.delete_storage()
 
-    def extract_all_ids(self, citation, is_first_iteration: bool):
+    def extract_all_ids(self, citation, is_citing: bool):
         """Given an entity dictionary, this method extracts all the DOIs.
-        If the parameter "is_first_iteration" is True, just the DOI of the citing entity is retrieved, while
+        If the parameter "is_citing" is True, just the DOI of the citing entity is retrieved, while
         if it is False, all the DOIs of cited entities are extracted."""
-        '''if is_first_iteration:
+        '''if is_citing:
             list_id_citing = list()
             d1_br = citation["data"]["doi"]
             norm_id = self.doi_m.normalise(d1_br, include_prefix=True)
@@ -334,7 +334,7 @@ class JalcProcessing(RaProcessor):
                 #self.tmp_doi_m.storage_manager.set_value(norm_id, True)
             return list_id_citing'''
 
-        if not is_first_iteration:
+        if not is_citing:
             all_br = list()
             d2_br = [x["doi"] for x in citation["data"]["citation_list"] if x.get("doi")]
             for d in d2_br:

@@ -444,11 +444,11 @@ class ZoteroProcessing(RaProcessor):
         return name_and_id
 
     # UPDATED FOR CROSSREF √
-    def extract_all_ids(self, entity_dict, is_first_iteration: bool):
+    def extract_all_ids(self, entity_dict, is_citing: bool):
         all_br = set()
         all_ra = set()
 
-        if is_first_iteration:
+        if is_citing:
             # VALIDATE RESPONSIBLE AGENTS IDS FOR THE CITING ENTITY (THE CITING ENTITY DOI IS VALID BY
             # DEFAULT SINCE IT WAS ASSIGNED BY CROSSREF, WHICH IS ALSO ITS DOI REGISTRATION AGENCY.
 

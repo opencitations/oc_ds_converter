@@ -74,7 +74,7 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
         get_citations_and_metadata(filename, csv_dir, orcid_doi_filepath,
                                    wanted_doi_filepath, publishers_filepath, storage_path,
                                    redis_storage_manager,
-                                   testing, cache, is_first_iteration=True)
+                                   testing, cache, is_citing=True)
 
     # DELETE CACHE AND .LOCK FILE
     if cache:
@@ -97,7 +97,7 @@ def get_citations_and_metadata(file_name, csv_dir: str,
                                orcid_index: str | None,
                                doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str | None, is_first_iteration: bool):
+                               testing: bool, cache: str | None, is_citing: bool):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
@@ -129,8 +129,8 @@ def get_citations_and_metadata(file_name, csv_dir: str,
 
     # skip if in cache
     filename = file_name
-    if cache_dict.get("first_iteration"):
-        if is_first_iteration and filename in cache_dict["first_iteration"]:
+    if cache_dict.get("citing"):
+        if is_citing and filename in cache_dict["citing"]:
             return
 
     zotero_csv = ZoteroProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
@@ -191,13 +191,13 @@ def get_citations_and_metadata(file_name, csv_dir: str,
     def task_done() -> None:
 
         try:
-            if "first_iteration" not in cache_dict.keys():
-                cache_dict["first_iteration"] = set()
+            if "citing" not in cache_dict.keys():
+                cache_dict["citing"] = set()
 
             for k,v in cache_dict.items():
                 cache_dict[k] = set(v)
 
-            cache_dict["first_iteration"].add(Path(file_name).name)
+            cache_dict["citing"].add(Path(file_name).name)
 
             with lock:
                 with open(cache, 'r', encoding='utf-8') as aux_file:

@@ -109,14 +109,14 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str, orcid_doi_fil
                 get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
                                            wanted_doi_filepath, publishers_filepath, storage_path,
                                            redis_storage_manager,
-                                           testing, cache, is_first_iteration=True, use_orcid_api=use_orcid_api)
+                                           testing, cache, is_citing=True, use_orcid_api=use_orcid_api)
         for ndjson_file in all_input_ndjson:
             for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
                 chunk_to_save = f'chunk_{idx}'
                 get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
                                            wanted_doi_filepath, publishers_filepath, storage_path,
                                            redis_storage_manager,
-                                           testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api)
+                                           testing, cache, is_citing=False, use_orcid_api=use_orcid_api)
 
     elif redis_storage_manager or max_workers > 1:
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
@@ -161,7 +161,7 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                                orcid_index: str | None,
                                doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str | None, is_first_iteration: bool, use_orcid_api: bool):
+                               testing: bool, cache: str | None, is_citing: bool, use_orcid_api: bool):
 
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
@@ -192,19 +192,19 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
             with open(cache, "w", encoding="utf-8") as c:
                 json.dump(cache_dict, c)
 
-    if cache_dict.get("first_iteration"):
-        if is_first_iteration and chunk_to_save in cache_dict["first_iteration"]:
+    if cache_dict.get("citing"):
+        if is_citing and chunk_to_save in cache_dict["citing"]:
             return
 
-    if cache_dict.get("second_iteration"):
-        if not is_first_iteration and chunk_to_save in cache_dict["second_iteration"]:
+    if cache_dict.get("cited"):
+        if not is_citing and chunk_to_save in cache_dict["cited"]:
             return
 
-    if is_first_iteration:
+    if is_citing:
         dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                       publishers_filepath_dc=publishers_filepath,
                                       storage_manager=storage_manager, testing=testing, citing=True, use_orcid_api=use_orcid_api)
-    elif not is_first_iteration:
+    elif not is_citing:
         dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                   publishers_filepath_dc=publishers_filepath,
                                   storage_manager=storage_manager, testing=testing, citing=False, use_orcid_api=use_orcid_api)
@@ -222,7 +222,7 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
     pathoo(filepath)
     pathoo(filepath_citations)
 
-    def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par: bool):
+    def get_all_redis_ids_and_save_updates(sli_da, is_citing_par: bool):
         all_br = []
         all_ra = []
         for entity in sli_da:
@@ -239,7 +239,7 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                                 if relationType in dc_csv.filter:
                                     at_least_one_valid_object_id = True
                     if at_least_one_valid_object_id:
-                        if is_first_iteration_par:
+                        if is_citing_par:
                             ent_all_br, ent_all_ra = dc_csv.extract_all_ids(entity, True)
                         else:
                             ent_all_br, ent_all_ra = dc_csv.extract_all_ids(entity, False)
@@ -249,9 +249,9 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
         redis_validity_values_ra = dc_csv.get_redis_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
 
-    def save_files(ent_list, citation_list, is_first_iteration_par:bool):
+    def save_files(ent_list, citation_list, is_citing_par:bool):
         if ent_list:
-            if is_first_iteration_par:
+            if is_citing_par:
                 filename_str = filepath_ne+"_subject.csv"
             else:
                 filename_str = filepath_ne+"_object.csv"
@@ -263,7 +263,7 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
             ent_list = []
         dc_csv.memory_to_storage()
 
-        if not is_first_iteration_par:
+        if not is_citing_par:
             if citation_list:
                 filename_cit_str = filepath_citations_ne + ".csv"
                 with open(filename_cit_str, 'w', newline='', encoding='utf-8') as output_file_citations:
@@ -274,30 +274,30 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                 citation_list = []
 
         dc_csv.memory_to_storage()
-        if is_first_iteration_par:
-            task_done(is_first_iteration_par=True)
+        if is_citing_par:
+            task_done(is_citing_par=True)
         else:
-            task_done(is_first_iteration_par=False)
+            task_done(is_citing_par=False)
         return ent_list, citation_list
 
 
-    def task_done(is_first_iteration_par: bool) -> None:
+    def task_done(is_citing_par: bool) -> None:
 
         try:
-            if is_first_iteration_par and "first_iteration" not in cache_dict.keys():
-                cache_dict["first_iteration"] = set()
+            if is_citing_par and "citing" not in cache_dict.keys():
+                cache_dict["citing"] = set()
 
-            if not is_first_iteration_par and "second_iteration" not in cache_dict.keys():
-                cache_dict["second_iteration"] = set()
+            if not is_citing_par and "cited" not in cache_dict.keys():
+                cache_dict["cited"] = set()
 
             for k,v in cache_dict.items():
                 cache_dict[k] = set(v)
 
-            if is_first_iteration_par:
-                cache_dict["first_iteration"].add(chunk_to_save)
+            if is_citing_par:
+                cache_dict["citing"].add(chunk_to_save)
 
-            if not is_first_iteration_par:
-                cache_dict["second_iteration"].add(chunk_to_save)
+            if not is_citing_par:
+                cache_dict["cited"].add(chunk_to_save)
 
             with lock:
                 with open(cache, 'r', encoding='utf-8') as aux_file:
@@ -328,8 +328,8 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
         except Exception as e:
             print(e)
 
-    if is_first_iteration:
-        get_all_redis_ids_and_save_updates(chunk, is_first_iteration_par=True)
+    if is_citing:
+        get_all_redis_ids_and_save_updates(chunk, is_citing_par=True)
         for entity in tqdm(chunk):
             try:
                 if entity:
@@ -367,8 +367,8 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                 continue
         save_files(data_subject, index_citations_to_csv, True)
 
-    if not is_first_iteration:
-        get_all_redis_ids_and_save_updates(chunk, is_first_iteration_par=False)
+    if not is_citing:
+        get_all_redis_ids_and_save_updates(chunk, is_citing_par=False)
         for entity in tqdm(chunk):
             try:
                 if entity:

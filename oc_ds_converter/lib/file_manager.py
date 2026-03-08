@@ -25,6 +25,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from time import sleep
+from collections.abc import Iterator, Mapping
 from typing import Dict, List, Set
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -74,15 +75,12 @@ def normalize_path(path:str) -> str:
     normal_path = path.replace('\\', '/').replace('/', os.sep)
     return normal_path
 
-def init_cache(cache_filepath:str|None) -> Set[str]:
-    completed = set()
-    if cache_filepath:
-        if not os.path.exists(cache_filepath):
-            pathoo(cache_filepath)
-        else:
-            with open(cache_filepath, 'r', encoding='utf-8') as cache_file:
-                completed = {line.rstrip('\n') for line in cache_file}
-    return completed
+def init_cache(cache_filepath: str | None) -> Set[str]:
+    if not cache_filepath or not os.path.exists(cache_filepath):
+        return set()
+    with open(cache_filepath, 'r', encoding='utf-8') as cache_file:
+        cache_data = json.load(cache_file)
+    return set(cache_data["citing"]) & set(cache_data["cited"])
 
 @contextmanager
 def suppress_stdout():
@@ -188,7 +186,7 @@ def read_zipped_json(filepath:str) -> dict|None:
                 json_dict = json.loads(json_data.decode("utf-8"))
                 return json_dict
 
-def call_api(url:str, headers:str, r_format:str="json") -> dict|None:
+def call_api(url: str, headers: Mapping[str, str | bytes] | None, r_format: str = "json") -> dict | BeautifulSoup | None:
     tentative = 3
     while tentative:
         tentative -= 1
@@ -220,7 +218,6 @@ def rm_tmp_csv_files(base_dir:str) -> None:
                 elif other_date < date:
                     os.remove(os.path.join(base_dir, other_filename))
 
-def chunks(lst:list, n:int) -> List[list]:
-    '''Yield successive n-sized chunks from lst.'''
+def chunks(lst: list, n: int) -> Iterator[list]:
     for i in range(0, len(lst), n):
         yield lst[i:i + n]

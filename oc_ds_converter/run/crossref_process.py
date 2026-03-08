@@ -24,10 +24,10 @@ from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
 from pathlib import Path
-from tarfile import TarInfo
 
 import yaml
 from filelock import BaseFileLock, FileLock
+from tarfile import TarInfo
 
 from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.crossref.extract_crossref_publishers import process as extract_publishers
@@ -332,12 +332,12 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                 json.dump(cache_dict, c)
 
     # skip if in cache
-    filename = file_name
+    file_basename = Path(file_name).name
     if cache_dict.get("citing"):
-        if processing_citing and filename in cache_dict["citing"]:
+        if processing_citing and file_basename in cache_dict["citing"]:
             return
     if cache_dict.get("cited"):
-        if not processing_citing and filename in cache_dict["cited"]:
+        if not processing_citing and file_basename in cache_dict["cited"]:
             return
 
     crossref_csv = CrossrefProcessing(
@@ -345,20 +345,19 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         storage_manager=storage_manager, testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api
     )
 
-    source_data = load_json(filename, targz_fd)
+    source_data = load_json(file_name, targz_fd)
     if source_data is None:
         return
     source_dict = source_data['items']
 
-    filename = filename.name if isinstance(filename, TarInfo) else filename
-    filename_without_ext = filename.replace('.json', '').replace('.tar', '').replace('.gz', '')
-    filepath = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}.csv')
+    filename_without_ext = file_basename.replace('.json', '').replace('.tar', '').replace('.gz', '')
+    filepath = os.path.join(csv_dir, f'{filename_without_ext}.csv')
     pathoo(filepath)
 
-    metadata_output_base = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}')
-    citation_links_output_base = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}')
+    metadata_output_base = os.path.join(csv_dir, filename_without_ext)
+    citation_links_output_base = os.path.join(preprocessed_citations_dir, filename_without_ext)
 
-    filepath_citations = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}.csv')
+    filepath_citations = os.path.join(preprocessed_citations_dir, f'{filename_without_ext}.csv')
     pathoo(filepath_citations)
 
     _extract_redis_ids_and_update(crossref_csv, source_dict, processing_citing)
@@ -367,13 +366,13 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         citing_entity_rows = _process_citing_entities(crossref_csv, source_dict)
         _save_output_files(
             citing_entity_rows, [], metadata_output_base, citation_links_output_base,
-            crossref_csv, True, cache, lock, filename
+            crossref_csv, True, cache, lock, file_basename
         )
     else:
         cited_entity_rows, citation_rows = _process_cited_entities(crossref_csv, source_dict)
         _save_output_files(
             cited_entity_rows, citation_rows, metadata_output_base, citation_links_output_base,
-            crossref_csv, False, cache, lock, filename
+            crossref_csv, False, cache, lock, file_basename
         )
 
 

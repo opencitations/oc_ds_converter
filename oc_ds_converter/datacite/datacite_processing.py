@@ -812,9 +812,9 @@ class DataciteProcessing(RaProcessor):
         self.temporary_manager.delete_storage()
 
     # added (division in first and second iteration)
-    def extract_all_ids(self, citation, is_first_iteration: bool):
+    def extract_all_ids(self, citation, is_citing: bool):
 
-        if is_first_iteration:
+        if is_citing:
             all_br = set()
             all_ra = set()
 

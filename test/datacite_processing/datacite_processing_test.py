@@ -39,25 +39,25 @@ class TestDataciteProcessing(unittest.TestCase):
                     break
                 yield chunk
 
-    def test_get_all_ids_first_iteration(self):
+    def test_get_all_ids_citing(self):
         all_br = set()
         all_ra = set()
         dcp = DataciteProcessing()
         for idx, chunk in enumerate(self.read_ndjson_chunk(DATA, 100), start=1):
             for item in chunk:
-                allids = dcp.extract_all_ids(item, is_first_iteration=True)
+                allids = dcp.extract_all_ids(item, is_citing=True)
                 all_br.update(set(allids[0]))
                 all_ra.update(set(allids[1]))
         self.assertEqual(all_br, set())
         self.assertTrue({"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"} == all_ra)
 
-    def test_get_all_ids_second_iteration(self):
+    def test_get_all_ids_cited(self):
         all_br = set()
         all_ra = set()
         dcp = DataciteProcessing()
         for idx, chunk in enumerate(self.read_ndjson_chunk(DATA, 100), start=1):
             for item in chunk:
-                allids = dcp.extract_all_ids(item, is_first_iteration=False)
+                allids = dcp.extract_all_ids(item, is_citing=False)
                 all_br.update(set(allids[0]))
                 all_ra.update(set(allids[1]))
         self.assertTrue({"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25", "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"} == all_br)

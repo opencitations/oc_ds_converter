@@ -376,8 +376,8 @@ class DataciteProcessTest(unittest.TestCase):
             os.remove(self.cache_test)
 
         with open(self.cache_test, "w", encoding="utf-8") as write_cache:
-            processed_files_dict = {'first_iteration': ['chunk_1'],
-                                    'second_iteration': ['chunk_1']}
+            processed_files_dict = {'citing': ['chunk_1'],
+                                    'cited': ['chunk_1']}
             json.dump(processed_files_dict, write_cache)
 
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,

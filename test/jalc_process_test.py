@@ -256,8 +256,8 @@ class TestJalcProcess(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
         with open(self.cache_test1, "w") as write_cache:
-            processed_files_dict = {'first_iteration': ['10.11426.zip', '10.14825.zip'],
-                                    'second_iteration': ['10.11426.zip', '10.14825.zip']}
+            processed_files_dict = {'citing': ['10.11426.zip', '10.14825.zip'],
+                                    'cited': ['10.11426.zip', '10.14825.zip']}
             json.dump(processed_files_dict, write_cache)
 
         preprocess(jalc_json_dir=self.sample_dump_dir, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir,

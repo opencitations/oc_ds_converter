@@ -96,12 +96,12 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        wanted_doi_filepath, publishers_filepath, storage_path,
                                        redis_storage_manager,
-                                       testing, cache, is_first_iteration=True)
+                                       testing, cache, is_citing=True)
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        wanted_doi_filepath, publishers_filepath, storage_path,
                                        redis_storage_manager,
-                                       testing, cache, is_first_iteration=False)
+                                       testing, cache, is_citing=False)
 
 
     elif redis_storage_manager or max_workers > 1:
@@ -135,7 +135,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                                orcid_index: str | None,
                                doi_csv: str | None, publishers_filepath_jalc: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str | None, is_first_iteration: bool):
+                               testing: bool, cache: str | None, is_citing: bool):
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
         if not cache.endswith(".json"):
@@ -165,18 +165,18 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
 
     # skip if in cache
     filename = Path(zip_file).name
-    if cache_dict.get("first_iteration"):
-        if is_first_iteration and filename in cache_dict["first_iteration"]:
+    if cache_dict.get("citing"):
+        if is_citing and filename in cache_dict["citing"]:
             return
-    if cache_dict.get("second_iteration"):
-        if not is_first_iteration and filename in cache_dict["second_iteration"]:
+    if cache_dict.get("cited"):
+        if not is_citing and filename in cache_dict["cited"]:
             return
 
-    if is_first_iteration:
+    if is_citing:
         jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                       publishers_filepath_jalc=publishers_filepath_jalc,
                                       storage_manager=storage_manager, testing=testing, citing=True)
-    elif not is_first_iteration:
+    elif not is_citing:
         jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                   publishers_filepath_jalc=publishers_filepath_jalc,
                                   storage_manager=storage_manager, testing=testing, citing=False)
@@ -203,7 +203,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
     pathoo(filepath)
     pathoo(filepath_citations)
 
-    def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par: bool):
+    def get_all_redis_ids_and_save_updates(sli_da, is_citing_par: bool):
         all_br = []
         for entity in sli_da:
             if entity:
@@ -214,18 +214,18 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                     cit_list_doi = [x for x in cit_list if x.get("doi")]
                     # filtering out entities with citations without dois
                     if cit_list_doi:
-                        '''if is_first_iteration_par:
+                        '''if is_citing_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, True)'''
-                        if not is_first_iteration_par:
+                        if not is_citing_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, False)
                             all_br.extend(ent_all_br)
         redis_validity_values_br = jalc_csv.get_redis_validity_list(all_br)
         jalc_csv.update_redis_values(redis_validity_values_br)
 
-    def save_files(ent_list, citation_list, is_first_iteration_par: bool):
+    def save_files(ent_list, citation_list, is_citing_par: bool):
         if ent_list:
             # qua il filename sarà quello della cartella zippata, tipo “105834_citing” o "105834_cited"
-            if is_first_iteration_par:
+            if is_citing_par:
                 filename_str = filepath_ne+"_citing.csv"
             else:
                 filename_str = filepath_ne+"_cited.csv"
@@ -235,7 +235,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                 dict_writer.writeheader()
                 dict_writer.writerows(ent_list)
             ent_list = []
-        if not is_first_iteration_par:
+        if not is_citing_par:
             if citation_list:
                 filename_cit_str = filepath_citations_ne + ".csv"
                 with open(filename_cit_str, 'w', newline='', encoding='utf-8') as output_file_citations:
@@ -246,29 +246,29 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                 citation_list = []
 
         jalc_csv.memory_to_storage()
-        if is_first_iteration_par:
-            task_done(is_first_iteration_par=True)
+        if is_citing_par:
+            task_done(is_citing_par=True)
         else:
-            task_done(is_first_iteration_par=False)
+            task_done(is_citing_par=False)
         return ent_list, citation_list
 
-    def task_done(is_first_iteration_par: bool) -> None:
+    def task_done(is_citing_par: bool) -> None:
         try:
 
-            if is_first_iteration_par and "first_iteration" not in cache_dict.keys():
-                cache_dict["first_iteration"] = set()
+            if is_citing_par and "citing" not in cache_dict.keys():
+                cache_dict["citing"] = set()
 
-            if not is_first_iteration_par and "second_iteration" not in cache_dict.keys():
-                cache_dict["second_iteration"] = set()
+            if not is_citing_par and "cited" not in cache_dict.keys():
+                cache_dict["cited"] = set()
 
             for k,v in cache_dict.items():
                 cache_dict[k] = set(v)
 
-            if is_first_iteration_par:
-                cache_dict["first_iteration"].add(Path(zip_file).name)
+            if is_citing_par:
+                cache_dict["citing"].add(Path(zip_file).name)
 
-            if not is_first_iteration_par:
-                cache_dict["second_iteration"].add(Path(zip_file).name)
+            if not is_citing_par:
+                cache_dict["cited"].add(Path(zip_file).name)
 
 
             with lock:
@@ -301,7 +301,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         except Exception as e:
             print(e)
 
-    if is_first_iteration:
+    if is_citing:
         # prima l'ultimo file va processato
         for entity in tqdm(source_dict):
             if entity:
@@ -331,8 +331,8 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         table for Meta and include the cited entity in the citations' tables
         - if found as not valid -> next entity'''
 
-    if not is_first_iteration:
-        get_all_redis_ids_and_save_updates(source_dict, is_first_iteration_par=False)
+    if not is_citing:
+        get_all_redis_ids_and_save_updates(source_dict, is_citing_par=False)
         for entity in tqdm(source_dict):
             if entity:
                 d = entity.get("data")
