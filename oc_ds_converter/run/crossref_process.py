@@ -31,6 +31,7 @@ from tarfile import TarInfo
 from tqdm import tqdm
 
 from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
+from oc_ds_converter.crossref.extract_crossref_publishers import process as extract_publishers
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
@@ -38,24 +39,31 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(crossref_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
+def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
                testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, use_orcid_api: bool = True) -> None:
 
+    # create output dir if does not exist
+    if not os.path.exists(csv_dir):
+        os.makedirs(csv_dir)
+
+    publishers_filepath = os.path.join(os.path.dirname(__file__), '..', 'crossref', 'data', 'publishers.csv')
+    publishers_filepath = os.path.normpath(publishers_filepath)
+    if not testing:
+        if verbose:
+            print('[INFO: crossref_process] Updating publishers data from Crossref API...')
+        extract_publishers(publishers_filepath)
+    if not os.path.exists(publishers_filepath):
+        publishers_filepath = None
+
     if verbose:
-        if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
+        if orcid_doi_filepath or wanted_doi_filepath:
             what = list()
-            if publishers_filepath:
-                what.append('publishers mapping')
             if orcid_doi_filepath:
                 what.append('DOI-ORCID index')
             if wanted_doi_filepath:
                 what.append('wanted DOIs CSV')
             log = '[INFO: crossref_process] Processing: ' + '; '.join(what)
             print(log)
-
-    # create output dir if does not exist
-    if not os.path.exists(csv_dir):
-        os.makedirs(csv_dir)
 
     # create output dir for citation data
     preprocessed_citations_dir = csv_dir + "_citations"
@@ -420,8 +428,6 @@ if __name__ == '__main__':
                             help='Crossref json files directory')
     arg_parser.add_argument('-out', '--output', dest='csv_dir', required=required,
                             help='Directory where CSV will be stored')
-    arg_parser.add_argument('-p', '--publishers', dest='publishers_filepath', required=False,
-                            help='CSV file path containing information about publishers (id, name, prefix)')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
     arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
@@ -459,8 +465,6 @@ if __name__ == '__main__':
     crossref_json_dir = normalize_path(crossref_json_dir)
     csv_dir = settings['output'] if settings else args.csv_dir
     csv_dir = normalize_path(csv_dir)
-    publishers_filepath = settings['publishers_filepath'] if settings else args.publishers_filepath
-    publishers_filepath = normalize_path(publishers_filepath) if publishers_filepath else None
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
     wanted_doi_filepath = settings['wanted_doi_filepath'] if settings else args.wanted_doi_filepath
@@ -482,5 +486,5 @@ if __name__ == '__main__':
             'Either extract the archive first or use --max_workers 1.'
         )
 
-    preprocess(crossref_json_dir=crossref_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
+    preprocess(crossref_json_dir=crossref_json_dir, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
                redis_storage_manager=redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api)

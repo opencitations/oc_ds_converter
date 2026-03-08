@@ -56,7 +56,7 @@ def get_via_requests(get_url):
                 print("\tdata not downloaded, trying again in ", SLEEPING_TIME, "seconds - status:", r.status_code)
                 sleep(SLEEPING_TIME)
         except Exception as e:
-            print("\tdata not downloaded, trying again in ", SLEEPING_TIME, "seconds - exception:", e.message)
+            print("\tdata not downloaded, trying again in ", SLEEPING_TIME, "seconds - exception:", str(e))
             sleep(SLEEPING_TIME)
 
 
@@ -89,7 +89,10 @@ def process(out_path):
     tot = 10000000000
     pub_count = 0
     while offset < tot:
-        result, offset, tot = get_publishers(offset)
+        response = get_publishers(offset)
+        if response is None:
+            break
+        result, offset, tot = response
 
         if result is not None:
             for publisher in result:

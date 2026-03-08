@@ -12,7 +12,6 @@ class CrossrefProcessTest(unittest.TestCase):
         self.targz_input_folder = os.path.join(self.test_dir, 'tar_gz_test')
         self.targz_input = os.path.join(self.targz_input_folder, '40228.tar.gz')
         self.output = os.path.join(self.test_dir, 'output_dir')
-        self.publisher_mapping = os.path.join(self.test_dir, 'publishers.csv')
         self.wanted_dois = os.path.join(self.test_dir, 'wanted_dois')
         self.iod = os.path.join(self.test_dir, 'iod')
         self.cache = os.path.join(self.test_dir, 'cache.json')
@@ -33,7 +32,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(self.targz_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
+        preprocess(self.targz_input, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -69,7 +68,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
+        preprocess(crossref_json_dir=self.targz_cited_input, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
@@ -124,7 +123,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True, storage_path=self.any_db1, cache=self.cache)
+        preprocess(crossref_json_dir=self.targz_cited_input, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True, storage_path=self.any_db1, cache=self.cache)
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
@@ -178,7 +177,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(self.sample_fake_dump, publishers_filepath=self.publisher_mapping, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
+        preprocess(self.sample_fake_dump, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -230,7 +229,7 @@ class CrossrefProcessTest(unittest.TestCase):
         with open(self.cache, "w") as write_cache:
             json.dump(cache_dict, write_cache)
 
-        preprocess(crossref_json_dir=self.targz_cited_input, publishers_filepath=self.publisher_mapping,
+        preprocess(crossref_json_dir=self.targz_cited_input,
                    orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True,
                    storage_path=self.db, cache=self.cache)
 
@@ -276,7 +275,6 @@ class CrossrefProcessTest(unittest.TestCase):
 
         preprocess(
             crossref_json_dir=self.targz_cited_input,
-            publishers_filepath=self.publisher_mapping,
             orcid_doi_filepath=None,
             csv_dir=self.output,
             redis_storage_manager=False,
@@ -315,7 +313,6 @@ class CrossrefProcessTest(unittest.TestCase):
 
         preprocess(
             crossref_json_dir=self.targz_cited_input,
-            publishers_filepath=self.publisher_mapping,
             orcid_doi_filepath=self.iod,
             csv_dir=self.output,
             redis_storage_manager=False,
