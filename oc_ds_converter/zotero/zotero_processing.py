@@ -115,6 +115,7 @@ class ZoteroProcessing(RaProcessor):
         self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
         self.tmp_issn_m = ISSNManager()
         self.tmp_isbn_m = ISBNManager()
+        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager)
 
         self.venue_tmp_id_man_dict = {"issn": self.issn_m}
 
@@ -147,8 +148,10 @@ class ZoteroProcessing(RaProcessor):
         entity_ids = set()
         venue_ids = set()
 
-        type = self.mapping_types_to_ocdm.get(norm_id_dict["type"])
-        ids_per_type = self.accepted_ids[type]
+        entity_type = self.mapping_types_to_ocdm.get(norm_id_dict["type"])
+        if not entity_type:
+            return entity_ids, venue_ids
+        ids_per_type = self.accepted_ids[entity_type]
 
         if doi and "doi" in ids_per_type:
 
@@ -552,7 +555,7 @@ class ZoteroProcessing(RaProcessor):
             if orcid:
 
                 # VALIDATE ORCID HERE (with same procedure used for br identifiers)
-                orcid = self.crossref_processor.find_crossref_orcid(orcid)
+                orcid = self.crossref_processor.find_crossref_orcid(orcid, doi)
                 # END: VALIDATE ORCID HERE
 
             elif dict_orcid and f_name:

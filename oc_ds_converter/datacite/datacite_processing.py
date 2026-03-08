@@ -699,8 +699,9 @@ class DataciteProcessing(RaProcessor):
     #added the call to find_datacite_orcid
     def add_editors_to_agent_list(self, item: dict, ag_list: list, doi: str) -> list:
         agent_list = ag_list
-        if item.get("contributors"):
-            editors = [contributor for contributor in item.get("contributors") if
+        contributors = item.get("contributors")
+        if contributors:
+            editors = [contributor for contributor in contributors if
                        contributor.get("contributorType") == "Editor"]
             for ed in editors:
                 agent = {}
@@ -727,8 +728,8 @@ class DataciteProcessing(RaProcessor):
     # added the call to find_datacite_orcid
     def add_authors_to_agent_list(self, item: dict, ag_list: list, doi: str) -> list:
         agent_list = ag_list
-        if item.get("creators"):
-            creators = item.get("creators")
+        creators = item.get("creators")
+        if creators:
             for c in creators:
                 agent = {}
                 agent["role"] = "author"
@@ -768,8 +769,8 @@ class DataciteProcessing(RaProcessor):
             )
             if isinstance(raw, dict):
                 found_orcids = {k.replace("orcid:", "").strip() for k in raw.keys()}
-            elif isinstance(raw, (set, list, tuple)):
-                for v in raw:
+            elif isinstance(raw, (set, list)):
+                for v in list(raw):
                     m = re.findall(r"(\d{4}-\d{4}-\d{4}-\d{3,4}[0-9X])", str(v))
                     found_orcids.update(m)
             elif isinstance(raw, str):

@@ -122,9 +122,9 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
     if cache:
         if os.path.exists(cache):
             os.remove(cache)
-    lock_file = cache + ".lock"
-    if os.path.exists(lock_file):
-        os.remove(lock_file)
+        lock_file = cache + ".lock"
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
 
     # added to avoid order-releted issues in sequential tests runs
     if testing:
@@ -172,14 +172,9 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         if not is_citing and filename in cache_dict["cited"]:
             return
 
-    if is_citing:
-        jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                      publishers_filepath_jalc=publishers_filepath_jalc,
-                                      storage_manager=storage_manager, testing=testing, citing=True)
-    elif not is_citing:
-        jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                  publishers_filepath_jalc=publishers_filepath_jalc,
-                                  storage_manager=storage_manager, testing=testing, citing=False)
+    jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
+                              publishers_filepath_jalc=publishers_filepath_jalc,
+                              storage_manager=storage_manager, testing=testing, citing=is_citing)
     index_citations_to_csv = []
     data_citing = []
     data_cited = []
@@ -218,7 +213,8 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                             ent_all_br = jalc_csv.extract_all_ids(entity, True)'''
                         if not is_citing_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, False)
-                            all_br.extend(ent_all_br)
+                            if ent_all_br:
+                                all_br.extend(ent_all_br)
         redis_validity_values_br = jalc_csv.get_redis_validity_list(all_br)
         jalc_csv.update_redis_values(redis_validity_values_br)
 
@@ -309,17 +305,16 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                 #per i citanti la validazione non serve, se è normalizzabile va direttamente alla crezione tabelle Meta
                 norm_source_id = jalc_csv.doi_m.normalise(d['doi'], include_prefix=True)
 
-                if not jalc_csv.doi_m.storage_manager.get_value(norm_source_id):
+                if norm_source_id and not jalc_csv.doi_m.storage_manager.get_value(norm_source_id):
                     # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
                     # time of the csv files creation process) and create a meta csv row for the entity in this case only
                     jalc_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
 
-                    if norm_source_id:
-                        source_tab_data = jalc_csv.csv_creator(d)
-                        if source_tab_data:
-                            processed_source_id = source_tab_data["id"]
-                            if processed_source_id:
-                                data_citing.append(source_tab_data)
+                    source_tab_data = jalc_csv.csv_creator(d)
+                    if source_tab_data:
+                        processed_source_id = source_tab_data["id"]
+                        if processed_source_id:
+                            data_citing.append(source_tab_data)
 
         save_files(data_citing, index_citations_to_csv, True)
         #pbar.close()
@@ -364,29 +359,22 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                                 citation["cited"] = target_id
                                 index_citations_to_csv.append(citation)
         save_files(data_cited, index_citations_to_csv, False)
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
-    if not redis_storage_manager:
-        if storage_path:
-            if not os.path.exists(storage_path):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
+    if redis_storage_manager:
+        return RedisStorageManager(testing=testing)
+    if storage_path:
+        if not os.path.exists(storage_path):
             # if parent dir does not exist, it is created
-                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager(storage_path)
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager(storage_path)
-
-        if not storage_path and not redis_storage_manager:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-    elif redis_storage_manager:
-        if testing:
-            storage_manager = RedisStorageManager(testing=True)
-        else:
-            storage_manager = RedisStorageManager(testing=False)
-    return storage_manager
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        elif storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+    new_path_dir = os.path.join(os.getcwd(), "storage")
+    if not os.path.exists(new_path_dir):
+        os.makedirs(new_path_dir)
+    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):

@@ -1,5 +1,12 @@
+import csv
+import json
+import os
+import os.path
+import shutil
+import unittest
+from os.path import join
 
-from oc_ds_converter.run.jalc_process import *
+from oc_ds_converter.run.jalc_process import preprocess
 
 BASE = os.path.join('test', 'jalc_process')
 OUTPUT1 = os.path.join(BASE, 'meta_input_without_citing')
@@ -11,13 +18,6 @@ SUPPORT_MATERIAL = os.path.join(BASE, 'support_material')
 IOD_SUPPORT = os.path.join(SUPPORT_MATERIAL, 'iod')
 INPUT_SUPPORT = os.path.join(SUPPORT_MATERIAL, 'input')
 PUBLISHERS_SUPPORT = os.path.join(SUPPORT_MATERIAL, 'publishers.csv')
-
-
-import os.path
-import shutil
-import unittest
-from os.path import join
-from oc_ds_converter.run.jalc_process import *
 
 class TestJalcProcess(unittest.TestCase):
     def setUp(self):

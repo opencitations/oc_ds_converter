@@ -19,7 +19,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
-def preprocess(datacite_ndjson_dir: str, publishers_filepath: str, orcid_doi_filepath: str,
+def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
         csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
         testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target: int = 50000, use_orcid_api: bool = True) -> None:
 
@@ -200,14 +200,9 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
         if not is_citing and chunk_to_save in cache_dict["cited"]:
             return
 
-    if is_citing:
-        dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                      publishers_filepath_dc=publishers_filepath,
-                                      storage_manager=storage_manager, testing=testing, citing=True, use_orcid_api=use_orcid_api)
-    elif not is_citing:
-        dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                  publishers_filepath_dc=publishers_filepath,
-                                  storage_manager=storage_manager, testing=testing, citing=False, use_orcid_api=use_orcid_api)
+    dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
+                                publishers_filepath_dc=publishers_filepath,
+                                storage_manager=storage_manager, testing=testing, citing=is_citing, use_orcid_api=use_orcid_api)
 
     index_citations_to_csv = []
     data_subject = []
@@ -348,15 +343,14 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                         if at_least_one_valid_object_id:
                             norm_subject_id = dc_csv.doi_m.normalise(subject_id, include_prefix=True)
 
-                            if not dc_csv.doi_m.storage_manager.get_value(norm_subject_id):
+                            if norm_subject_id and not dc_csv.doi_m.storage_manager.get_value(norm_subject_id):
                                 dc_csv.tmp_doi_m.storage_manager.set_value(norm_subject_id, True)
 
-                                if norm_subject_id:
-                                    source_tab_data = dc_csv.csv_creator(entity)
-                                    if source_tab_data:
-                                        processed_source_id = source_tab_data["id"]
-                                        if processed_source_id:
-                                            data_subject.append(source_tab_data)
+                                source_tab_data = dc_csv.csv_creator(entity)
+                                if source_tab_data:
+                                    processed_source_id = source_tab_data["id"]
+                                    if processed_source_id:
+                                        data_subject.append(source_tab_data)
             except Exception as e:
                 print("[PROCESS ERROR] during subject processing. Entity preview:")
                 try:
@@ -399,15 +393,17 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                                                                 data_object.append(target_tab_data)
                                                                 if relationType in ["cites", "references"]:
                                                                     rel_dict = {"rel_type": "cites", "object_id": norm_object_id}
+                                                                    valid_target_ids.append(rel_dict)
                                                                 elif relationType in ["iscitedby", "isreferencedby"]:
                                                                     rel_dict = {"rel_type": "iscitedby", "object_id": norm_object_id}
-                                                                valid_target_ids.append(rel_dict)
+                                                                    valid_target_ids.append(rel_dict)
                                                 elif stored_validity is True:
                                                     if relationType in ["cites", "references"]:
                                                         rel_dict = {"rel_type": "cites", "object_id": norm_object_id}
+                                                        valid_target_ids.append(rel_dict)
                                                     elif relationType in ["iscitedby", "isreferencedby"]:
                                                         rel_dict = {"rel_type": "iscitedby", "object_id": norm_object_id}
-                                                    valid_target_ids.append(rel_dict)
+                                                        valid_target_ids.append(rel_dict)
 
                             unique_dicts = [dict(t) for t in {tuple(sorted(d.items())) for d in valid_target_ids}]
                             for rel_type_dict in unique_dicts:
@@ -429,29 +425,22 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                 continue
         save_files(data_object, index_citations_to_csv, False)
 
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
-    if not redis_storage_manager:
-        if storage_path:
-            if not os.path.exists(storage_path):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
+    if redis_storage_manager:
+        return RedisStorageManager(testing=testing)
+    if storage_path:
+        if not os.path.exists(storage_path):
             # if parent dir does not exist, it is created
-                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager(storage_path)
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager(storage_path)
-
-        if not storage_path and not redis_storage_manager:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-    elif redis_storage_manager:
-        if testing:
-            storage_manager = RedisStorageManager(testing=True)
-        else:
-            storage_manager = RedisStorageManager(testing=False)
-    return storage_manager
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        elif storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+    new_path_dir = os.path.join(os.getcwd(), "storage")
+    if not os.path.exists(new_path_dir):
+        os.makedirs(new_path_dir)
+    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):

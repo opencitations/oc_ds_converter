@@ -15,8 +15,10 @@
 # SOFTWARE.
 
 import csv
+import json
 import os.path
 import sys
+import zipfile
 from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
@@ -24,22 +26,17 @@ from pathlib import Path
 
 import yaml
 from filelock import FileLock
-
-from oc_ds_converter.lib.file_manager import normalize_path
-from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
 from tqdm import tqdm
 
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
-    RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
-    InMemoryStorageManager
+from oc_ds_converter.jalc.jalc_processing import JalcProcessing
+from oc_ds_converter.lib.file_manager import normalize_path
+from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
-from oc_ds_converter.pubmed.pubmed_processing import *
-
-def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:str,
-               csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None,
+def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
+               csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
                testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
 
     els_to_be_skipped=[]
@@ -138,9 +135,9 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
     if cache:
         if os.path.exists(cache):
             os.remove(cache)
-    lock_file = cache + ".lock"
-    if os.path.exists(lock_file):
-        os.remove(lock_file)
+        lock_file = cache + ".lock"
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
 
     # added to avoid order-releted issues in sequential tests runs
     if testing:
@@ -148,9 +145,9 @@ def preprocess(jalc_json_dir:str, publishers_filepath:str, orcid_doi_filepath:st
         storage_manager.delete_storage()
 
 
-def find_missing_chuncks(list_of_tuples, interval):
+def find_missing_chuncks(list_of_tuples, interval) -> tuple[list, int] | None:
     # GESTIRE LA SITUAZIONE IN CUI IL CHUNCK MISSING è IL PRIMO (PRIMA ROW DA PROCESSARE - PRIMA PROCESSATA) !!!
-    all_missing_chunks = []
+    all_missing_chunks: list = []
     first_row_to_be_processed = 0
 
     if len(list_of_tuples) < 1:
@@ -221,7 +218,7 @@ def new_chunks_distribution(n_spare_processes, first_row_to_be_processed, interv
     return row_ranges
 
 
-def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (list, bool):
+def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> tuple[list, bool] | None:
     # NON è PREVISTO CHE NEL CASO IN CUI SIA STATA COMPLETATA LA PRIMA ITERAZIONE SI PASSI ALLA SECONDA. SONO DUE PROCESSI DISTINTI, IL SECONDO INIZIA QUANDO FINISCE IL PRIMO
     # è FONDAMENTALE CHE ALLA FINE DI OGNI SINGOLO PROCESSO LA CACHE VENGA AGGIORNATA (RICORDA IN TASK DONE)
     list_of_tuples_to_process = []
@@ -239,7 +236,7 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
             with open(cache, "r", encoding="utf-8") as c:
                 try:
                     cache_dict = json.load(c)
-                except:
+                except json.JSONDecodeError:
                     cache_dict = dict()
     else:
         cache_dict = dict()
@@ -262,8 +259,10 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
         # CASO 2: Seconda iterazione iniziata
         is_citing = False
 
-        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("cited"),
-                                                                             interval)
+        result = find_missing_chuncks(cache_dict.get("cited"), interval)
+        if result is None:
+            return None
+        all_missing_chunks, first_row_to_be_processed = result
         if len(all_missing_chunks) == 0:
             # CASO 2.1: Seconda iterazione iniziata, nessun chunk saltato
 
@@ -286,8 +285,10 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
     elif not cache_dict.get("cited") and cache_dict.get("citing"):
         # CASO 3: Prima iterazione iniziata
         is_citing = True
-        all_missing_chunks, first_row_to_be_processed = find_missing_chuncks(cache_dict.get("citing"),
-                                                                             interval)
+        result = find_missing_chuncks(cache_dict.get("citing"), interval)
+        if result is None:
+            return None
+        all_missing_chunks, first_row_to_be_processed = result
         if len(all_missing_chunks) == 0:
             # CASO 3.1: Prima iterazione iniziata, nessun chunk saltato
 
@@ -310,10 +311,10 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> (lis
 
 
 def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, csv_dir: str,
-                               orcid_index: str,
-                               doi_csv: str, publishers_filepath_jalc: str, storage_path: str,
+                               orcid_index: str | None,
+                               doi_csv: str | None, publishers_filepath_jalc: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str, is_citing:bool):
+                               testing: bool, cache: str | None, is_citing: bool):
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
         if not cache.endswith(".json"):
@@ -332,7 +333,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
             with open(cache, "r", encoding="utf-8") as c:
                 try:
                     cache_dict = json.load(c)
-                except:
+                except json.JSONDecodeError:
                     write_new = True
     else:
         write_new = True
@@ -350,14 +351,9 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         if not is_citing and filename in cache_dict["cited"]:
             return
 
-    if is_citing:
-        jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                      publishers_filepath_jalc=publishers_filepath_jalc,
-                                      storage_manager=storage_manager, testing=testing, citing=True)
-    elif not is_citing:
-        jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
-                                  publishers_filepath_jalc=publishers_filepath_jalc,
-                                  storage_manager=storage_manager, testing=testing, citing=False)
+    jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
+                              publishers_filepath_jalc=publishers_filepath_jalc,
+                              storage_manager=storage_manager, testing=testing, citing=is_citing)
     index_citations_to_csv = []
     data_citing = []
     data_cited = []
@@ -396,7 +392,8 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                             ent_all_br = jalc_csv.extract_all_ids(entity, True)'''
                         if not is_citing_par:
                             ent_all_br = jalc_csv.extract_all_ids(entity, False)
-                            all_br = all_br + ent_all_br
+                            if ent_all_br:
+                                all_br.extend(ent_all_br)
         redis_validity_values_br = jalc_csv.get_redis_validity_list(all_br)
         jalc_csv.update_redis_values(redis_validity_values_br)
 
@@ -431,20 +428,44 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         return ent_list, citation_list
 
     def task_done(is_citing_par: bool) -> None:
-        # AGGIORNARE LA CACHE SCRIVENDO L'INTERVALLO COMPLETATO
         try:
+            if is_citing_par and "citing" not in cache_dict.keys():
+                cache_dict["citing"] = set()
+
+            if not is_citing_par and "cited" not in cache_dict.keys():
+                cache_dict["cited"] = set()
+
+            for k,v in cache_dict.items():
+                cache_dict[k] = set(v)
+
+            if is_citing_par:
+                cache_dict["citing"].add(Path(zip_file).name)
+
+            if not is_citing_par:
+                cache_dict["cited"].add(Path(zip_file).name)
+
             with lock:
                 with open(cache, 'r', encoding='utf-8') as aux_file:
                     cur_cache_dict = json.load(aux_file)
-                    if is_citing_par:
-                        if "citing" not in cur_cache_dict.keys():
-                            cur_cache_dict["citing"] = list()
-                        cur_cache_dict["citing"].append(assigned_chunk)
 
-                    else:
-                        if "cited" not in cur_cache_dict.keys():
-                            cur_cache_dict["cited"] = list()
-                        cur_cache_dict["cited"].append(assigned_chunk)
+                    for k,v in cur_cache_dict.items():
+                        cur_cache_dict[k] = set(v)
+                        if not cache_dict.get(k) and cur_cache_dict.get(k):
+                            cache_dict[k] = v
+                        elif cache_dict[k] != v:
+                            zip_files_processed_values_list = cache_dict[k]
+                            cur_zip_files_processed_values_list = cur_cache_dict[k]
+
+                            list_updated = list(cur_zip_files_processed_values_list.union(zip_files_processed_values_list))
+                            cache_dict[k] = list_updated
+
+                    for k,v in cache_dict.items():
+                        if k not in cur_cache_dict:
+                            cur_cache_dict[k] = v
+
+                for k,v in cache_dict.items():
+                    if isinstance(v, set):
+                        cache_dict[k] = list(v)
 
                 with open(cache, 'w', encoding='utf-8') as aux_file:
                     json.dump(cache_dict, aux_file)
@@ -461,17 +482,16 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                 #per i citanti la validazione non serve, se è normalizzabile va direttamente alla crezione tabelle Meta
                 norm_source_id = jalc_csv.doi_m.normalise(d['doi'], include_prefix=True)
 
-                if not jalc_csv.doi_m.storage_manager.get_value(norm_source_id):
+                if norm_source_id and not jalc_csv.doi_m.storage_manager.get_value(norm_source_id):
                     # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
                     # time of the csv files creation process) and create a meta csv row for the entity in this case only
                     jalc_csv.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
 
-                    if norm_source_id:
-                        source_tab_data = jalc_csv.csv_creator(d)
-                        if source_tab_data:
-                            processed_source_id = source_tab_data["id"]
-                            if processed_source_id:
-                                data_citing.append(source_tab_data)
+                    source_tab_data = jalc_csv.csv_creator(d)
+                    if source_tab_data:
+                        processed_source_id = source_tab_data["id"]
+                        if processed_source_id:
+                            data_citing.append(source_tab_data)
 
         save_files(data_citing, index_citations_to_csv, True)
         #pbar.close()
@@ -517,29 +537,22 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                                 index_citations_to_csv.append(citation)
         save_files(data_cited, index_citations_to_csv, False)
 
-def get_storage_manager(storage_path: str, redis_storage_manager: bool, testing: bool):
-    if not redis_storage_manager:
-        if storage_path:
-            if not os.path.exists(storage_path):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
+    if redis_storage_manager:
+        return RedisStorageManager(testing=testing)
+    if storage_path:
+        if not os.path.exists(storage_path):
             # if parent dir does not exist, it is created
-                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager(storage_path)
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager(storage_path)
-
-        if not storage_path and not redis_storage_manager:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-    elif redis_storage_manager:
-        if testing:
-            storage_manager = RedisStorageManager(testing=True)
-        else:
-            storage_manager = RedisStorageManager(testing=False)
-    return storage_manager
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        elif storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+    new_path_dir = os.path.join(os.getcwd(), "storage")
+    if not os.path.exists(new_path_dir):
+        os.makedirs(new_path_dir)
+    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):

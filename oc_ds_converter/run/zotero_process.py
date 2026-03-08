@@ -63,8 +63,7 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
         print(f'[INFO: zotero_process] Getting all files from {zotero_json_dir}')
     all_files, targz_fd = get_all_files_by_type(zotero_json_dir, ".json", cache)
 
-    if verbose:
-        pbar = tqdm(total=len(all_files))
+    pbar = tqdm(total=len(all_files)) if verbose else None
 
     # ONLY ONE WORKER POSSIBLE
     for filename in all_files:
@@ -85,7 +84,8 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
 
     if os.path.exists(lock_file):
         os.remove(lock_file)
-    pbar.close() if verbose else None
+    if pbar:
+        pbar.close()
 
     # added to avoid order-releted issues in sequential tests runs
     if testing:
@@ -274,29 +274,22 @@ def get_citations_and_metadata(file_name, csv_dir: str,
     save_files(data_citing)
 
 
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool):
-    if not redis_storage_manager:
-        if storage_path:
-            if not os.path.exists(storage_path):
+def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
+    if redis_storage_manager:
+        return RedisStorageManager(testing=testing)
+    if storage_path:
+        if not os.path.exists(storage_path):
             # if parent dir does not exist, it is created
-                if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                    Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-            if storage_path.endswith(".db"):
-                storage_manager = SqliteStorageManager(storage_path)
-            elif storage_path.endswith(".json"):
-                storage_manager = InMemoryStorageManager(storage_path)
-
-        if not storage_path and not redis_storage_manager:
-            new_path_dir = os.path.join(os.getcwd(), "storage")
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
-            storage_manager = SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-    elif redis_storage_manager:
-        if testing:
-            storage_manager = RedisStorageManager(testing=True)
-        else:
-            storage_manager = RedisStorageManager(testing=False)
-    return storage_manager
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        elif storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+    new_path_dir = os.path.join(os.getcwd(), "storage")
+    if not os.path.exists(new_path_dir):
+        os.makedirs(new_path_dir)
+    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
 
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
