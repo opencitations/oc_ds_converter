@@ -26,11 +26,10 @@ import warnings
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import fakeredis
 from bs4 import BeautifulSoup
 
 from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
-from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
 from oc_ds_converter.oc_idmanager import DOIManager, ISBNManager, ISSNManager, ORCIDManager
@@ -120,10 +119,8 @@ class ZoteroProcessing(RaProcessor):
         self.venue_tmp_id_man_dict = {"issn": self.issn_m}
 
         if testing:
-            self.BR_redis = fakeredis.FakeStrictRedis()
-            self.RA_redis = fakeredis.FakeStrictRedis()
-
-
+            self.BR_redis = FakeRedisWrapper()
+            self.RA_redis = FakeRedisWrapper()
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
             self.RA_redis = RedisDataSource("DB-META-RA")
@@ -493,26 +490,15 @@ class ZoteroProcessing(RaProcessor):
         return all_br, all_ra
 
     def get_reids_validity_list(self, id_list, redis_db):
+        ids = list(id_list)
         if redis_db == "ra":
-            valid_ra_ids = []
-            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
-            validity_list_ra = self.RA_redis.mget(id_list)
-            for i, e in enumerate(id_list):
-                if validity_list_ra[i]:
-                    valid_ra_ids.append(e)
-            return valid_ra_ids
-
+            validity = self.RA_redis.mexists_as_set(ids)
+            return [ids[i] for i, v in enumerate(validity) if v]
         elif redis_db == "br":
-            valid_br_ids = []
-            # DO NOT UPDATED (REDIS RETRIEVAL METHOD HERE)
-            validity_list_br = self.BR_redis.mget(id_list)
-            for i, e in enumerate(id_list):
-                if validity_list_br[i]:
-                    valid_br_ids.append(e)
-            return valid_br_ids
+            validity = self.BR_redis.mexists_as_set(ids)
+            return [ids[i] for i, v in enumerate(validity) if v]
         else:
-            raise ValueError("redis_db must be either 'ra' for responsible agents ids "
-                             "or 'br' for bibliographic resources ids")
+            raise ValueError("redis_db must be either 'ra' or 'br'")
 
     # done
     def get_agents_strings_list(self, doi: str, agents_list: List[dict]) -> Tuple[list, list]:

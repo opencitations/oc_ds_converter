@@ -7,10 +7,9 @@ import warnings
 from os.path import exists
 from typing import List, Tuple
 
-import fakeredis
 from bs4 import BeautifulSoup
 
-from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
@@ -29,9 +28,8 @@ class PubmedProcessing(RaProcessor):
         self.doi_m = DOIManager()
         self.pmid_m = PMIDManager()
         if testing:
-            self.BR_redis= fakeredis.FakeStrictRedis()
-            self.RA_redis= fakeredis.FakeStrictRedis()
-
+            self.BR_redis = FakeRedisWrapper()
+            self.RA_redis = FakeRedisWrapper()
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
             self.RA_redis = RedisDataSource("DB-META-RA")
@@ -113,7 +111,7 @@ class PubmedProcessing(RaProcessor):
                 doi = DOIManager().normalise(attributes.get('doi'), include_prefix=False)
                 if doi:
                     doi_w_pref = "doi:"+doi
-                    if self.BR_redis.get(doi_w_pref):
+                    if self.BR_redis.exists_as_set(doi_w_pref):
                         ids_list.append(doi_w_pref)
                     elif self.doi_m.is_valid(doi):
                         ids_list.append(doi_w_pref)

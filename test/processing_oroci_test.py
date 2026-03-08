@@ -82,9 +82,8 @@ class TestOpenaireProcessing(unittest.TestCase):
 
     def test_get_reids_validity_dict_w_fakeredis_db_values_sqlite(self):
         opp = OpenaireProcessing()
-        opp.BR_redis.set('pmid:24484640', "omid:1")
-        opp.RA_redis.set('orcid:0000-0002-8090-6886', "omid:2")
-
+        opp.BR_redis.sadd('pmid:24484640', "omid:1")
+        opp.RA_redis.sadd('orcid:0000-0002-8090-6886', "omid:2")
 
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}
         ra = {'orcid:0000-0002-8090-6886', 'orcid:0000-0002-6491-0754'}
@@ -103,10 +102,9 @@ class TestOpenaireProcessing(unittest.TestCase):
         opp.RA_redis.delete('orcid:0000-0002-8090-6886')
 
     def test_get_reids_validity_dict_w_fakeredis_db_values_redis(self):
-
         opp = OpenaireProcessing(storage_manager=RedisStorageManager())
-        opp.BR_redis.set('pmid:24484640', "omid:1")
-        opp.RA_redis.set('orcid:0000-0002-8090-6886', "omid:2")
+        opp.BR_redis.sadd('pmid:24484640', "omid:1")
+        opp.RA_redis.sadd('orcid:0000-0002-8090-6886', "omid:2")
 
 
         br = {'pmid:24484640', 'pmcid:PMC3928621', 'doi:10.2307/3053861'}

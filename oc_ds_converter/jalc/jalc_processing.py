@@ -30,8 +30,7 @@ import warnings
 from pathlib import Path
 from typing import Optional
 
-import fakeredis
-from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
@@ -74,8 +73,7 @@ class JalcProcessing(RaProcessor):
 
 
         if testing:
-            self.BR_redis = fakeredis.FakeStrictRedis()
-
+            self.BR_redis = FakeRedisWrapper()
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
 
@@ -346,9 +344,6 @@ class JalcProcessing(RaProcessor):
             return all_br
 
     def get_reids_validity_list(self, id_list):
-        valid_br_ids = []
-        validity_list_br = self.BR_redis.mget(id_list)
-        for i, e in enumerate(id_list):
-            if validity_list_br[i]:
-                valid_br_ids.append(e)
-        return valid_br_ids
+        ids = list(id_list)
+        validity = self.BR_redis.mexists_as_set(ids)
+        return [ids[i] for i, v in enumerate(validity) if v]

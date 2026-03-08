@@ -83,9 +83,8 @@ class TestCrossrefProcessing(unittest.TestCase):
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_sqlite(self):
         c_processing = CrossrefProcessing()
-        c_processing.BR_redis.set('doi:10.2105/ajph.2006.101626', "omid:1")
-        c_processing.RA_redis.set('orcid:0000-0002-8090-6886', "omid:2")
-
+        c_processing.BR_redis.sadd('doi:10.2105/ajph.2006.101626', "omid:1")
+        c_processing.RA_redis.sadd('orcid:0000-0002-8090-6886', "omid:2")
 
         br = {'doi:10.2105/ajph.2006.101626', 'doi:10.1001/jama.299.12.1471',
               'doi:10.1177/003335490812300219'}
@@ -103,12 +102,10 @@ class TestCrossrefProcessing(unittest.TestCase):
         c_processing.BR_redis.delete('doi:10.2105/ajph.2006.101626')
         c_processing.RA_redis.delete('orcid:0000-0002-8090-6886')
 
-
     def test_get_redis_validity_dict_w_fakeredis_db_values_redis(self):
         c_processing = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
-        c_processing.BR_redis.set('doi:10.2105/ajph.2006.101626', "omid:1")
-        c_processing.RA_redis.set('orcid:0000-0002-8090-6886', "omid:2")
-
+        c_processing.BR_redis.sadd('doi:10.2105/ajph.2006.101626', "omid:1")
+        c_processing.RA_redis.sadd('orcid:0000-0002-8090-6886', "omid:2")
 
         br = {'doi:10.2105/ajph.2006.101626', 'doi:10.1001/jama.299.12.1471',
               'doi:10.1177/003335490812300219'}

@@ -21,7 +21,6 @@ import html
 import re
 import warnings
 import os
-import fakeredis
 import csv
 import json
 
@@ -30,7 +29,7 @@ from typing import List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
-from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.isbn import ISBNManager
@@ -183,8 +182,8 @@ class DataciteProcessing(RaProcessor):
         self.venue_tmp_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
 
         if testing:
-            self.BR_redis = fakeredis.FakeStrictRedis()
-            self.RA_redis = fakeredis.FakeStrictRedis()
+            self.BR_redis = FakeRedisWrapper()
+            self.RA_redis = FakeRedisWrapper()
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
             self.RA_redis = RedisDataSource("DB-META-RA")
@@ -864,14 +863,13 @@ class DataciteProcessing(RaProcessor):
             all_ra = [y for y in all_ra if y is not None]
             return all_br, all_ra
 
-    #added
     def get_reids_validity_list(self, id_list, redis_db):
-        ids = list(id_list)  # garantisci ordine deterministico
+        ids = list(id_list)
         if redis_db == "ra":
-            validity = self.RA_redis.mget(ids)
+            validity = self.RA_redis.mexists_as_set(ids)
             return [ids[i] for i, v in enumerate(validity) if v]
         elif redis_db == "br":
-            validity = self.BR_redis.mget(ids)
+            validity = self.BR_redis.mexists_as_set(ids)
             return [ids[i] for i, v in enumerate(validity) if v]
         else:
             raise ValueError("redis_db must be either 'ra' or 'br'")

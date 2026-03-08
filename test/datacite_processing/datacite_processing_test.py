@@ -89,8 +89,8 @@ class TestDataciteProcessing(unittest.TestCase):
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_sqlite(self):
         dcp = DataciteProcessing()
-        dcp.BR_redis.set("doi:10.15407/scin11.06.057", "omid:1")
-        dcp.RA_redis.set("orcid:0000-0001-8513-8700", "omid:2")
+        dcp.BR_redis.sadd("doi:10.15407/scin11.06.057", "omid:1")
+        dcp.RA_redis.sadd("orcid:0000-0001-8513-8700", "omid:2")
 
         br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25",
               "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
@@ -110,8 +110,8 @@ class TestDataciteProcessing(unittest.TestCase):
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_redis(self):
         dcp = DataciteProcessing(storage_manager=RedisStorageManager())
-        dcp.BR_redis.set("doi:10.15407/scin11.06.057", "omid:1")
-        dcp.RA_redis.set("orcid:0000-0001-8513-8700", "omid:2")
+        dcp.BR_redis.sadd("doi:10.15407/scin11.06.057", "omid:1")
+        dcp.RA_redis.sadd("orcid:0000-0001-8513-8700", "omid:2")
 
         br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25",
               "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}

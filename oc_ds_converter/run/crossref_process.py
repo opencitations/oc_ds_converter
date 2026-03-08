@@ -476,5 +476,11 @@ if __name__ == '__main__':
     no_orcid_api = settings.get('disable_orcid_api', False) if settings else args.no_orcid_api
     use_orcid_api = not no_orcid_api
 
+    if max_workers > 1 and crossref_json_dir.endswith('.tar.gz'):
+        arg_parser.error(
+            'Multiprocessing (--max_workers > 1) is incompatible with tar.gz input. '
+            'Either extract the archive first or use --max_workers 1.'
+        )
+
     preprocess(crossref_json_dir=crossref_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
                redis_storage_manager=redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api)

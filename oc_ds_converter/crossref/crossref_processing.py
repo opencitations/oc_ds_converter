@@ -32,8 +32,7 @@ from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager import ISSNManager
 
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
-import fakeredis
-from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
@@ -73,8 +72,8 @@ class CrossrefProcessing(RaProcessor):
         self.venue_tmp_id_man_dict = {"issn": self.issn_m}
 
         if testing:
-            self.BR_redis = fakeredis.FakeStrictRedis()
-            self.RA_redis= fakeredis.FakeStrictRedis()
+            self.BR_redis = FakeRedisWrapper()
+            self.RA_redis = FakeRedisWrapper()
         else:
             self.BR_redis = RedisDataSource("DB-META-BR")
             self.RA_redis = RedisDataSource("DB-META-RA")
@@ -365,12 +364,12 @@ class CrossrefProcessing(RaProcessor):
         return all_br, all_ra
 
     def get_reids_validity_list(self, id_list, redis_db):
-        ids = list(id_list)  # garantisci ordine deterministico
+        ids = list(id_list)
         if redis_db == "ra":
-            validity = self.RA_redis.mget(ids)
+            validity = self.RA_redis.mexists_as_set(ids)
             return [ids[i] for i, v in enumerate(validity) if v]
         elif redis_db == "br":
-            validity = self.BR_redis.mget(ids)
+            validity = self.BR_redis.mexists_as_set(ids)
             return [ids[i] for i, v in enumerate(validity) if v]
         else:
             raise ValueError("redis_db must be either 'ra' or 'br'")
