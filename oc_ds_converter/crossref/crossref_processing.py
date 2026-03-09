@@ -19,14 +19,13 @@
 
 import html
 import re
-import warnings
 from pathlib import Path
 from typing import Optional
 import os
 import os.path
 import json
 
-from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
+from bs4 import BeautifulSoup
 from oc_ds_converter.oc_idmanager import DOIManager
 from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager import ISSNManager
@@ -43,9 +42,12 @@ from typing import List, Tuple
 from oc_ds_converter.lib.cleaner import Cleaner
 
 
+def _clean_markup(text: str) -> str:
+    if '<' in text:
+        soup = BeautifulSoup(text, 'html.parser')
+        text = soup.get_text()
+    return html.unescape(text).replace('\n', '')
 
-warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
-warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 class CrossrefProcessing(RaProcessor):
 
@@ -213,10 +215,7 @@ class CrossrefProcessing(RaProcessor):
                         text_title = item['title'][0]
                     else:
                         text_title = item['title']
-                    soup = BeautifulSoup(text_title, 'html.parser')
-                    title_soup = soup.get_text().replace('\n', '')
-                    title = html.unescape(title_soup)
-                    row['title'] = title
+                    row['title'] = _clean_markup(text_title)
 
             agents_list = []
             if 'author' in item:
@@ -317,11 +316,10 @@ class CrossrefProcessing(RaProcessor):
         if 'container-title' in item:
             if item['container-title']:
                 if isinstance(item['container-title'], list):
-                    ventit = str(item['container-title'][0]).replace('\n', '')
+                    ventit = str(item['container-title'][0])
                 else:
-                    ventit = str(item['container-title']).replace('\n', '')
-                ven_soup = BeautifulSoup(ventit, 'html.parser')
-                ventit = html.unescape(ven_soup.get_text())
+                    ventit = str(item['container-title'])
+                ventit = _clean_markup(ventit)
                 ambiguous_brackets = re.search(ids_inside_square_brackets, ventit)
                 if ambiguous_brackets:
                     match = ambiguous_brackets.group(1)
