@@ -73,6 +73,7 @@ class RedisDataSource(DataSource):
         "DB-META-BR": "database 1",
         "PROCESS-DB": "database 2",
         "DOI-ORCID-INDEX": "database 3",
+        "PUBLISHERS-INDEX": "database 4",
     }
 
     def __init__(self, service: str, config_filepath: str = 'config.ini') -> None:

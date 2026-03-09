@@ -32,7 +32,7 @@ from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager import ISSNManager
 
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
-from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis
+from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis, PublishersRedis
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
@@ -49,11 +49,15 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class CrossrefProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False, use_redis_publishers: bool = False):
         orcid_index_obj = OrcidIndexRedis(testing=testing) if use_redis_orcid_index and orcid_index is None else orcid_index
         super(CrossrefProcessing, self).__init__(orcid_index_obj, doi_csv, publishers_filepath)
         self.citing = citing
         self.use_orcid_api = use_orcid_api
+        self.use_redis_publishers = use_redis_publishers
+        self._publishers_redis: PublishersRedis | None = None
+        if use_redis_publishers:
+            self._publishers_redis = PublishersRedis(testing=testing)
 
         if storage_manager is None:
             self.storage_manager = SqliteStorageManager()
@@ -271,6 +275,10 @@ class CrossrefProcessing(RaProcessor):
         publisher = data['publisher']
         member = data['member']
         prefix = data['prefix']
+
+        if self.use_redis_publishers and self._publishers_redis:
+            return self._get_publisher_name_from_redis(publisher, member, prefix)
+
         relevant_member = False
 
         if self.publishers_mapping and member:
@@ -290,6 +298,20 @@ class CrossrefProcessing(RaProcessor):
         else:
             name_and_id = f'{publisher} [crossref:{member}]' if member else publisher
         return name_and_id
+
+    def _get_publisher_name_from_redis(self, publisher: str, member: str | None, prefix: str) -> str:
+        redis = self._publishers_redis
+        if redis is None:
+            return f'{publisher} [crossref:{member}]' if member else publisher
+        if member:
+            pub_data = redis.get_by_member(str(member))
+            if pub_data:
+                return f"{pub_data['name']} [crossref:{member}]"
+        pub_data = redis.get_by_prefix(prefix)
+        if pub_data:
+            member_id = redis._r.get(f"{redis.DOI_PREFIX_KEY}{prefix}")
+            return f"{pub_data['name']} [crossref:{member_id}]"
+        return f'{publisher} [crossref:{member}]' if member else publisher
 
 
     def get_venue_name(self, item:dict, row:dict) -> str:

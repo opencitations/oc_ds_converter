@@ -16,10 +16,11 @@
 
 
 import html
+import os
 from csv import QUOTE_NONNUMERIC, DictReader, DictWriter
 from json import loads
 from os.path import exists
-from time import sleep
+from time import sleep, time
 
 from requests import get
 
@@ -53,6 +54,15 @@ def get_via_requests(get_url: str) -> dict | None:
     raise ConnectionError(f"Failed to fetch {get_url} after {MAX_TRY} attempts")
 
 
+def is_stale(filepath: str, max_age_days: int) -> bool:
+    if not exists(filepath):
+        return True
+    mtime = os.path.getmtime(filepath)
+    age_seconds = time() - mtime
+    age_days = age_seconds / (60 * 60 * 24)
+    return age_days > max_age_days
+
+
 def get_publishers(offset: int) -> tuple[list, int, int] | None:
     get_url = "https://api.crossref.org/members?rows=1000&offset=" + str(offset)
     req = get_via_requests(get_url)
@@ -67,7 +77,10 @@ def get_publishers(offset: int) -> tuple[list, int, int] | None:
     return None
 
 
-def process(out_path: str) -> None:
+def process(out_path: str, max_age_days: int = 30, force: bool = False) -> bool:
+    if not force and not is_stale(out_path, max_age_days):
+        return False
+
     pub_ids = set()
 
     if exists(out_path):
@@ -103,6 +116,7 @@ def process(out_path: str) -> None:
                                 prefixes.add(prefix_value)
                                 store_csv_on_file(out_path, csv_headers, {
                                     "id": cur_id, "name": cur_name, "prefix": prefix_value})
+    return True
 
 
 def store_csv_on_file(f_path: str, header: tuple, json_obj: dict) -> None:

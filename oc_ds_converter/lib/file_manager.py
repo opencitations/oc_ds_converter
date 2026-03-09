@@ -82,7 +82,9 @@ def init_cache(cache_filepath: str | None) -> Set[str]:
         cache_data = json.load(cache_file)
     if not cache_data:
         return set()
-    return set(cache_data["citing"]) & set(cache_data["cited"])
+    citing = set(cache_data.get("citing", []))
+    cited = set(cache_data.get("cited", []))
+    return citing & cited
 
 @contextmanager
 def suppress_stdout():

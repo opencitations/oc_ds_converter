@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 from csv import DictReader
 from os import sep, walk
 from os.path import exists
@@ -97,3 +98,86 @@ def load_orcid_index_to_redis(
 
         if batch:
             orcid_index_redis.add_values_batch(batch)
+
+
+class PublishersRedis:
+    MEMBER_PREFIX = "member:"
+    DOI_PREFIX_KEY = "prefix:"
+
+    def __init__(self, testing: bool = False) -> None:
+        if testing:
+            self._r = fakeredis.FakeStrictRedis(decode_responses=True)
+        else:
+            self._redis = RedisDataSource("PUBLISHERS-INDEX")
+            self._r = self._redis._r
+
+    def get_by_member(self, member_id: str) -> dict[str, str | set[str]] | None:
+        key = f"{self.MEMBER_PREFIX}{member_id}"
+        data = self._r.get(key)
+        if data:
+            result = json.loads(str(data))
+            result["prefixes"] = set(result["prefixes"])
+            return result
+        return None
+
+    def get_by_prefix(self, prefix: str) -> dict[str, str | set[str]] | None:
+        key = f"{self.DOI_PREFIX_KEY}{prefix}"
+        member_id = self._r.get(key)
+        if member_id:
+            return self.get_by_member(str(member_id))
+        return None
+
+    def set_publisher(self, member_id: str, name: str, prefixes: set[str]) -> None:
+        member_key = f"{self.MEMBER_PREFIX}{member_id}"
+        data = {"name": name, "prefixes": list(prefixes)}
+        self._r.set(member_key, json.dumps(data))
+        for prefix in prefixes:
+            prefix_key = f"{self.DOI_PREFIX_KEY}{prefix}"
+            self._r.set(prefix_key, member_id)
+
+    def set_publishers_batch(self, publishers: dict[str, dict[str, str | set[str]]]) -> None:
+        pipe = self._r.pipeline()
+        for member_id, data in publishers.items():
+            member_key = f"{self.MEMBER_PREFIX}{member_id}"
+            prefixes_list = list(data["prefixes"])
+            pipe.set(member_key, json.dumps({"name": data["name"], "prefixes": prefixes_list}))
+            for prefix in prefixes_list:
+                prefix_key = f"{self.DOI_PREFIX_KEY}{prefix}"
+                pipe.set(prefix_key, member_id)
+        pipe.execute()
+
+    def has_data(self) -> bool:
+        return cast(int, self._r.dbsize()) > 0
+
+    def clear(self) -> None:
+        self._r.flushdb()
+
+
+def load_publishers_to_redis(
+    publishers_filepath: str,
+    publishers_redis: PublishersRedis,
+    batch_size: int = 5000,
+) -> None:
+    if not exists(publishers_filepath):
+        return
+
+    batch: dict[str, dict[str, str | set[str]]] = {}
+    count = 0
+
+    with open(publishers_filepath, 'r', encoding='utf-8') as f:
+        reader = DictReader(f)
+        for row in reader:
+            pub_id = row['id']
+            if pub_id not in batch:
+                batch[pub_id] = {'name': row['name'], 'prefixes': set()}
+            prefixes = batch[pub_id]['prefixes']
+            prefixes.add(row['prefix'])  # type: ignore[union-attr]
+            count += 1
+
+            if count >= batch_size:
+                publishers_redis.set_publishers_batch(batch)
+                batch = {}
+                count = 0
+
+    if batch:
+        publishers_redis.set_publishers_batch(batch)

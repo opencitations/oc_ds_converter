@@ -1,14 +1,44 @@
 import os
 import tempfile
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
 from oc_ds_converter.crossref.extract_crossref_publishers import (
     get_publishers,
     get_via_requests,
+    is_stale,
     process,
     store_csv_on_file,
 )
+
+
+class TestIsStale(unittest.TestCase):
+    def test_nonexistent_file_is_stale(self) -> None:
+        result = is_stale('/nonexistent/file.csv', 30)
+        self.assertTrue(result)
+
+    def test_recent_file_is_not_stale(self) -> None:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write('test')
+            temp_path = f.name
+        try:
+            result = is_stale(temp_path, 30)
+            self.assertFalse(result)
+        finally:
+            os.unlink(temp_path)
+
+    def test_old_file_is_stale(self) -> None:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write('test')
+            temp_path = f.name
+        try:
+            old_time = time.time() - (40 * 24 * 60 * 60)
+            os.utime(temp_path, (old_time, old_time))
+            result = is_stale(temp_path, 30)
+            self.assertTrue(result)
+        finally:
+            os.unlink(temp_path)
 
 
 class TestGetViaRequests(unittest.TestCase):
@@ -148,8 +178,9 @@ class TestProcess(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = os.path.join(tmpdir, "publishers.csv")
-            process(filepath)
+            result = process(filepath)
 
+            self.assertTrue(result)
             with open(filepath, "r", encoding="utf8") as f:
                 lines = f.readlines()
 
@@ -176,7 +207,7 @@ class TestProcess(unittest.TestCase):
                 f.write('"id","name","prefix"\n')
                 f.write('"1","Publisher A","10.1000"\n')
 
-            process(filepath)
+            process(filepath, force=True)
 
             with open(filepath, "r", encoding="utf8") as f:
                 lines = f.readlines()
@@ -246,6 +277,60 @@ class TestProcess(unittest.TestCase):
                 lines = f.readlines()
 
             self.assertEqual(len(lines), 2)
+
+    @patch('oc_ds_converter.crossref.extract_crossref_publishers.get_publishers')
+    def test_process_skips_if_file_recent(self, mock_get_publishers: MagicMock) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "publishers.csv")
+            with open(filepath, "w", encoding="utf8") as f:
+                f.write('"id","name","prefix"\n')
+                f.write('"1","Existing Publisher","10.1000"\n')
+
+            result = process(filepath, max_age_days=30, force=False)
+
+            self.assertFalse(result)
+            mock_get_publishers.assert_not_called()
+
+    @patch('oc_ds_converter.crossref.extract_crossref_publishers.get_publishers')
+    def test_process_force_updates_recent_file(self, mock_get_publishers: MagicMock) -> None:
+        mock_get_publishers.return_value = (
+            [{"id": 2, "primary-name": "New Publisher", "prefix": [{"value": "10.2000"}]}],
+            1000,
+            1
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "publishers.csv")
+            with open(filepath, "w", encoding="utf8") as f:
+                f.write('"id","name","prefix"\n')
+                f.write('"1","Existing Publisher","10.1000"\n')
+
+            result = process(filepath, max_age_days=30, force=True)
+
+            self.assertTrue(result)
+            mock_get_publishers.assert_called_once()
+
+    @patch('oc_ds_converter.crossref.extract_crossref_publishers.get_publishers')
+    def test_process_updates_stale_file(self, mock_get_publishers: MagicMock) -> None:
+        mock_get_publishers.return_value = (
+            [{"id": 2, "primary-name": "New Publisher", "prefix": [{"value": "10.2000"}]}],
+            1000,
+            1
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "publishers.csv")
+            with open(filepath, "w", encoding="utf8") as f:
+                f.write('"id","name","prefix"\n')
+                f.write('"1","Existing Publisher","10.1000"\n')
+
+            old_time = time.time() - (40 * 24 * 60 * 60)
+            os.utime(filepath, (old_time, old_time))
+
+            result = process(filepath, max_age_days=30, force=False)
+
+            self.assertTrue(result)
+            mock_get_publishers.assert_called_once()
 
 
 if __name__ == '__main__':

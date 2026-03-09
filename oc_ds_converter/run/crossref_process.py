@@ -30,8 +30,14 @@ from filelock import BaseFileLock, FileLock
 from tarfile import TarInfo
 
 from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
+from oc_ds_converter.crossref.extract_crossref_publishers import is_stale as publishers_is_stale
 from oc_ds_converter.crossref.extract_crossref_publishers import process as extract_publishers
-from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis, load_orcid_index_to_redis
+from oc_ds_converter.datasource.orcid_index import (
+    OrcidIndexRedis,
+    PublishersRedis,
+    load_orcid_index_to_redis,
+    load_publishers_to_redis,
+)
 from oc_ds_converter.lib.console import console, create_progress
 from oc_ds_converter.lib.file_manager import normalize_path, pathoo
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
@@ -55,6 +61,7 @@ def _run_iteration(
     processing_citing: bool,
     use_orcid_api: bool,
     max_workers: int = 1,
+    use_redis_publishers: bool = False,
 ) -> None:
     iteration_label = "citing entities" if processing_citing else "cited entities"
     iteration_num = "First" if processing_citing else "Second"
@@ -67,7 +74,8 @@ def _run_iteration(
                 get_citations_and_metadata(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                     wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
-                    testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api
+                    testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api,
+                    use_redis_publishers=use_redis_publishers
                 )
                 progress.update(task, advance=1)
         else:
@@ -81,7 +89,7 @@ def _run_iteration(
                         get_citations_and_metadata,
                         filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                         wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
-                        testing, cache, processing_citing, use_orcid_api
+                        testing, cache, processing_citing, use_orcid_api, use_redis_publishers
                     )
                     futures.append(future)
                 for future in futures:
@@ -245,8 +253,20 @@ def _process_cited_entities(
     return cited_entity_rows, citation_rows
 
 
-def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, storage_path: str | None = None,
-               testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, use_orcid_api: bool = True) -> None:
+def preprocess(
+    crossref_json_dir: str,
+    orcid_doi_filepath: str | None,
+    csv_dir: str,
+    wanted_doi_filepath: str | None = None,
+    cache: str | None = None,
+    storage_path: str | None = None,
+    testing: bool = True,
+    redis_storage_manager: bool = False,
+    max_workers: int = 1,
+    use_orcid_api: bool = True,
+    update_publishers: bool = False,
+    publishers_max_age: int = 30,
+) -> None:
 
     # create output dir if does not exist
     if not os.path.exists(csv_dir):
@@ -254,10 +274,28 @@ def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: 
 
     publishers_filepath = os.path.join(os.path.dirname(__file__), '..', 'crossref', 'data', 'publishers.csv')
     publishers_filepath = os.path.normpath(publishers_filepath)
+
     if not testing:
-        console.print('[cyan]Updating publishers data from Crossref API...[/cyan]')
-        extract_publishers(publishers_filepath)
-    if not os.path.exists(publishers_filepath):
+        if update_publishers:
+            console.print('[cyan]Force updating publishers data from Crossref API...[/cyan]')
+            extract_publishers(publishers_filepath, force=True)
+        elif publishers_is_stale(publishers_filepath, publishers_max_age):
+            console.print(f'[cyan]Publishers data is older than {publishers_max_age} days, updating...[/cyan]')
+            extract_publishers(publishers_filepath, max_age_days=publishers_max_age)
+        else:
+            console.print('[green]Publishers data is up to date[/green]')
+
+    use_redis_publishers = redis_storage_manager and max_workers > 1
+    if use_redis_publishers and os.path.exists(publishers_filepath):
+        publishers_redis = PublishersRedis(testing=testing)
+        if not publishers_redis.has_data() or update_publishers:
+            console.print('[cyan]Loading publishers to Redis...[/cyan]')
+            publishers_redis.clear()
+            load_publishers_to_redis(publishers_filepath, publishers_redis)
+            console.print('[green]Publishers loaded to Redis[/green]')
+        publishers_filepath = None
+
+    if not os.path.exists(publishers_filepath) if publishers_filepath else False:
         publishers_filepath = None
 
     orcid_index_redis = OrcidIndexRedis(testing=testing)
@@ -289,8 +327,8 @@ def preprocess(crossref_json_dir: str, orcid_doi_filepath: str | None, csv_dir: 
     )
 
     workers = 1 if not redis_storage_manager else max_workers
-    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=workers)
-    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=workers)
+    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=workers, use_redis_publishers=use_redis_publishers)
+    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=workers, use_redis_publishers=use_redis_publishers)
 
     # DELETE CACHE AND .LOCK FILE
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
@@ -306,7 +344,8 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                                orcid_index: str | None,
                                doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool):
+                               testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool,
+                               use_redis_publishers: bool = False):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
@@ -320,7 +359,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         cache = os.path.join(os.getcwd(), "cache.json")
 
     lock = FileLock(cache + ".lock")
-    cache_dict = dict()
+    cache_dict: dict[str, list[str]] = {"citing": [], "cited": []}
     write_new = False
     if os.path.exists(cache):
         with lock:
@@ -348,7 +387,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
     crossref_csv = CrossrefProcessing(
         orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath=publishers_filepath,
         storage_manager=storage_manager, testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api,
-        use_redis_orcid_index=True
+        use_redis_orcid_index=True, use_redis_publishers=use_redis_publishers
     )
 
     source_data = load_json(file_name, targz_fd)
@@ -433,6 +472,10 @@ if __name__ == '__main__':  # pragma: no cover
                             help='Workers number')
     arg_parser.add_argument('--no-orcid-api', dest='no_orcid_api', action='store_true', required=False,
                             help='Disable ORCID API validation (use only DOI→ORCID index and caches)')
+    arg_parser.add_argument('--update-publishers', dest='update_publishers', action='store_true', required=False,
+                            help='Force update of publishers data from Crossref API, ignoring age check')
+    arg_parser.add_argument('--publishers-max-age', dest='publishers_max_age', required=False, default=30, type=int,
+                            help='Maximum age in days for publishers data before automatic update (default: 30)')
 
     args = arg_parser.parse_args()
     config = args.config
@@ -455,8 +498,10 @@ if __name__ == '__main__':  # pragma: no cover
     testing = settings['testing'] if settings else args.testing
     redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
     max_workers = settings['max_workers'] if settings else args.max_workers
-    no_orcid_api = settings.get('disable_orcid_api', False) if settings else args.no_orcid_api
+    no_orcid_api = settings.get('disable_orcid_api', args.no_orcid_api) if settings else args.no_orcid_api
     use_orcid_api = not no_orcid_api
+    update_publishers = settings.get('update_publishers', args.update_publishers) if settings else args.update_publishers
+    publishers_max_age = settings.get('publishers_max_age', args.publishers_max_age) if settings else args.publishers_max_age
 
     if max_workers > 1 and crossref_json_dir.endswith('.tar.gz'):
         arg_parser.error(
@@ -464,5 +509,17 @@ if __name__ == '__main__':  # pragma: no cover
             'Either extract the archive first or use --max_workers 1.'
         )
 
-    preprocess(crossref_json_dir=crossref_json_dir, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, storage_path=storage_path, testing=testing,
-               redis_storage_manager=redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api)
+    preprocess(
+        crossref_json_dir=crossref_json_dir,
+        orcid_doi_filepath=orcid_doi_filepath,
+        csv_dir=csv_dir,
+        wanted_doi_filepath=wanted_doi_filepath,
+        cache=cache,
+        storage_path=storage_path,
+        testing=testing,
+        redis_storage_manager=redis_storage_manager,
+        max_workers=max_workers,
+        use_orcid_api=use_orcid_api,
+        update_publishers=update_publishers,
+        publishers_max_age=publishers_max_age,
+    )

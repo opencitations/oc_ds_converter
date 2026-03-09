@@ -6,7 +6,8 @@ from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.lib.jsonmanager import *
+from oc_ds_converter.datasource.orcid_index import PublishersRedis
+from oc_ds_converter.lib.jsonmanager import load_json
 TEST_DIR = os.path.join("test", "crossref_processing")
 JSON_FILE = os.path.join(TEST_DIR, "0.json")
 TMP_SUPPORT_MATERIAL = os.path.join(TEST_DIR, "tmp_support")
@@ -262,12 +263,15 @@ class TestCrossrefProcessing(unittest.TestCase):
         issn_man_exp_2 = c_processing.get_id_manager(issn_string, id_man_dict)
 
         #check that the idmanager for the issn was returned and that it works as expected
+        assert issn_man_exp is not None
+        assert issn_man_exp_2 is not None
         self.assertTrue(issn_man_exp.is_valid(issn_id))
         self.assertTrue(issn_man_exp_2.is_valid(issn_id))
 
     def test_csv_creator(self):
         c_processing = CrossrefProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, publishers_filepath=None)
-        data = load_json(DATA, None)
+        data = load_json(DATA, None)  # type: ignore[arg-type]
+        assert data is not None
         output = list()
         for item in data['items']:
             tabular_data = c_processing.csv_creator(item)
@@ -372,7 +376,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         # The item's member is in the publishers' mapping
         item = {
             'publisher': 'American Fisheries Society',
-            'DOI': '10.47886\/9789251092637.ch7',
+            'DOI': '10.47886/9789251092637.ch7',
             'prefix': '10.47886',
             'member': '460'
         }
@@ -392,6 +396,60 @@ class TestCrossrefProcessing(unittest.TestCase):
         crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
         publisher_name = crossref_processor.get_publisher_name(doi, item)
         self.assertEqual(publisher_name, 'American Fisheries Society [crossref:460]')
+
+    def test_get_publisher_name_redis_by_member(self):
+        publishers_redis = PublishersRedis(testing=True)
+        publishers_redis.set_publisher("460", "American Fisheries Society", {"10.47886"})
+
+        item = {
+            'publisher': 'American Fisheries Society',
+            'DOI': '10.47886/9789251092637.ch7',
+            'prefix': '10.47886',
+            'member': '460'
+        }
+        doi = '10.47886/9789251092637.ch7'
+        crossref_processor = CrossrefProcessing(
+            orcid_index=None, doi_csv=None, publishers_filepath=None,
+            use_redis_publishers=True, testing=True
+        )
+        crossref_processor._publishers_redis = publishers_redis
+        publisher_name = crossref_processor.get_publisher_name(doi, item)
+        self.assertEqual(publisher_name, 'American Fisheries Society [crossref:460]')
+
+    def test_get_publisher_name_redis_by_prefix(self):
+        publishers_redis = PublishersRedis(testing=True)
+        publishers_redis.set_publisher("460", "American Fisheries Society", {"10.47886"})
+
+        item = {
+            'publisher': 'American Fisheries Society',
+            'DOI': '10.47886/9789251092637.ch7',
+            'prefix': '10.47886'
+        }
+        doi = '10.47886/9789251092637.ch7'
+        crossref_processor = CrossrefProcessing(
+            orcid_index=None, doi_csv=None, publishers_filepath=None,
+            use_redis_publishers=True, testing=True
+        )
+        crossref_processor._publishers_redis = publishers_redis
+        publisher_name = crossref_processor.get_publisher_name(doi, item)
+        self.assertEqual(publisher_name, 'American Fisheries Society [crossref:460]')
+
+    def test_get_publisher_name_redis_not_found(self):
+        publishers_redis = PublishersRedis(testing=True)
+
+        item = {
+            'publisher': 'Unknown Publisher',
+            'DOI': '10.9999/unknown',
+            'prefix': '10.9999'
+        }
+        doi = '10.9999/unknown'
+        crossref_processor = CrossrefProcessing(
+            orcid_index=None, doi_csv=None, publishers_filepath=None,
+            use_redis_publishers=True, testing=True
+        )
+        crossref_processor._publishers_redis = publishers_redis
+        publisher_name = crossref_processor.get_publisher_name(doi, item)
+        self.assertEqual(publisher_name, 'Unknown Publisher')
 
     def test_get_venue_name(self):
         item = {
@@ -755,8 +813,8 @@ class TestCrossrefProcessing(unittest.TestCase):
         
         # Create CrossrefProcessing instance with ORCID index
         cp = CrossrefProcessing()
-        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
-        
+        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")  # type: ignore[attr-defined]
+
         # Test Case 1: ORCID found in index
         out_1 = cp.find_crossref_orcid(test_orcid, test_doi)
         exp_1 = f"orcid:{test_orcid}"
@@ -797,7 +855,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         test_orcid = "0000-0002-1234-5678"
         test_name = "Smith, John"
 
-        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")
+        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")  # type: ignore[attr-defined]
 
         out = cp.find_crossref_orcid(test_orcid, test_doi)
         self.assertEqual(out, f"orcid:{test_orcid}")
@@ -872,7 +930,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         # Indice popolato con DOI **prefissato**
         doi_pref = "doi:10.1234/test-idx"
         test_orcid = "0000-0002-9999-8888"
-        cp.orcid_index.add_value(doi_pref, f"Smith, John [orcid:{test_orcid}]")
+        cp.orcid_index.add_value(doi_pref, f"Smith, John [orcid:{test_orcid}]")  # type: ignore[attr-defined]
 
         # Autore senza ORCID in metadati; DOI passato **senza prefisso**
         agents = [{
