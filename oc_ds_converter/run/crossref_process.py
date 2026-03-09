@@ -38,7 +38,7 @@ from oc_ds_converter.datasource.orcid_index import (
     load_orcid_index_to_redis,
     load_publishers_to_redis,
 )
-from oc_ds_converter.lib.console import console, create_progress
+from oc_ds_converter.lib.console import advance_progress, console, create_progress
 from oc_ds_converter.lib.file_manager import normalize_path, pathoo
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
@@ -67,19 +67,19 @@ def _run_iteration(
 
         if max_workers == 1:
             for filename in all_files:
-                get_citations_and_metadata(
+                was_processed = get_citations_and_metadata(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                     wanted_doi_filepath, publishers_filepath,
                     testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api,
                     use_redis_publishers=use_redis_publishers
                 )
-                progress.update(task, advance=1)
+                advance_progress(progress, task, processed=was_processed)
         else:
             with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
                 futures = []
                 for filename in all_files:
                     if isinstance(filename, str) and filename.startswith("._"):
-                        progress.update(task, advance=1)
+                        advance_progress(progress, task, processed=False)
                         continue
                     future = executor.submit(
                         get_citations_and_metadata,
@@ -89,8 +89,8 @@ def _run_iteration(
                     )
                     futures.append(future)
                 for future in futures:
-                    future.result()
-                    progress.update(task, advance=1)
+                    was_processed = future.result()
+                    advance_progress(progress, task, processed=was_processed)
             console.print(f'[green]{iteration_num} iteration complete[/green]')
 
 
@@ -337,10 +337,9 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                                orcid_index: str | None,
                                doi_csv: str | None, publishers_filepath: str | None,
                                testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool,
-                               use_redis_publishers: bool = False):
+                               use_redis_publishers: bool = False) -> bool:
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
-    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -371,10 +370,10 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
     file_basename = Path(file_name).name
     if cache_dict.get("citing"):
         if processing_citing and file_basename in cache_dict["citing"]:
-            return
+            return False
     if cache_dict.get("cited"):
         if not processing_citing and file_basename in cache_dict["cited"]:
-            return
+            return False
 
     crossref_csv = CrossrefProcessing(
         orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath=publishers_filepath,
@@ -384,7 +383,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
 
     source_data = load_json(file_name, targz_fd)
     if source_data is None:
-        return
+        return False
     source_dict = source_data['items']
 
     filename_without_ext = file_basename.replace('.json', '').replace('.tar', '').replace('.gz', '')
@@ -411,6 +410,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
             cited_entity_rows, citation_rows, metadata_output_base, citation_links_output_base,
             crossref_csv, False, cache, lock, file_basename
         )
+    return True
 
 
 if __name__ == '__main__':  # pragma: no cover

@@ -17,7 +17,7 @@ from datetime import timedelta
 from math import ceil
 
 from rich.console import Console
-from rich.progress import BarColumn, Progress, ProgressColumn, SpinnerColumn, Task, TaskProgressColumn, TextColumn, TimeElapsedColumn
+from rich.progress import BarColumn, Progress, ProgressColumn, SpinnerColumn, Task, TaskID, TaskProgressColumn, TextColumn, TimeElapsedColumn
 from rich.text import Text
 
 console = Console()
@@ -37,6 +37,12 @@ class EMATimeRemainingColumn(ProgressColumn):
     - 30% weight to the newly measured speed
     - 70% weight to the historical average (which itself contains 70% of previous
       history, creating exponential decay of older values)
+
+    Skip handling:
+    If task.fields contains a "processed" counter, speed is calculated based on
+    processed items only (ignoring skipped items). This prevents cache hits from
+    falsely inflating speed estimates. Use progress.update(task, advance=1, processed=1)
+    for actual work, and progress.update(task, advance=1) for skipped items.
     """
 
     # Limit refresh rate to avoid excessive recalculations
@@ -50,7 +56,7 @@ class EMATimeRemainingColumn(ProgressColumn):
         # Store EMA speed estimate per task (supports multiple progress bars)
         self._ema_speed: dict[int, float] = {}
         # Store previous state to calculate instantaneous speed
-        self._last_completed: dict[int, float] = {}
+        self._last_processed: dict[int, float] = {}
         self._last_time: dict[int, float] = {}
         super().__init__()
 
@@ -63,16 +69,22 @@ class EMATimeRemainingColumn(ProgressColumn):
         current_time = task.get_time()
         task_id = task.id
 
+        # Use "processed" field if available, otherwise fall back to "completed"
+        # "processed" tracks only actual work done, excluding skipped/cached items
+        current_processed = task.fields.get("processed", task.completed)
+
         # Calculate instantaneous speed if we have a previous measurement
         if task_id in self._last_time:
             # Time elapsed since last update
             dt = current_time - self._last_time[task_id]
-            # Work completed since last update
-            dc = task.completed - self._last_completed[task_id]
+            # Work actually processed since last update (excludes skips)
+            dp = current_processed - self._last_processed[task_id]
 
-            if dt > 0 and dc > 0:
+            # Only update EMA when actual processing happened (dp > 0)
+            # Skip updates (dp == 0) don't affect speed calculation
+            if dt > 0 and dp > 0:
                 # Instantaneous speed = work done / time taken
-                instant_speed = dc / dt
+                instant_speed = dp / dt
 
                 if task_id in self._ema_speed:
                     # EMA formula: blend new measurement with historical average
@@ -85,9 +97,15 @@ class EMATimeRemainingColumn(ProgressColumn):
                     # First measurement: use it directly as initial EMA
                     self._ema_speed[task_id] = instant_speed
 
-        # Save current state for next iteration's delta calculation
-        self._last_time[task_id] = current_time
-        self._last_completed[task_id] = task.completed
+                # Only update last_time when processing happened, so dt measures
+                # time between processed items, not time between renders
+                self._last_time[task_id] = current_time
+                self._last_processed[task_id] = current_processed
+
+        # Initialize tracking state on first render
+        if task_id not in self._last_time:
+            self._last_time[task_id] = current_time
+            self._last_processed[task_id] = current_processed
 
         # Calculate time remaining using EMA speed
         speed = self._ema_speed.get(task_id)
@@ -111,3 +129,27 @@ def create_progress() -> Progress:
         EMATimeRemainingColumn(),
         console=console,
     )
+
+
+def advance_progress(
+    progress: Progress,
+    task_id: TaskID,
+    advance: int = 1,
+    processed: bool = True,
+) -> None:
+    """Advance progress bar, optionally marking items as actually processed.
+
+    Args:
+        progress: The Progress instance
+        task_id: The task ID to advance
+        advance: Number of items to advance (default: 1)
+        processed: If True, count as actual work done (affects time estimate).
+                   If False, count as skipped/cached (progress advances but
+                   doesn't affect time estimate).
+    """
+    task = progress._tasks[task_id]
+    current_processed = task.fields.get("processed", 0)
+    if processed:
+        progress.update(task_id, advance=advance, processed=current_processed + advance)
+    else:
+        progress.update(task_id, advance=advance, processed=current_processed)
