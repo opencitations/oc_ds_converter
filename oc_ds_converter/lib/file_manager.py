@@ -80,6 +80,8 @@ def init_cache(cache_filepath: str | None) -> Set[str]:
         return set()
     with open(cache_filepath, 'r', encoding='utf-8') as cache_file:
         cache_data = json.load(cache_file)
+    if not cache_data:
+        return set()
     return set(cache_data["citing"]) & set(cache_data["cited"])
 
 @contextmanager
