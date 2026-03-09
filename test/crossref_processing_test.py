@@ -3,9 +3,6 @@ import unittest
 import os
 import json
 from oc_ds_converter.lib.csvmanager import CSVManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.datasource.orcid_index import PublishersRedis
 from oc_ds_converter.lib.jsonmanager import load_json
 TEST_DIR = os.path.join("test", "crossref_processing")
@@ -31,7 +28,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         c_processing.storage_manager.delete_storage()
 
     def test_extract_all_ids_cited_redis(self):
-        c_processing = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        c_processing = CrossrefProcessing(testing=True)
         with open(JSON_FILE, encoding="utf8") as f:
              result = json.load(f)
         for entity_dict in result['items']:
@@ -64,7 +61,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         c_processing.storage_manager.delete_storage()
 
     def test_get_redis_validity_list_redis(self):
-        c_processing = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        c_processing = CrossrefProcessing(testing=True)
         br = {'doi:10.2105/ajph.2006.101626', 'doi:10.1001/jama.299.12.1471',
               'doi:10.1177/003335490812300219', 'doi:10.1089/bsp.2008.0020',
               'doi:10.1097/01.ccm.0000151067.76074.21', 'doi:10.1177/003335490912400218',
@@ -104,7 +101,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         c_processing.RA_redis.delete('orcid:0000-0002-8090-6886')
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_redis(self):
-        c_processing = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        c_processing = CrossrefProcessing(testing=True)
         c_processing.BR_redis.sadd('doi:10.2105/ajph.2006.101626', "omid:1")
         c_processing.RA_redis.sadd('orcid:0000-0002-8090-6886', "omid:2")
 
@@ -150,12 +147,12 @@ class TestCrossrefProcessing(unittest.TestCase):
         The procedure is tested
         - With redis storage manager without a pre-existent db associated
         """
-        c_processing = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        c_processing = CrossrefProcessing(testing=True)
         validate_as_none = c_processing.validated_as({"schema": "doi", "identifier": "doi:10.1001/10-v4n2-hsf10003"})
         self.assertEqual(validate_as_none, None)
         c_processing.storage_manager.delete_storage()
 
-    def test_validated_as_sqlite(self):
+    def test_validated_as_redis_with_preexistent_data(self):
         """
         Check that, given an ID dict with keys "schema" (value: string of the schema) and "identifier" (value:
         string of the identifier, the method "validated_as" returns:
@@ -163,30 +160,25 @@ class TestCrossrefProcessing(unittest.TestCase):
         - False if the id was already validated as invalid
         - None if the id was not validated before
         The procedure is tested
-        - With sqlite storage manager without a pre-existent db associated
-        - With sqlite storage manager and a pre-existent db associated
+        - With redis storage manager and pre-existent data associated
         """
-
-        db_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.db")
-
-        sqlite_man = SqliteStorageManager(db_path)
         valid_doi_not_in_db = {"identifier":"doi:10.1001/2012.jama.10158", "schema":"doi"}
         valid_doi_in_db = {"identifier":"doi:10.1001/2012.jama.10368", "schema":"doi"}
         invalid_doi_in_db = {"identifier":"doi:10.1001/2012.jama.1036", "schema":"doi"}
-        sqlite_man.set_value(valid_doi_in_db["identifier"], True)
-        sqlite_man.set_value(invalid_doi_in_db["identifier"], False)
 
-        # New class instance to check the correct task management with a sqlite db in input
-        c_processing_sql = CrossrefProcessing(storage_manager=sqlite_man)
-        validated_as_True = c_processing_sql.validated_as(valid_doi_in_db)
-        validated_as_False = c_processing_sql.validated_as(invalid_doi_in_db)
-        not_validated = c_processing_sql.validated_as(valid_doi_not_in_db)
+        # New class instance and set values directly on the DOIManager's storage_manager
+        c_processing_redis = CrossrefProcessing(testing=True)
+        c_processing_redis.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+        c_processing_redis.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
+        validated_as_True = c_processing_redis.validated_as(valid_doi_in_db)
+        validated_as_False = c_processing_redis.validated_as(invalid_doi_in_db)
+        not_validated = c_processing_redis.validated_as(valid_doi_not_in_db)
 
         self.assertEqual(validated_as_True, True)
         self.assertEqual(validated_as_False, False)
         self.assertEqual(not_validated, None)
 
-        c_processing_sql.storage_manager.delete_storage()
+        c_processing_redis.doi_m.storage_manager.delete_storage()
 
     def test_validated_as_inmemory(self):
         """
@@ -199,16 +191,13 @@ class TestCrossrefProcessing(unittest.TestCase):
         - With in Memory + Json storage manager and a pre-existent db associated
         - With in Memory + Json storage manager without a pre-existent db associated
         """
-        db_json_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.json")
-
-        inmemory_man = InMemoryStorageManager(db_json_path)
         valid_doi_not_in_db = {"identifier": "doi:10.1001/2012.jama.10158", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.10368", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.1036", "schema": "doi"}
-        inmemory_man.set_value(valid_doi_in_db["identifier"], True)
-        inmemory_man.set_value(invalid_doi_in_db["identifier"], False)
 
-        c_processing = CrossrefProcessing(storage_manager=inmemory_man)
+        c_processing = CrossrefProcessing(testing=True)
+        c_processing.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+        c_processing.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
         validated_as_True = c_processing.validated_as(valid_doi_in_db)
         validated_as_False = c_processing.validated_as(invalid_doi_in_db)
         not_validated = c_processing.validated_as(valid_doi_not_in_db)
@@ -217,7 +206,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(validated_as_False, False)
         self.assertEqual(not_validated, None)
 
-        c_processing.storage_manager.delete_storage()
+        c_processing.doi_m.storage_manager.delete_storage()
 
     def test_validated_as_redis(self):
         """
@@ -231,15 +220,14 @@ class TestCrossrefProcessing(unittest.TestCase):
         - With REDIS storage manager without a pre-existent db associated
         """
 
-        redis_man = RedisStorageManager(testing=True)
         valid_doi_not_in_db = {"identifier": "doi:10.1001/2012.jama.10158", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.10368", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.1036", "schema": "doi"}
-        redis_man.set_value(valid_doi_in_db["identifier"], True)
-        redis_man.set_value(invalid_doi_in_db["identifier"], False)
 
-        # New class instance to check the correct task management with a redis manager using a db with data
-        c_processing_redis = CrossrefProcessing(storage_manager=redis_man)
+        # New class instance and set values directly on the DOIManager's storage_manager
+        c_processing_redis = CrossrefProcessing(testing=True)
+        c_processing_redis.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+        c_processing_redis.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
         validated_as_True = c_processing_redis.validated_as(valid_doi_in_db)
         validated_as_False = c_processing_redis.validated_as(invalid_doi_in_db)
         not_validated = c_processing_redis.validated_as(valid_doi_not_in_db)
@@ -501,26 +489,26 @@ class TestCrossrefProcessing(unittest.TestCase):
         exp_non_string = ""
         self.assertEqual(out_non_string, exp_non_string)
 
-        c_processing.storage_manager.delete_storage()
+        c_processing.orcid_m.storage_manager.delete_storage()
 
         # Set a valid id as invalid in storage to check that the api check is
         # avoided if the info is already in storage
-        c_processing = CrossrefProcessing()
-        c_processing.storage_manager.set_value("orcid:0000-0001-9759-3938", False)
+        c_processing = CrossrefProcessing(testing=True)
+        c_processing.orcid_m.storage_manager.set_value("orcid:0000-0001-9759-3938", False)
 
         inp = '0000-0001-9759-3938'
         out = c_processing.find_crossref_orcid(inp, test_doi)
         exp = ""
         self.assertEqual(out, exp)
-        c_processing.storage_manager.delete_storage()
+        c_processing.orcid_m.storage_manager.delete_storage()
 
-        c_processing = CrossrefProcessing()
-        c_processing.storage_manager.set_value("orcid:0000-0001-9759-3938", True)
+        c_processing = CrossrefProcessing(testing=True)
+        c_processing.orcid_m.storage_manager.set_value("orcid:0000-0001-9759-3938", True)
         inp = '0000-0001-9759-3938'
         out = c_processing.find_crossref_orcid(inp, test_doi)
         exp = "orcid:0000-0001-9759-3938"
         self.assertEqual(out, exp)
-        c_processing.storage_manager.delete_storage()
+        c_processing.orcid_m.storage_manager.delete_storage()
 
     def test_report_series_venue_id(self):
         crossref_processor = CrossrefProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, publishers_filepath=None)
@@ -726,38 +714,30 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual((issn_list, isbn_list), (expected_issn_list, expected_isbn_list))
 
     def test_to_validated_id_list(self):
-        # NOTE: in tests using the sqlite storage method it must be avoided to delete the storage
-        # while using the same CrossrefProcessing() instance, otherwise the process would try to
-        # store data in a filepath that has just been deleted, with no new connection created after it.
-
-        # 2 OPTIONS: 1) instantiate CrossrefProcessing only once at the beginning and delete the
-        # storage only at the end; 2) create a new CrossrefProcessing instance at every check and
-        # delete the storage each time after the check is done.
-
-        cp = CrossrefProcessing()
+        cp = CrossrefProcessing(testing=True)
         # CASE_1:  is valid
         inp_1 = {'id':'doi:10.13039/100005522', 'schema':'doi'}
         out_1 = cp.to_validated_id_list(inp_1)
         exp_1 = ['doi:10.13039/100005522']
         self.assertEqual(out_1, exp_1)
-        cp.storage_manager.delete_storage()
+        cp.doi_m.storage_manager.delete_storage()
 
-        cp = CrossrefProcessing()
+        cp = CrossrefProcessing(testing=True)
         # CASE_2: is invalid
         inp_2 = {'id':'doi:10.1089/bsp.2008.002', 'schema':'doi'}
         out_2 = cp.to_validated_id_list(inp_2)
         exp_2 = []
         self.assertEqual(out_2, exp_2)
 
-        cp = CrossrefProcessing()
+        cp = CrossrefProcessing(testing=True)
         # CASE_3:  valid orcid
         inp_3 =  {'id': 'orcid:0000-0003-4082-1500', 'schema':'orcid'}
         out_3 = cp.to_validated_id_list(inp_3)
         exp_3 = ['orcid:0000-0003-4082-1500']
         self.assertEqual(out_3, exp_3)
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
-        cp= CrossrefProcessing()
+        cp = CrossrefProcessing(testing=True)
         #CASE_4: invalid doi in self._redis_values_br
         inp_4 = {'id': 'doi:10.1089/bsp.2008.002', 'schema': 'doi'}
         cp._redis_values_br.append(inp_4['id'])
@@ -766,34 +746,34 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(out_4, exp_4)
         value=cp.tmp_doi_m.storage_manager.get_value('doi:10.1089/bsp.2008.002')
         self.assertEqual(value, True)
-        cp.storage_manager.delete_storage()
+        cp.doi_m.storage_manager.delete_storage()
 
 
     def test_to_validated_id_list_redis(self):
-        cp = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        cp = CrossrefProcessing(testing=True)
         # CASE_1:  is valid
         inp_1 = {'id': 'doi:10.13039/100005522', 'schema': 'doi'}
         out_1 = cp.to_validated_id_list(inp_1)
         exp_1 = ['doi:10.13039/100005522']
         self.assertEqual(out_1, exp_1)
-        cp.storage_manager.delete_storage()
+        cp.doi_m.storage_manager.delete_storage()
 
-        cp = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        cp = CrossrefProcessing(testing=True)
         # CASE_2: is invalid
         inp_2 = {'id': 'doi:10.1089/bsp.2008.002', 'schema': 'doi'}
         out_2 = cp.to_validated_id_list(inp_2)
         exp_2 = []
         self.assertEqual(out_2, exp_2)
 
-        cp = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        cp = CrossrefProcessing(testing=True)
         # CASE_3:  valid orcid
         inp_3 = {'id': 'orcid:0000-0003-4082-1500', 'schema': 'orcid'}
         out_3 = cp.to_validated_id_list(inp_3)
         exp_3 = ['orcid:0000-0003-4082-1500']
         self.assertEqual(out_3, exp_3)
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
-        cp = CrossrefProcessing(storage_manager=RedisStorageManager(testing=True))
+        cp = CrossrefProcessing(testing=True)
         # CASE_4: invalid doi in self._redis_values_br
         inp_4 = {'id': 'doi:10.1089/bsp.2008.002', 'schema': 'doi'}
         cp._redis_values_br.append(inp_4['id'])
@@ -802,7 +782,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(out_4, exp_4)
         value = cp.tmp_doi_m.storage_manager.get_value('doi:10.1089/bsp.2008.002')
         self.assertEqual(value, True)
-        cp.storage_manager.delete_storage()
+        cp.doi_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_with_index(self):
         """Test ORCID validation using ORCID index before API validation"""
@@ -810,9 +790,9 @@ class TestCrossrefProcessing(unittest.TestCase):
         test_doi = "10.1234/test123"
         test_orcid = "0000-0002-1234-5678"
         test_name = "Smith, John"
-        
+
         # Create CrossrefProcessing instance with ORCID index
-        cp = CrossrefProcessing()
+        cp = CrossrefProcessing(testing=True)
         cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")  # type: ignore[attr-defined]
 
         # Test Case 1: ORCID found in index
@@ -821,23 +801,23 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(out_1, exp_1)
         # Verify it was added to temporary storage
         self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{test_orcid}"))
-        
+
         # Test Case 2: ORCID not in index but valid via API
         out_2 = cp.find_crossref_orcid("0000-0003-4082-1500", test_doi)
         exp_2 = "orcid:0000-0003-4082-1500"
         self.assertEqual(out_2, exp_2)
-        
+
         # Test Case 3: ORCID not in index and invalid
         out_3 = cp.find_crossref_orcid("0000-0000-0000-0000", test_doi)
         exp_3 = ""
         self.assertEqual(out_3, exp_3)
-        
+
         # Cleanup
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_api_disabled_not_in_index(self):
         """API OFF + empty index: a syntactically valid ORCID must NOT be resolved."""
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
         test_doi = "10.9999/noindex"
         candidate = "0000-0003-4082-1500"  # syntactically valid
 
@@ -846,11 +826,11 @@ class TestCrossrefProcessing(unittest.TestCase):
         # Must NOT be written to tmp storage
         self.assertIsNone(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{candidate}"))
 
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_api_disabled_from_index(self):
         """API OFF + present in DOI→ORCID index: must resolve and be saved in tmp storage."""
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
         test_doi = "10.1234/test"
         test_orcid = "0000-0002-1234-5678"
         test_name = "Smith, John"
@@ -861,47 +841,47 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(out, f"orcid:{test_orcid}")
         self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{test_orcid}"))
 
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_api_disabled_in_storage(self):
         """API OFF + ORCID already valid in persistent storage: must be accepted."""
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
         oid = "orcid:0000-0003-4082-1500"
-        cp.storage_manager.set_value(oid, True)  # mark valid
+        cp.orcid_m.storage_manager.set_value(oid, True)  # mark valid
         out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/any")
         self.assertEqual(out, oid)
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_api_disabled_from_redis_snapshot(self):
         """API OFF + empty index/storage, but ORCID present in Redis snapshot: accept and seed tmp storage."""
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
         oid = "orcid:0000-0003-4082-1500"
         cp.update_redis_values(br=[], ra=[oid])  # emulate per-chunk snapshot
 
         out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/noindex")
         self.assertEqual(out, oid)
         self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(oid))
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_api_enabled_invalid_in_storage(self):
         """API ON + ORCID explicitly invalid in storage: reject immediately (no API/index)."""
-        cp = CrossrefProcessing(use_orcid_api=True)
+        cp = CrossrefProcessing(use_orcid_api=True, testing=True)
         oid = "orcid:0000-0002-9286-2630"
-        cp.storage_manager.set_value(oid, False)
+        cp.orcid_m.storage_manager.set_value(oid, False)
         out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/anything")
         self.assertEqual(out, "")
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_api_enabled_from_redis_snapshot(self):
         """API ON + empty storage/index, but ORCID present in Redis snapshot: accept without API call."""
-        cp = CrossrefProcessing(use_orcid_api=True)
+        cp = CrossrefProcessing(use_orcid_api=True, testing=True)
         oid = "orcid:0000-0003-4082-1500"
         cp.update_redis_values(br=[], ra=[oid])
 
         out = cp.find_crossref_orcid(oid.split(":")[1], "10.9999/noindex")
         self.assertEqual(out, oid)
         self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(oid))
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_get_agents_strings_list_api_disabled_no_index(self):
         """API OFF + empty index: ORCIDs provided in agent dict MUST NOT be appended to the author string."""
@@ -913,11 +893,11 @@ class TestCrossrefProcessing(unittest.TestCase):
                 "ORCID": "https://orcid.org/0000-0003-4082-1500",  # present in metadata
             }
         ]
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
         authors_strings, editors_strings = cp.get_agents_strings_list("10.9999/noindex", agents_list)
         self.assertEqual(authors_strings, ["Doe, Jane"])  # no [orcid:...] tag
         self.assertEqual(editors_strings, [])
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_get_agents_strings_list_api_disabled_index_requires_prefixed_doi(self):
         """
@@ -925,7 +905,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         Il DOI passato a get_agents_strings_list è senza prefisso: la funzione deve
         normalizzarlo prima di interrogare l'indice, altrimenti l'ORCID non viene trovato.
         """
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
 
         # Indice popolato con DOI **prefissato**
         doi_pref = "doi:10.1234/test-idx"
@@ -943,14 +923,14 @@ class TestCrossrefProcessing(unittest.TestCase):
         # Deve risolvere via indice e apporre il tag [orcid:...]
         self.assertEqual(authors, ["Smith, John [orcid:0000-0002-9999-8888]"])
         self.assertEqual(editors, [])
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_find_crossref_orcid_api_disabled_redis_snapshot_unprefixed_orcid(self):
         """
         API OFF + indice vuoto + storage vuoto, ma Redis snapshot contiene ORCID **senza prefisso**.
         La funzione deve riconoscerlo (normalizzando) e validarlo.
         """
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
 
         # Redis snapshot con ORCID **senza prefisso**
         raw_orcid = "0000-0003-4082-1500"
@@ -959,7 +939,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         out = cp.find_crossref_orcid(raw_orcid, "10.9999/noindex")
         self.assertEqual(out, f"orcid:{raw_orcid}")
         self.assertTrue(cp.tmp_orcid_m.storage_manager.get_value(f"orcid:{raw_orcid}"))
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
     def test_update_redis_values_normalizes_inputs(self):
         """
@@ -968,7 +948,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         - ORCID → con prefisso 'orcid:'
         ed eliminare voci non normalizzabili.
         """
-        cp = CrossrefProcessing()
+        cp = CrossrefProcessing(testing=True)
 
         cp.update_redis_values(
             br=["10.1001/jama.299.12.1471", "doi:10.2105/ajph.2006.101626", "xxx-bad"],
@@ -990,7 +970,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         API OFF + nessun ORCID in metadata + indice vuoto.
         Redis snapshot contiene ORCID per l'autore **senza prefisso**: deve essere apposto all'autore.
         """
-        cp = CrossrefProcessing(use_orcid_api=False)
+        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
 
         # Autore senza ORCID nei metadati
         agents = [{
@@ -1006,7 +986,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         authors, editors = cp.get_agents_strings_list("10.9799/ksfan.2012.25.1.069", agents)
         self.assertEqual(authors, ["Cheigh, Chan-Ick [orcid:0000-0002-6227-4053]"])
         self.assertEqual(editors, [])
-        cp.storage_manager.delete_storage()
+        cp.orcid_m.storage_manager.delete_storage()
 
 
 

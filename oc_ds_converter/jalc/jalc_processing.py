@@ -32,30 +32,27 @@ from typing import Optional
 
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.batch_manager import BatchManager
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class JalcProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_jalc: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_jalc: str | None = None, testing: bool = True, citing: bool = True):
         """This class is responsible for producing CSV tables to be used as input for the META process
         aimed at ingesting data from the sources."""
         super(JalcProcessing, self).__init__(orcid_index, doi_csv)
         self.citing = citing
-        if storage_manager is None:
-            self.storage_manager = SqliteStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        self._testing = testing
+        self.storage_manager = RedisStorageManager(testing=testing)
 
-        self.temporary_manager = InMemoryStorageManager('../memory.json')
+        self.temporary_manager = BatchManager()
 
-        self.doi_m = DOIManager(storage_manager=self.storage_manager)
+        self.doi_m = DOIManager(testing=testing)
         self.issn_m = ISSNManager()
-        self.jid_m = JIDManager(storage_manager=self.storage_manager)
+        self.jid_m = JIDManager(testing=testing)
 
         self.venue_id_man_dict = {"issn":self.issn_m, "jid":self.jid_m}
 
@@ -66,8 +63,8 @@ class JalcProcessing(RaProcessor):
         a storage_manager db would be considered to have been processed and thus would be ignored by the process
         and lost.'''
 
-        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
-        self.tmp_jid_m = JIDManager(storage_manager=self.temporary_manager)
+        self.tmp_doi_m = DOIManager(testing=testing)
+        self.tmp_jid_m = JIDManager(testing=testing)
 
         self.venue_tmp_id_man_dict = {"issn":self.issn_m, "jid":self.tmp_jid_m}
 

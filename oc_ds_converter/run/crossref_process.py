@@ -41,9 +41,7 @@ from oc_ds_converter.datasource.orcid_index import (
 from oc_ds_converter.lib.console import console, create_progress
 from oc_ds_converter.lib.file_manager import normalize_path, pathoo
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 def _run_iteration(
@@ -54,8 +52,6 @@ def _run_iteration(
     orcid_doi_filepath: str | None,
     wanted_doi_filepath: str | None,
     publishers_filepath: str | None,
-    storage_path: str | None,
-    redis_storage_manager: bool,
     testing: bool,
     cache: str | None,
     processing_citing: bool,
@@ -73,7 +69,7 @@ def _run_iteration(
             for filename in all_files:
                 get_citations_and_metadata(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                    wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
+                    wanted_doi_filepath, publishers_filepath,
                     testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api,
                     use_redis_publishers=use_redis_publishers
                 )
@@ -88,7 +84,7 @@ def _run_iteration(
                     future = executor.submit(
                         get_citations_and_metadata,
                         filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                        wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
+                        wanted_doi_filepath, publishers_filepath,
                         testing, cache, processing_citing, use_orcid_api, use_redis_publishers
                     )
                     futures.append(future)
@@ -259,9 +255,7 @@ def preprocess(
     csv_dir: str,
     wanted_doi_filepath: str | None = None,
     cache: str | None = None,
-    storage_path: str | None = None,
     testing: bool = True,
-    redis_storage_manager: bool = False,
     max_workers: int = 1,
     use_orcid_api: bool = True,
     update_publishers: bool = False,
@@ -285,7 +279,7 @@ def preprocess(
         else:
             console.print('[green]Publishers data is up to date[/green]')
 
-    use_redis_publishers = redis_storage_manager and max_workers > 1
+    use_redis_publishers = max_workers > 1
     if use_redis_publishers and os.path.exists(publishers_filepath):
         publishers_redis = PublishersRedis(testing=testing)
         if not publishers_redis.has_data() or update_publishers:
@@ -322,13 +316,12 @@ def preprocess(
 
     iteration_args = (
         all_files, targz_fd, preprocessed_citations_dir, csv_dir, None,
-        wanted_doi_filepath, publishers_filepath, storage_path, redis_storage_manager,
+        wanted_doi_filepath, publishers_filepath,
         testing, cache
     )
 
-    workers = 1 if not redis_storage_manager else max_workers
-    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=workers, use_redis_publishers=use_redis_publishers)
-    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=workers, use_redis_publishers=use_redis_publishers)
+    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers)
+    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers)
 
     # DELETE CACHE AND .LOCK FILE
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
@@ -336,19 +329,18 @@ def preprocess(
 
     # added to avoid order-related issues in sequential tests runs
     if testing:
-        storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+        storage_manager = RedisStorageManager(testing=testing)
         storage_manager.delete_storage()
 
 
 def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
-                               redis_storage_manager: bool,
+                               doi_csv: str | None, publishers_filepath: str | None,
                                testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool,
                                use_redis_publishers: bool = False):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
-    storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -386,7 +378,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
 
     crossref_csv = CrossrefProcessing(
         orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath=publishers_filepath,
-        storage_manager=storage_manager, testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api,
+        testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api,
         use_redis_orcid_index=True, use_redis_publishers=use_redis_publishers
     )
 
@@ -421,23 +413,6 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         )
 
 
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
-    if redis_storage_manager:
-        return RedisStorageManager(testing=testing)
-    if storage_path:
-        if not os.path.exists(storage_path):
-            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-        if storage_path.endswith(".db"):
-            return SqliteStorageManager(storage_path)
-        if storage_path.endswith(".json"):
-            return InMemoryStorageManager(storage_path)
-        raise ValueError(f"Storage path must end with .db or .json, got: {storage_path}")
-    new_path_dir = os.path.join(os.getcwd(), "storage")
-    if not os.path.exists(new_path_dir):
-        os.makedirs(new_path_dir)
-    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-
 if __name__ == '__main__':  # pragma: no cover
     arg_parser = ArgumentParser('crossref_process.py', description='This script creates CSV files from Crossref JSON files, enriching them through of a DOI-ORCID index')
     arg_parser.add_argument('-c', '--config', dest='config', required=False,
@@ -455,19 +430,10 @@ if __name__ == '__main__':  # pragma: no cover
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                             help='Path to a JSON file for caching processed files. Tracks which files have been '
                                  'processed to allow resuming. Deleted at the end of successful processing.')
-    arg_parser.add_argument('-sp', '--storage_path', dest='storage_path', required=False,
-                            help='path of the file where to store data concerning validated pids information.'
-                                 'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
-                                 'and a ".json" file if you chose InMemoryStorageManager')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
                             help='Run in testing mode: uses in-memory FakeRedis instead of real Redis, '
                                  'skips publisher data update from Crossref API, and cleans up storage at the end. '
                                  'Use this flag for tests only, not for production runs.')
-    arg_parser.add_argument('-r', '--redis_storage_manager', dest='redis_storage_manager', action='store_true',
-                            required=False,
-                            help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
-                                 'value is set to false, which means that -unless it is differently stated- the storage manager used is'
-                                 'the one chosen as value of the parameter --storage_manager. The redis db used by the storage manager is the n.2')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int,
                             help='Workers number')
     arg_parser.add_argument('--no-orcid-api', dest='no_orcid_api', action='store_true', required=False,
@@ -493,11 +459,8 @@ if __name__ == '__main__':  # pragma: no cover
     wanted_doi_filepath = normalize_path(wanted_doi_filepath) if wanted_doi_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
-    storage_path = settings['storage_path'] if settings else args.storage_path
-    storage_path = normalize_path(storage_path) if storage_path else None
-    testing = settings['testing'] if settings else args.testing
-    redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
-    max_workers = settings['max_workers'] if settings else args.max_workers
+    testing = settings.get('testing', args.testing) if settings else args.testing
+    max_workers = settings.get('max_workers', args.max_workers) if settings else args.max_workers
     no_orcid_api = settings.get('disable_orcid_api', args.no_orcid_api) if settings else args.no_orcid_api
     use_orcid_api = not no_orcid_api
     update_publishers = settings.get('update_publishers', args.update_publishers) if settings else args.update_publishers
@@ -515,9 +478,7 @@ if __name__ == '__main__':  # pragma: no cover
         csv_dir=csv_dir,
         wanted_doi_filepath=wanted_doi_filepath,
         cache=cache,
-        storage_path=storage_path,
         testing=testing,
-        redis_storage_manager=redis_storage_manager,
         max_workers=max_workers,
         use_orcid_api=use_orcid_api,
         update_publishers=update_publishers,

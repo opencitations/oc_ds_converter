@@ -25,8 +25,7 @@ from oc_ds_converter.metadata_manager import MetadataManager
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from oc_ds_converter.oc_idmanager.isbn import ISBNManager
 from oc_ds_converter.oc_idmanager.issn import ISSNManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.oc_idmanager.support import call_api
 
@@ -37,16 +36,13 @@ class DOIManager(IdentifierManager):
     def __init__(
         self,
         use_api_service: bool = True,
-        storage_manager: StorageManager | None = None,
+        testing: bool = True,
         orcid_doi_filepath: str = "",
     ) -> None:
         """DOI manager constructor."""
         super().__init__()
         self._orcid_doi_filepath = orcid_doi_filepath
-        if storage_manager is None:
-            self.storage_manager = InMemoryStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        self.storage_manager = RedisStorageManager(testing=testing)
 
         self._api = "https://doi.org/api/handles/"
         self._api_airiti = ""

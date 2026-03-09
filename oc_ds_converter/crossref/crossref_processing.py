@@ -26,7 +26,7 @@ import os
 import os.path
 import json
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from oc_ds_converter.oc_idmanager import DOIManager
 from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager import ISSNManager
@@ -35,9 +35,8 @@ from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, page
 from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis, PublishersRedis
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.batch_manager import BatchManager
 from collections import defaultdict
 from typing import List, Tuple
 
@@ -46,10 +45,11 @@ from oc_ds_converter.lib.cleaner import Cleaner
 
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 class CrossrefProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False, use_redis_publishers: bool = False):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False, use_redis_publishers: bool = False):
         orcid_index_obj = OrcidIndexRedis(testing=testing) if use_redis_orcid_index and orcid_index is None else orcid_index
         super(CrossrefProcessing, self).__init__(orcid_index_obj, doi_csv, publishers_filepath)
         self.citing = citing
@@ -58,22 +58,20 @@ class CrossrefProcessing(RaProcessor):
         self._publishers_redis: PublishersRedis | None = None
         if use_redis_publishers:
             self._publishers_redis = PublishersRedis(testing=testing)
+        self._testing = testing
 
-        if storage_manager is None:
-            self.storage_manager = SqliteStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        self.storage_manager = RedisStorageManager(testing=testing)
 
-        self.temporary_manager = InMemoryStorageManager('../memory.json')
+        self.temporary_manager = BatchManager()
 
-        self.doi_m = DOIManager(storage_manager=self.storage_manager)
-        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager, use_api_service=use_orcid_api)
+        self.doi_m = DOIManager(testing=testing)
+        self.orcid_m = ORCIDManager(testing=testing, use_api_service=use_orcid_api)
         self.issn_m = ISSNManager()
 
         self.venue_id_man_dict = {"issn": self.issn_m}
         # Temporary storage managers
-        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
-        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager, use_api_service=use_orcid_api)
+        self.tmp_doi_m = DOIManager(testing=testing)
+        self.tmp_orcid_m = ORCIDManager(testing=testing, use_api_service=use_orcid_api)
 
         self.venue_tmp_id_man_dict = {"issn": self.issn_m}
 

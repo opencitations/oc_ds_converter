@@ -32,7 +32,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(self.targz_input, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
+        preprocess(self.targz_input, orcid_doi_filepath=self.iod, csv_dir=self.output, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -68,7 +68,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(crossref_json_dir=self.targz_cited_input, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
+        preprocess(crossref_json_dir=self.targz_cited_input, orcid_doi_filepath=self.iod, csv_dir=self.output, cache=self.cache)
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
@@ -123,7 +123,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(crossref_json_dir=self.targz_cited_input, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True, storage_path=self.any_db1, cache=self.cache)
+        preprocess(crossref_json_dir=self.targz_cited_input, orcid_doi_filepath=self.iod, csv_dir=self.output, cache=self.cache)
         citations_in_output = 0
         encountered_ids = set()
         unique_entities = 0
@@ -177,7 +177,7 @@ class CrossrefProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(self.sample_fake_dump, orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=False, storage_path=self.db, cache=self.cache)
+        preprocess(self.sample_fake_dump, orcid_doi_filepath=self.iod, csv_dir=self.output, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -230,8 +230,7 @@ class CrossrefProcessTest(unittest.TestCase):
             json.dump(cache_dict, write_cache)
 
         preprocess(crossref_json_dir=self.targz_cited_input,
-                   orcid_doi_filepath=self.iod, csv_dir=self.output, redis_storage_manager=True,
-                   storage_path=self.db, cache=self.cache)
+                   orcid_doi_filepath=self.iod, csv_dir=self.output, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -277,8 +276,6 @@ class CrossrefProcessTest(unittest.TestCase):
             crossref_json_dir=self.targz_cited_input,
             orcid_doi_filepath=None,
             csv_dir=self.output,
-            redis_storage_manager=False,
-            storage_path=self.db,
             cache=self.cache,
             use_orcid_api=False
         )
@@ -315,8 +312,6 @@ class CrossrefProcessTest(unittest.TestCase):
             crossref_json_dir=self.targz_cited_input,
             orcid_doi_filepath=self.iod,
             csv_dir=self.output,
-            redis_storage_manager=False,
-            storage_path=self.db,
             cache=self.cache,
             use_orcid_api=False
         )

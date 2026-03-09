@@ -17,21 +17,17 @@
 from re import match, sub
 
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.support import call_api
 
 
 class CrossrefManager(IdentifierManager):
     """This class implements an identifier manager for Crossref member identifier"""
 
-    def __init__(self, use_api_service: bool = True, storage_manager: StorageManager | None = None) -> None:
+    def __init__(self, use_api_service: bool = True, testing: bool = True) -> None:
         """Crossref member ID manager constructor."""
         super(CrossrefManager, self).__init__()
-        if storage_manager is None:
-            self.storage_manager = InMemoryStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        self.storage_manager = RedisStorageManager(testing=testing)
         self._api = "https://api.crossref.org/members/"
         self._api_works_route = "https://api.openalex.org/works/"
         self._api_sources_route = "https://api.openalex.org/sources/"

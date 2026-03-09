@@ -31,13 +31,11 @@ from tqdm import tqdm
 from oc_ds_converter.jalc.jalc_processing import JalcProcessing
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
-               csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
-               testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
+               csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False,
+               testing: bool = True, max_workers: int = 1) -> None:
 
     els_to_be_skipped=[]
     #check if in the input folder the zipped folder has already been decompressed
@@ -104,33 +102,31 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
         for zip in all_input_zip:
             all_input_zip, targz_fd = get_all_files_by_type(os.path.join(jalc_json_dir, zip), req_type, cache)
 
-    if not redis_storage_manager or max_workers == 1:
+    if max_workers == 1:
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                       wanted_doi_filepath, publishers_filepath, storage_path,
-                                       redis_storage_manager,
+                                       wanted_doi_filepath, publishers_filepath,
                                        testing, cache, is_citing=True)
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                       wanted_doi_filepath, publishers_filepath, storage_path,
-                                       redis_storage_manager,
+                                       wanted_doi_filepath, publishers_filepath,
                                        testing, cache, is_citing=False)
 
 
-    elif redis_storage_manager or max_workers > 1:
+    elif max_workers > 1:
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for zip_file in all_input_zip:
                 executor.submit(
                     get_citations_and_metadata,
                     zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, True)
+                    publishers_filepath, testing, cache, True)
 
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for zip_file in all_input_zip:
                 executor.submit(
                     get_citations_and_metadata,
                     zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
-                    publishers_filepath, storage_path, redis_storage_manager, testing, cache, False)
+                    publishers_filepath, testing, cache, False)
 
     if cache:
         if os.path.exists(cache):
@@ -139,9 +135,9 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
         if os.path.exists(lock_file):
             os.remove(lock_file)
 
-    # added to avoid order-releted issues in sequential tests runs
+    # added to avoid order-related issues in sequential tests runs
     if testing:
-        storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+        storage_manager = RedisStorageManager(testing=testing)
         storage_manager.delete_storage()
 
 
@@ -312,10 +308,9 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> tupl
 
 def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath_jalc: str | None, storage_path: str | None,
-                               redis_storage_manager: bool,
+                               doi_csv: str | None, publishers_filepath_jalc: str | None,
                                testing: bool, cache: str | None, is_citing: bool):
-    storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -353,7 +348,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
 
     jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                               publishers_filepath_jalc=publishers_filepath_jalc,
-                              storage_manager=storage_manager, testing=testing, citing=is_citing)
+                              testing=testing, citing=is_citing)
     index_citations_to_csv = []
     data_citing = []
     data_cited = []
@@ -537,23 +532,6 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
                                 index_citations_to_csv.append(citation)
         save_files(data_cited, index_citations_to_csv, False)
 
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
-    if redis_storage_manager:
-        return RedisStorageManager(testing=testing)
-    if storage_path:
-        if not os.path.exists(storage_path):
-            # if parent dir does not exist, it is created
-            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-        if storage_path.endswith(".db"):
-            return SqliteStorageManager(storage_path)
-        elif storage_path.endswith(".json"):
-            return InMemoryStorageManager(storage_path)
-    new_path_dir = os.path.join(os.getcwd(), "storage")
-    if not os.path.exists(new_path_dir):
-        os.makedirs(new_path_dir)
-    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -578,20 +556,11 @@ if __name__ == '__main__':
                             help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
                             help='Show a loading bar, elapsed time and estimated time')
-    arg_parser.add_argument('-sp', '--storage_path', dest='storage_path', required=False,
-                            help='path of the file where to store data concerning validated pids information.'
-                                 'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
-                                 'and a ".json" file if you chose InMemoryStorageManager')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
                             help='parameter to define if the script is to be run in testing mode. Pay attention:'
                                  'by default the script is run in test modality and thus the data managed by redis, '
                                  'stored in a specific redis db, are not retrieved nor permanently saved, since an '
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
-    arg_parser.add_argument('-r', '--redis_storage_manager', dest='redis_storage_manager', action='store_true',
-                            required=False,
-                            help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
-                                 'value is set to false, which means that -unless it is differently stated- the storage manager used is'
-                                 'the one chosen as value of the parameter --storage_manager. The redis db used by the storage manager is the n.2')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int,
                             help='Workers number')
     args = arg_parser.parse_args()
@@ -613,12 +582,9 @@ if __name__ == '__main__':
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
-    storage_path = settings['storage_path'] if settings else args.storage_path
-    storage_path = normalize_path(storage_path) if storage_path else None
     testing = settings['testing'] if settings else args.testing
-    redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
     max_workers = settings['max_workers'] if settings else args.max_workers
 
-    preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
-               redis_storage_manager=redis_storage_manager, max_workers=max_workers)
+    preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, testing=testing,
+               max_workers=max_workers)
 

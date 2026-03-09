@@ -76,7 +76,7 @@ class OpenAireProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, redis_storage_manager=False,storage_path=self.any_db, cache=self.cache)
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -148,7 +148,7 @@ class OpenAireProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, redis_storage_manager=True,storage_path=self.any_db, cache=self.cache)
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, cache=self.cache)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -221,7 +221,7 @@ class OpenAireProcessTest(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, redis_storage_manager=False, storage_path=self.any_db, cache=self.cache, max_workers=2)
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, cache=self.cache, max_workers=2)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -280,7 +280,7 @@ class OpenAireProcessTest(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
 
-        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, redis_storage_manager=True, cache=self.cache, max_workers=2)
+        preprocess(openaire_json_dir=self.sample_dupl, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, cache=self.cache, max_workers=2)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -335,7 +335,7 @@ class OpenAireProcessTest(unittest.TestCase):
             processed_files_dict = {'part1.tar': {'test/openaire_process/2_tar_sample/part1_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n3.gz': 'completed', 'test/openaire_process/2_tar_sample/part1_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n4.gz': 'completed', 'test/openaire_process/2_tar_sample/part1_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n2.gz': 'completed'}, 'part0.tar': {'test/openaire_process/2_tar_sample/part0_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n7.gz': 'completed', 'test/openaire_process/2_tar_sample/part0_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n5.gz': 'completed', 'test/openaire_process/2_tar_sample/part0_decompr_zip_dir/Volumes/T7_Touch/LAVORO/OROCI/SAMPLE_DATI_OROCI_tmp/reduced_n6.gz': 'completed'}}
             json.dump(processed_files_dict,write_cache)
 
-        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, redis_storage_manager=True, cache=self.cache_test1, max_workers=2, target=2)
+        preprocess(openaire_json_dir=self.sample_2tar, csv_dir=self.output_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.doi_orcid, cache=self.cache_test1, max_workers=2, target=2)
 
         citations_in_output = 0
         encountered_ids = set()

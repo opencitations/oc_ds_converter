@@ -30,15 +30,13 @@ from tqdm import tqdm
 
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 from oc_ds_converter.zotero.zotero_processing import ZoteroProcessing
 
 
 
-def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
-               testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1) -> None:
+def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False,
+               testing: bool = True, max_workers: int = 1) -> None:
 
     if cache is None:
         cache = os.path.join(csv_dir, 'cache_file.cache')
@@ -71,8 +69,7 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
         #if filename.startswith("._"):
            # continue
         get_citations_and_metadata(filename, csv_dir, orcid_doi_filepath,
-                                   wanted_doi_filepath, publishers_filepath, storage_path,
-                                   redis_storage_manager,
+                                   wanted_doi_filepath, publishers_filepath,
                                    testing, cache, is_citing=True)
 
     # DELETE CACHE AND .LOCK FILE
@@ -87,20 +84,19 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
     if pbar:
         pbar.close()
 
-    # added to avoid order-releted issues in sequential tests runs
+    # added to avoid order-related issues in sequential tests runs
     if testing:
-        storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+        storage_manager = RedisStorageManager(testing=testing)
         storage_manager.delete_storage()
 
 
 def get_citations_and_metadata(file_name, csv_dir: str,
                                orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
-                               redis_storage_manager: bool,
+                               doi_csv: str | None, publishers_filepath: str | None,
                                testing: bool, cache: str | None, is_citing: bool):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
-    storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -135,7 +131,7 @@ def get_citations_and_metadata(file_name, csv_dir: str,
 
     zotero_csv = ZoteroProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                   publishers_filepath=publishers_filepath,
-                                  storage_manager=storage_manager, testing=testing, citing=True)
+                                  testing=testing, citing=True)
 
 
     data_citing = []
@@ -274,23 +270,6 @@ def get_citations_and_metadata(file_name, csv_dir: str,
     save_files(data_citing)
 
 
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
-    if redis_storage_manager:
-        return RedisStorageManager(testing=testing)
-    if storage_path:
-        if not os.path.exists(storage_path):
-            # if parent dir does not exist, it is created
-            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-        if storage_path.endswith(".db"):
-            return SqliteStorageManager(storage_path)
-        elif storage_path.endswith(".json"):
-            return InMemoryStorageManager(storage_path)
-    new_path_dir = os.path.join(os.getcwd(), "storage")
-    if not os.path.exists(new_path_dir):
-        os.makedirs(new_path_dir)
-    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -315,20 +294,11 @@ if __name__ == '__main__':
                         help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
                             help='Show a loading bar, elapsed time and estimated time')
-    arg_parser.add_argument('-sp', '--storage_path', dest='storage_path', required=False,
-                            help='path of the file where to store data concerning validated pids information.'
-                                 'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
-                                 'and a ".json" file if you chose InMemoryStorageManager')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
                             help='parameter to define if the script is to be run in testing mode. Pay attention:'
                                  'by default the script is run in test modality and thus the data managed by redis, '
                                  'stored in a specific redis db, are not retrieved nor permanently saved, since an '
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
-    arg_parser.add_argument('-r', '--redis_storage_manager', dest='redis_storage_manager', action='store_true',
-                            required=False,
-                            help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
-                                 'value is set to false, which means that -unless it is differently stated- the storage manager used is'
-                                 'the one chosen as value of the parameter --storage_manager. The redis db used by the storage manager is the n.2')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int,
                             help='Workers number')
     args = arg_parser.parse_args()
@@ -350,14 +320,11 @@ if __name__ == '__main__':
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
-    storage_path = settings['storage_path'] if settings else args.storage_path
-    storage_path = normalize_path(storage_path) if storage_path else None
     testing = settings['testing'] if settings else args.testing
-    redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
     max_workers = settings['max_workers'] if settings else args.max_workers
 
-    preprocess(zotero_json_dir=zotero_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
-               redis_storage_manager=redis_storage_manager, max_workers=max_workers)
+    preprocess(zotero_json_dir=zotero_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, testing=testing,
+               max_workers=max_workers)
 
 # How to run the script and produce data
 # EXAMPLE: python oc_ds_converter/run/zotero_process.py -z /Users/ariannamorettj/Desktop/zotero_dati/input -out /Users/ariannamorettj/Desktop/zotero_dati/output

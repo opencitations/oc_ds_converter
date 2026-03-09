@@ -88,7 +88,8 @@ class RedisStorageManager(StorageManager):
                 redis_dict[t[0]] = 1
             else:
                 redis_dict[t[0]] = 0
-        self.PROCESS_redis.mset(redis_dict)
+        if redis_dict:
+            self.PROCESS_redis.mset(redis_dict)
 
 
     def get_value(self, id: str):

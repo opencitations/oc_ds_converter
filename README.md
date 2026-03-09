@@ -78,18 +78,11 @@ Each class provides methods for:
   <li>verifying its existence using specific API services (if available)</li>
 </ol>
 
-<h3 id="dsm"> Data Storage Management </h3> 
-OpenCitations ds_converter currently offers three storage systems, which can be alternatively used: 
+<h3 id="dsm"> Data storage management </h3>
+OpenCitations ds_converter uses Redis for persistent storage of validation data (class `RedisStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/redis_manager.py`).
 
-* In Memory (class `InMemoryStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/in_memory_manager.py)`
-* Redis (class `RedisStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/redis_manager.py`)
-* Sqlite (class `SqliteStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/sqlite_manager.py`). 
-
-Each of these classes is defined as an instance of the abstract class `StorageManager(metaclass=ABCMeta)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/storage_manager.py`. 
-
-The type of storage manager used for a specific data source process can be chosen by the user (however, we suggest using the Redis storage manager). 
-An instance of the chosen storage manager will be used by all the ID Managers instantiated in the process to store validation data at the end of each data chunk management. 
-The temporary storage manager used while processing a data chunk is instead always an instance of the In-Memory storage manager (which is based on the use of a python dictionary). The reason for this choice lies in the fact that, in case of a run stop, the execution would restart processing from the beginning of the chunk that was being managed at the time of the interruption, and thus the data already memorized by a redis or sqlite storage manager would be duplicated, while the data memorized in an instance of an in-memory storage manager are just lost and reprocessed. 
+An instance of the `RedisStorageManager` is used by all the ID Managers instantiated in the process to store validation data at the end of each data chunk management.
+The temporary storage manager used while processing a data chunk is a simple in-memory dictionary wrapper (class `BatchManager`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/batch_manager.py`). This approach batches writes to Redis for better performance. If the process stops mid-chunk, the data in BatchManager is lost and the chunk is reprocessed from the beginning on restart. Since validation results are idempotent, reprocessing simply overwrites the same values in Redis. 
 
 <!-- ID VALIDATION PROCESS -->
 <h2 id="validation">ID Validation Process</h2>
@@ -101,10 +94,10 @@ Subsequently, we perform another full iteration, validating all identifiers not 
 
 ![Data dump iteration for data validation](https://github.com/ariannamorettj/OC_documents/blob/5115cf039b4baa2319c6c22cc270647861ae2f5a/id_validation_process_dump_iteration_diagram.png) 
 
-Note that, to manage the large amount of data provided by each data source, the input dataset is generally divided into data chunks. As mentioned above, in order to avoid data duplication in case of a process interruption and restart, data concerning each chunk are temporarily stored in an instance of the in-memory storage manager (see InMemoryStorageManager(StorageManager) in oc_ds_converter/oc_idmanager/oc_data_storage/in_memory_manager.py). The data stored in the temporary storage manager is transferred to the main storage manager (containing the ID validation data of the full input dataset) at the end of the chunk's process, when both the CSV tables concerning bibliographic metadata and citations are produced.
+Note that input datasets are typically composed of multiple files. Each file is processed independently, and a cache file tracks which files have been completed. During file processing, validation data is temporarily stored in `BatchManager` (see `oc_ds_converter/oc_idmanager/oc_data_storage/batch_manager.py`), a simple in-memory dictionary. When the file processing completes and the CSV output tables are produced, all accumulated data is transferred to Redis in a single batch operation (`mset`), reducing network overhead compared to individual writes. The file is then marked as completed in the cache. If the process is interrupted mid-file, the file is not in the cache and will be reprocessed from the beginning on restart. However, IDs already stored in Redis from previous operations do not require new API calls.
 For each encountered identifier to be validated, an ordered list of checks should be performed, stopping as soon as the validity value can be assessed:
 
-1. Search for the identifier in the in-memory storage manager, containing data concerning the current data chunk;
+1. Search for the identifier in the batch manager, containing data concerning the current data chunk;
 2. Search for the identifier in the main storage manager, containing data concerning the whole dataset; 
 3. Search for the identifier in the OpenCitations databases, containing data of all the datasets ever ingested in OpenCitations.
 4. Use ID-schema specific API services to retrieve the validity information of the ID. 
@@ -130,9 +123,7 @@ More in detail, each data source run script has a set of arguments that can be a
 - **'--wanted'**: The path to an optional CSV filepath containing a list of DOIs to process.
 - **'--cache'**: The cache file path, that will be automatically deleted at the end of the process.
 - **'--verbose'**: Argument which allows to declare whether a verbose description of the process execution is required. 
-- **'--storage_path'**: An argument to optionally choose the path of the file where to store data concerning validated IDs information, in case the process is executed using either an In-Memory or a Sqlite storage manager. Pay attention to specify a ".db" file in case a SqliteStorageManager is chosen and a ".json" file otherwise.
-- **'--testing'**: The parameter to define whether or not the script is to be run in testing mode.
-- **'--redis_storage_manager'**: A parameter to define whether or not to use redis as storage manager. In case Redis is not used, the storage manager type is derived by the storage path type (i.e. : In Memory storage in case the file is a JSON file, Sqlite in case of a .db file)
+- **'--testing'**: The parameter to define whether or not the script is to be run in testing mode. When testing mode is enabled, a fake in-memory Redis instance is used instead of a real Redis server.
 - **'--max_workers'**: The integer number of workers used to run the process in parallel executions. 
 
 

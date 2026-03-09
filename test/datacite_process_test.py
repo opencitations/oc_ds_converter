@@ -56,8 +56,6 @@ class DataciteProcessTest(unittest.TestCase):
             publishers_filepath=self.publisher_mapping,
             orcid_doi_filepath=self.iod,
             csv_dir=self.output_dir,
-            redis_storage_manager=False,
-            storage_path=self.db,
             cache=self.cache,
             use_orcid_api=True
         )
@@ -111,8 +109,7 @@ class DataciteProcessTest(unittest.TestCase):
             shutil.rmtree(bad_dir)
 
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
-                   orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=False,
-                   storage_path=self.db, cache=self.cache)
+                   orcid_doi_filepath=self.iod, csv_dir=self.output_dir, cache=self.cache)
 
         citations_in_output = 0
 
@@ -183,8 +180,6 @@ class DataciteProcessTest(unittest.TestCase):
             publishers_filepath=self.publisher_mapping,
             orcid_doi_filepath=None,
             csv_dir=self.output_dir,
-            redis_storage_manager=False,
-            storage_path=self.db,
             cache=self.cache,
             use_orcid_api=False
         )
@@ -245,8 +240,7 @@ class DataciteProcessTest(unittest.TestCase):
             os.remove(self.cache)
 
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
-                   orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=True,
-                   storage_path=self.db, cache=self.cache)
+                   orcid_doi_filepath=self.iod, csv_dir=self.output_dir, cache=self.cache)
 
         citations_in_output = 0
 
@@ -319,8 +313,6 @@ class DataciteProcessTest(unittest.TestCase):
             publishers_filepath=self.publisher_mapping,
             orcid_doi_filepath=self.iod,
             csv_dir=self.output_dir,
-            redis_storage_manager=False,
-            storage_path=self.db,
             cache=self.cache,
             use_orcid_api=False,
         )
@@ -381,8 +373,7 @@ class DataciteProcessTest(unittest.TestCase):
             json.dump(processed_files_dict, write_cache)
 
         preprocess(datacite_ndjson_dir=self.zst_input_folder, publishers_filepath=self.publisher_mapping,
-                   orcid_doi_filepath=self.iod, csv_dir=self.output_dir, redis_storage_manager=False,
-                   storage_path=self.db, cache=self.cache_test)
+                   orcid_doi_filepath=self.iod, csv_dir=self.output_dir, cache=self.cache_test)
 
         citations_in_output = 0
         encountered_ids = set()

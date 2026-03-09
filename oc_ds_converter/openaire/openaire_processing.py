@@ -16,9 +16,8 @@ from bs4 import BeautifulSoup
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
 from oc_ds_converter.oc_idmanager.doi import DOIManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.batch_manager import BatchManager
 from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.oc_idmanager.pmcid import PMCIDManager
 from oc_ds_converter.oc_idmanager.pmid import PMIDManager
@@ -29,14 +28,12 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class OpenaireProcessing(RaProcessor):
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_openaire: str | None = None, testing: bool = True, storage_manager: Optional[StorageManager] = None):
+    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_openaire: str | None = None, testing: bool = True):
         super(OpenaireProcessing, self).__init__(orcid_index, doi_csv)
-        if storage_manager is None:
-            self.storage_manager = SqliteStorageManager()
-        else:
-            self.storage_manager = storage_manager
+        self._testing = testing
+        self.storage_manager = RedisStorageManager(testing=testing)
 
-        self.temporary_manager = InMemoryStorageManager('../memory.json')
+        self.temporary_manager = BatchManager()
 
         self.types_dict = {
             "Article": "journal article",
@@ -79,12 +76,12 @@ class OpenaireProcessing(RaProcessor):
             "Bioentity": "other",
             "Sound": "other",
         }
-        self.doi_m = DOIManager(storage_manager=self.storage_manager)
-        self.pmid_m = PMIDManager(storage_manager=self.storage_manager)
-        self.pmc_m = PMCIDManager(storage_manager=self.storage_manager)
-        self.arxiv_m = ArXivManager(storage_manager=self.storage_manager)
+        self.doi_m = DOIManager(testing=testing)
+        self.pmid_m = PMIDManager(testing=testing)
+        self.pmc_m = PMCIDManager(testing=testing)
+        self.arxiv_m = ArXivManager(testing=testing)
 
-        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager)
+        self.orcid_m = ORCIDManager(testing=testing)
 
         self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmcid": self.pmc_m,"pmc": self.pmc_m, "arxiv":self.arxiv_m}
 
@@ -95,12 +92,12 @@ class OpenaireProcessing(RaProcessor):
         # a storage_manager db would be considered to have been processed and thus would be ignored by the process
         # and lost.
 
-        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager)
-        self.tmp_pmid_m = PMIDManager(storage_manager=self.temporary_manager)
-        self.tmp_pmc_m = PMCIDManager(storage_manager=self.temporary_manager)
-        self.tmp_arxiv_m = ArXivManager(storage_manager=self.temporary_manager)
+        self.tmp_doi_m = DOIManager(testing=testing)
+        self.tmp_pmid_m = PMIDManager(testing=testing)
+        self.tmp_pmc_m = PMCIDManager(testing=testing)
+        self.tmp_arxiv_m = ArXivManager(testing=testing)
 
-        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager)
+        self.tmp_orcid_m = ORCIDManager(testing=testing)
 
         self.tmp_id_man_dict = {"doi": self.tmp_doi_m, "pmid": self.tmp_pmid_m, "pmcid": self.tmp_pmc_m, "pmc": self.tmp_pmc_m,
                              "arxiv": self.tmp_arxiv_m}

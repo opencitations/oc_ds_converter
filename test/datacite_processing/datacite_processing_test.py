@@ -7,8 +7,6 @@ from oc_ds_converter.lib.jsonmanager import *
 
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 TEST_DIR = os.path.join("test", "datacite_processing")
@@ -79,7 +77,7 @@ class TestDataciteProcessing(unittest.TestCase):
         dcp.storage_manager.delete_storage()
 
     def test_get_redis_validity_list_br_redis(self):
-        dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
+        dcp = DataciteProcessing(testing=True)
         br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25",
               "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
         br_valid_list = dcp.get_redis_validity_list(br, "br")
@@ -109,7 +107,7 @@ class TestDataciteProcessing(unittest.TestCase):
         dcp.RA_redis.delete("orcid:0000-0001-8513-8700")
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_redis(self):
-        dcp = DataciteProcessing(storage_manager=RedisStorageManager())
+        dcp = DataciteProcessing(testing=True)
         dcp.BR_redis.sadd("doi:10.15407/scin11.06.057", "omid:1")
         dcp.RA_redis.sadd("orcid:0000-0001-8513-8700", "omid:2")
 
@@ -159,7 +157,7 @@ class TestDataciteProcessing(unittest.TestCase):
         - With redis storage manager without a pre-existent db associated
         """
 
-        dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
+        dcp = DataciteProcessing(testing=True)
         validate_as_none_doi = dcp.validated_as({"schema":"doi", "identifier": "doi:10.11578/1480643"})
         validated_as_none_orcid = dcp.validated_as({"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"})
         self.assertEqual(validate_as_none_doi, None)
@@ -167,7 +165,7 @@ class TestDataciteProcessing(unittest.TestCase):
 
         dcp.storage_manager.delete_storage()
 
-    def test_validated_as_sqlite(self):
+    def test_validated_as_redis_with_preexistent_data(self):
         """
         Check that, given an ID dict with keys "schema" (value: string of the schema) and "identifier" (value:
         string of the identifier, the method "validated_as" returns:
@@ -175,29 +173,27 @@ class TestDataciteProcessing(unittest.TestCase):
         - False if the id was already validated as invalid
         - None if the id was not validated before
         The procedure is tested
-        - With sqlite storage manager and a pre-existent db associated
+        - With redis storage manager and pre-existent data associated
         """
-        db_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.db")
-        sqlite_man = SqliteStorageManager(db_path)
         valid_doi_not_in_db = {"identifier": "doi:10.11578/1480643", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.15407/scin11.06.057", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1066/1741-4326/aa6b", "schema": "doi"}
         valid_orcid_not_in_db = {"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"}
         valid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-2630"}
         invalid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-26XX"}
-        sqlite_man.set_value(valid_doi_in_db["identifier"], True)
-        sqlite_man.set_value(invalid_doi_in_db["identifier"], False)
-        sqlite_man.set_value(valid_orcid_in_db["identifier"], True)
-        sqlite_man.set_value(invalid_orcid_in_db["identifier"], False)
 
-        # New class instance to check the correct task management with a sqlite db in input
-        d_processing_sql = DataciteProcessing(storage_manager=sqlite_man)
-        doi_validated_as_True = d_processing_sql.validated_as(valid_doi_in_db)
-        doi_validated_as_False = d_processing_sql.validated_as(invalid_doi_in_db)
-        doi_not_validated = d_processing_sql.validated_as(valid_doi_not_in_db)
-        orcid_validated_as_True = d_processing_sql.validated_as(valid_orcid_in_db)
-        orcid_validated_as_False = d_processing_sql.validated_as(invalid_orcid_in_db)
-        orcid_not_validated = d_processing_sql.validated_as(valid_orcid_not_in_db)
+        # New class instance and set values directly on the id managers' storage_manager
+        d_processing_redis = DataciteProcessing(testing=True)
+        d_processing_redis.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+        d_processing_redis.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
+        d_processing_redis.orcid_m.storage_manager.set_value(valid_orcid_in_db["identifier"], True)
+        d_processing_redis.orcid_m.storage_manager.set_value(invalid_orcid_in_db["identifier"], False)
+        doi_validated_as_True = d_processing_redis.validated_as(valid_doi_in_db)
+        doi_validated_as_False = d_processing_redis.validated_as(invalid_doi_in_db)
+        doi_not_validated = d_processing_redis.validated_as(valid_doi_not_in_db)
+        orcid_validated_as_True = d_processing_redis.validated_as(valid_orcid_in_db)
+        orcid_validated_as_False = d_processing_redis.validated_as(invalid_orcid_in_db)
+        orcid_not_validated = d_processing_redis.validated_as(valid_orcid_not_in_db)
 
         self.assertEqual(doi_validated_as_True, True)
         self.assertEqual(doi_validated_as_False, False)
@@ -206,7 +202,7 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(orcid_validated_as_False, False)
         self.assertEqual(orcid_not_validated, None)
 
-        d_processing_sql.storage_manager.delete_storage()
+        d_processing_redis.storage_manager.delete_storage()
 
     def test_validated_as_inmemory(self):
         '''
@@ -219,21 +215,19 @@ class TestDataciteProcessing(unittest.TestCase):
         - With in Memory + Json storage manager and a pre-existent db associated
         '''
 
-        db_json_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.json")
-        inmemory_man = InMemoryStorageManager(db_json_path)
         valid_doi_not_in_db = {"identifier": "doi:10.11578/1480643", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.15407/scin11.06.057", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1066/1741-4326/aa6b", "schema": "doi"}
         valid_orcid_not_in_db = {"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"}
         valid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-2630"}
         invalid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-26XX"}
-        inmemory_man.set_value(valid_doi_in_db["identifier"], True)
-        inmemory_man.set_value(invalid_doi_in_db["identifier"], False)
-        inmemory_man.set_value(valid_orcid_in_db["identifier"], True)
-        inmemory_man.set_value(invalid_orcid_in_db["identifier"], False)
 
-        # New class instance to check the correct task management with a sqlite db in input
-        d_processing = DataciteProcessing(storage_manager=inmemory_man)
+        # New class instance and set values directly on the id managers' storage_manager
+        d_processing = DataciteProcessing(testing=True)
+        d_processing.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+        d_processing.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
+        d_processing.orcid_m.storage_manager.set_value(valid_orcid_in_db["identifier"], True)
+        d_processing.orcid_m.storage_manager.set_value(invalid_orcid_in_db["identifier"], False)
         doi_validated_as_True = d_processing.validated_as(valid_doi_in_db)
         doi_validated_as_False = d_processing.validated_as(invalid_doi_in_db)
         doi_not_validated = d_processing.validated_as(valid_doi_not_in_db)
@@ -260,19 +254,18 @@ class TestDataciteProcessing(unittest.TestCase):
         The procedure is tested
         - With REDIS storage manager and a pre-existent db associated
         """
-        redis_man = RedisStorageManager(testing=True)
         valid_doi_not_in_db = {"identifier": "doi:10.11578/1480643", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.15407/scin11.06.057", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1066/1741-4326/aa6b", "schema": "doi"}
         valid_orcid_not_in_db = {"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"}
         valid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-2630"}
         invalid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-26XX"}
-        redis_man.set_value(valid_doi_in_db["identifier"], True)
-        redis_man.set_value(invalid_doi_in_db["identifier"], False)
-        redis_man.set_value(valid_orcid_in_db["identifier"], True)
-        redis_man.set_value(invalid_orcid_in_db["identifier"], False)
 
-        d_processing_redis = DataciteProcessing(storage_manager=redis_man)
+        d_processing_redis = DataciteProcessing(testing=True)
+        d_processing_redis.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+        d_processing_redis.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
+        d_processing_redis.orcid_m.storage_manager.set_value(valid_orcid_in_db["identifier"], True)
+        d_processing_redis.orcid_m.storage_manager.set_value(invalid_orcid_in_db["identifier"], False)
         doi_validated_as_True = d_processing_redis.validated_as(valid_doi_in_db)
         doi_validated_as_False = d_processing_redis.validated_as(invalid_doi_in_db)
         doi_not_validated = d_processing_redis.validated_as(valid_doi_not_in_db)
@@ -612,7 +605,7 @@ class TestDataciteProcessing(unittest.TestCase):
         dcp.storage_manager.delete_storage()
 
     def test_to_validated_id_list_redis(self):
-        dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
+        dcp = DataciteProcessing(testing=True)
         # CASE_1:  is valid
         inp_1 = {'id': 'doi:10.11578/1367552', 'schema': 'doi'}
         out_1 = dcp.to_validated_id_list(inp_1)
@@ -620,14 +613,14 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(out_1, exp_1)
         dcp.storage_manager.delete_storage()
 
-        dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
+        dcp = DataciteProcessing(testing=True)
         # CASE_2: is invalid
         inp_2 = {'id': 'doi:10.11578/136755', 'schema': 'doi'}
         out_2 = dcp.to_validated_id_list(inp_2)
         exp_2 = []
         self.assertEqual(out_2, exp_2)
 
-        dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
+        dcp = DataciteProcessing(testing=True)
         # CASE_3:  valid orcid
         inp_3 = {'id': 'orcid:0000-0002-9286-2630', 'schema': 'orcid'}
         out_3 = dcp.to_validated_id_list(inp_3)
@@ -635,7 +628,7 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(out_3, exp_3)
         dcp.storage_manager.delete_storage()
 
-        dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
+        dcp = DataciteProcessing(testing=True)
         # CASE_4: invalid doi in self._redis_values_br
         inp_4 = {'id': 'doi:10.1089/bsp.2008.002', 'schema': 'doi'}
         dcp._redis_values_br.append(inp_4['id'])
@@ -647,7 +640,7 @@ class TestDataciteProcessing(unittest.TestCase):
         dcp.storage_manager.delete_storage()
 
     def test_find_datacite_orcid(self):
-        dcp = DataciteProcessing()
+        dcp = DataciteProcessing(testing=True)
         inp = ["https://orcid.org/0000-0002-9286-2630"]
         out = dcp.find_datacite_orcid(inp)
         exp_out = "orcid:0000-0002-9286-2630"
@@ -658,25 +651,25 @@ class TestDataciteProcessing(unittest.TestCase):
         exp_invalid_id = ""
         self.assertEqual(out_invalid_id, exp_invalid_id)
 
-        dcp.storage_manager.delete_storage()
+        dcp.orcid_m.storage_manager.delete_storage()
 
         # set a valid id as invalid in storage, so to check that the api check is
         # avoided if the info is already in storage
-        dcp = DataciteProcessing()
-        dcp.storage_manager.set_value("orcid:0000-0002-9286-2630", False)
+        dcp = DataciteProcessing(testing=True)
+        dcp.orcid_m.storage_manager.set_value("orcid:0000-0002-9286-2630", False)
         inp = ["https://orcid.org/0000-0002-9286-2630"]
         out = dcp.find_datacite_orcid(inp)
         exp_out = ""
         self.assertEqual(out, exp_out)
-        dcp.storage_manager.delete_storage()
+        dcp.orcid_m.storage_manager.delete_storage()
 
-        dcp = DataciteProcessing()
-        dcp.storage_manager.set_value("orcid:0000-0002-9286-2631", True)
+        dcp = DataciteProcessing(testing=True)
+        dcp.orcid_m.storage_manager.set_value("orcid:0000-0002-9286-2631", True)
         inp = ["https://orcid.org/0000-0002-9286-2631"]
         out = dcp.find_datacite_orcid(inp)
         exp_out = "orcid:0000-0002-9286-2631"
         self.assertEqual(out, exp_out)
-        dcp.storage_manager.delete_storage()
+        dcp.orcid_m.storage_manager.delete_storage()
 
     def test_get_venue_name(self):
         item = {

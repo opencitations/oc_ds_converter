@@ -1,12 +1,9 @@
 import json
-import os.path
 import unittest
 from os import makedirs
 from os.path import exists, join
 
 from oc_ds_converter.oc_idmanager.doi import DOIManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 class DOIIdentifierManagerTest(unittest.TestCase):
     """This class aim at testing identifiers manager."""
@@ -66,7 +63,11 @@ class DOIIdentifierManagerTest(unittest.TestCase):
         self.assertFalse(dm_nofile.is_valid(self.invalid_doi_1))
         self.assertFalse(dm_nofile.is_valid(self.invalid_doi_2))
 
-        dm_file = DOIManager(storage_manager=InMemoryStorageManager(self.test_json_path), use_api_service=False)
+        dm_file = DOIManager(testing=True, use_api_service=False)
+        # Pre-seed storage with data from glob.json
+        for key, value in self.data.items():
+            if key.startswith("doi:"):
+                dm_file.storage_manager.set_value(key, value.get("valid", False))
         self.assertTrue(dm_file.normalise(self.valid_doi_1, include_prefix=True) in self.data)
         self.assertTrue(dm_file.normalise(self.invalid_doi_1, include_prefix=True) in self.data)
         self.assertTrue(dm_file.is_valid(self.valid_doi_1))
@@ -74,32 +75,30 @@ class DOIIdentifierManagerTest(unittest.TestCase):
 
 
     def test_doi_default(self):
-        am_nofile = DOIManager()
-        # No support files (it generates it)
-        # Default storage manager : in Memory + generates file on method call (not automatically)
+        am_nofile = DOIManager(testing=True)
+        # Uses RedisStorageManager with testing=True (fakeredis)
         # uses API
         self.assertTrue(am_nofile.is_valid(self.valid_doi_1))
         self.assertTrue(am_nofile.is_valid(self.valid_doi_2))
         self.assertFalse(am_nofile.is_valid(self.invalid_doi_2))
         self.assertFalse(am_nofile.is_valid(self.invalid_doi_1))
-        am_nofile.storage_manager.store_file()
         validated_ids = [self.valid_doi_1, self.valid_doi_2, self.invalid_doi_1, self.invalid_doi_2]
-        # check that the support file was correctly created
-        self.assertTrue(os.path.exists("storage/id_value.json"))
-        lj = open("storage/id_value.json")
-        load_dict = json.load(lj)
-        lj.close()
-        # check that all the validated ids are stored in the json file
-        self.assertTrue(all(am_nofile.normalise(x, include_prefix=True) in load_dict for x in validated_ids))
+        # check that all the validated ids are stored in redis
+        all_ids_stored = am_nofile.storage_manager.get_all_keys()
+        self.assertTrue(all(am_nofile.normalise(x, include_prefix=True) in all_ids_stored for x in validated_ids))
         am_nofile.storage_manager.delete_storage()
-        # check that the support file was correctly deleted
-        self.assertFalse(os.path.exists("storage/id_value.json"))
+        # check that the storage was correctly deleted
+        self.assertEqual(am_nofile.storage_manager.get_all_keys(), set())
 
     def test_doi_memory_file_noapi(self):
-        # Uses support file (without updating it)
-        # Uses InMemoryStorageManager storage manager
+        # Uses pre-seeded data (without updating it)
+        # Uses RedisStorageManager storage manager
         # does not use API (so a syntactically correct id is considered to be valid)
-        am_file = DOIManager(storage_manager=InMemoryStorageManager(self.test_json_path), use_api_service=False)
+        am_file = DOIManager(testing=True, use_api_service=False)
+        # Pre-seed storage with data from glob.json
+        for key, value in self.data.items():
+            if key.startswith("doi:"):
+                am_file.storage_manager.set_value(key, value.get("valid", False))
         norm_valid = am_file.normalise(self.valid_doi_1, include_prefix=True)
         norm_invalid = am_file.normalise(self.invalid_doi_1.strip().lower(), include_prefix=True)
         norm_fake = am_file.normalise("10.1109/5.771073FAKE_ID", include_prefix=True)
@@ -113,16 +112,16 @@ class DOIIdentifierManagerTest(unittest.TestCase):
 
     def test_doi_memory_file_api(self):
         # Uses support file (without updating it)
-        # Uses InMemoryStorageManager storage manager
+        # Uses RedisStorageManager storage manager
         # uses API (so a syntactically correct id which is not valid is considered to be invalid)
-        am_file = DOIManager(storage_manager=InMemoryStorageManager(self.test_json_path), use_api_service=True)
+        am_file = DOIManager(testing=True, use_api_service=True)
         self.assertFalse(am_file.is_valid(self.invalid_doi_1))
 
     def test_doi_memory_nofile_noapi(self):
         # Does not use support file
-        # Uses InMemoryStorageManager storage manager
+        # Uses RedisStorageManager storage manager
         # Does not API (so a syntactically correct id which is not valid is considered to be valid)
-        am_nofile_noapi = DOIManager(storage_manager=InMemoryStorageManager(), use_api_service=False)
+        am_nofile_noapi = DOIManager(testing=True, use_api_service=False)
         self.assertTrue(am_nofile_noapi.is_valid(self.valid_doi_1))
         self.assertTrue(am_nofile_noapi.is_valid(self.invalid_doi_1))
         am_nofile_noapi.storage_manager.delete_storage()
@@ -130,50 +129,43 @@ class DOIIdentifierManagerTest(unittest.TestCase):
 
 
     def test_doi_sqlite_nofile_api(self):
-        # No support files (it generates it)
-        # storage manager : SqliteStorageManager
+        # No pre-existing data
+        # storage manager : RedisStorageManager
         # uses API
-        sql_am_nofile = DOIManager(storage_manager=SqliteStorageManager())
+        sql_am_nofile = DOIManager(testing=True)
         self.assertTrue(sql_am_nofile.is_valid(self.valid_doi_1))
         self.assertTrue(sql_am_nofile.is_valid(self.valid_doi_2))
         self.assertFalse(sql_am_nofile.is_valid(self.invalid_doi_1))
         self.assertFalse(sql_am_nofile.is_valid(self.invalid_doi_2))
-        # check that the support db was correctly created and that it contains all the validated ids
-        self.assertTrue(os.path.exists("storage/id_valid_dict.db"))
+        # check that the redis storage contains all the validated ids
         validated_ids = [self.valid_doi_1, self.valid_doi_2, self.invalid_doi_1, self.invalid_doi_2]
         all_ids_stored = sql_am_nofile.storage_manager.get_all_keys()
-        assert all_ids_stored is not None
         normalized_ids = [sql_am_nofile.normalise(x, include_prefix=True) for x in validated_ids]
         self.assertTrue(all(nid in all_ids_stored for nid in normalized_ids if nid is not None))
         sql_am_nofile.storage_manager.delete_storage()
-        # check that the support file was correctly deleted
-        self.assertFalse(os.path.exists("storage/id_valid_dict.db"))
+        # check that the storage was correctly deleted
+        self.assertEqual(sql_am_nofile.storage_manager.get_all_keys(), set())
 
     def test_doi_sqlite_file_api(self):
-        # Uses support file
-        # Uses SqliteStorageManager storage manager
-        # does not use API (so a syntactically correct id is considered to be valid)
-        # db creation
-        test_sqlite_db = os.path.join(self.test_dir, "database.db")
-        if os.path.exists(test_sqlite_db):
-            os.remove(test_sqlite_db)
+        # Uses pre-existing data in Redis
+        # Uses RedisStorageManager storage manager
+        # tests validation behavior with pre-seeded data
         to_insert = [self.invalid_doi_1, self.valid_doi_1]
-        sql_file = DOIManager(storage_manager=SqliteStorageManager(test_sqlite_db), use_api_service=True)
+        sql_file = DOIManager(testing=True, use_api_service=True)
         for doi_id in to_insert:
             norm_id = sql_file.normalise(doi_id, include_prefix=True)
             assert norm_id is not None
-            is_valid = 1 if sql_file.is_valid(norm_id) else 0
-            insert_tup = (norm_id, is_valid)
-            assert sql_file.storage_manager.cur is not None
-            assert sql_file.storage_manager.con is not None
-            sql_file.storage_manager.cur.execute("INSERT OR REPLACE INTO info VALUES (?,?)", insert_tup)
-            sql_file.storage_manager.con.commit()
-        assert sql_file.storage_manager.con is not None
-        sql_file.storage_manager.con.close()
+            is_valid = sql_file.is_valid(norm_id)
+            sql_file.storage_manager.set_value(norm_id, is_valid)
 
-        sql_no_api = DOIManager(storage_manager=SqliteStorageManager(test_sqlite_db), use_api_service=False)
+        sql_no_api = DOIManager(testing=True, use_api_service=False)
+        # Copy values from the first manager to the second for testing
+        for doi_id in to_insert:
+            norm_id = sql_no_api.normalise(doi_id, include_prefix=True)
+            value = sql_file.storage_manager.get_value(norm_id)
+            if value is not None:
+                sql_no_api.storage_manager.set_value(norm_id, value)
         all_db_keys = sql_no_api.storage_manager.get_all_keys()
-        assert all_db_keys is not None
         normalized_ids = [sql_no_api.normalise(x, include_prefix=True) for x in to_insert]
         self.assertTrue(all(nid in all_db_keys for nid in normalized_ids if nid is not None))
         self.assertTrue(sql_no_api.is_valid(self.valid_doi_1))
@@ -185,9 +177,9 @@ class DOIIdentifierManagerTest(unittest.TestCase):
 
     def test_doi_sqlite_nofile_noapi(self):
         # Does not use support file
-        # Uses SqliteStorageManager storage manager
+        # Uses RedisStorageManager storage manager
         # Does not use API (so a syntactically correct id which is not valid is considered to be valid)
-        am_nofile_noapi = DOIManager(storage_manager=SqliteStorageManager(), use_api_service=False)
+        am_nofile_noapi = DOIManager(testing=True, use_api_service=False)
         self.assertTrue(am_nofile_noapi.is_valid(self.valid_doi_1))
         self.assertTrue(am_nofile_noapi.is_valid(self.invalid_doi_1))
         am_nofile_noapi.storage_manager.delete_storage()

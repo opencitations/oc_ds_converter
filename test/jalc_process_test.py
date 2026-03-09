@@ -50,7 +50,7 @@ class TestJalcProcess(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, redis_storage_manager=False, storage_path=self.any_db, cache=self.cache_test)
+        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -124,8 +124,7 @@ class TestJalcProcess(unittest.TestCase):
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
         preprocess(jalc_json_dir=self.sample_fake_dump_dir, publishers_filepath=self.publishers_file,
-                   orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, redis_storage_manager=True,
-                   storage_path=self.any_db, cache=self.cache_test)
+                   orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -180,7 +179,7 @@ class TestJalcProcess(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, redis_storage_manager=True, storage_path=self.any_db1, cache=self.cache_test)
+        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -261,8 +260,7 @@ class TestJalcProcess(unittest.TestCase):
             json.dump(processed_files_dict, write_cache)
 
         preprocess(jalc_json_dir=self.sample_dump_dir, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir,
-                   publishers_filepath=self.publishers_file,
-                   redis_storage_manager=True, cache=self.cache_test1)
+                   publishers_filepath=self.publishers_file, cache=self.cache_test1)
 
         citations_in_output = 0
         encountered_ids = set()

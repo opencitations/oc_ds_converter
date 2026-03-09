@@ -16,8 +16,6 @@
 
 
 import json
-import sqlite3
-import os.path
 import unittest
 from os import makedirs
 from os.path import exists, join

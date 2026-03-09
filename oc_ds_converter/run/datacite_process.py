@@ -14,14 +14,12 @@ from tqdm import tqdm
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
 
 def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
-        csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False, storage_path: str | None = None,
-        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target: int = 50000, use_orcid_api: bool = True) -> None:
+        csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False,
+        testing: bool = True, max_workers: int = 1, target: int = 50000, use_orcid_api: bool = True) -> None:
 
     els_to_be_skipped = []
     if not testing and os.path.isdir(datacite_ndjson_dir):
@@ -102,23 +100,21 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
     # dedup e ordine stabile
     all_input_ndjson = sorted(list(dict.fromkeys(all_input_ndjson)))
 
-    if not redis_storage_manager or max_workers == 1:
+    if max_workers == 1:
         for ndjson_file in all_input_ndjson:
             for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
                 chunk_to_save = f'chunk_{idx}'
                 get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath, storage_path,
-                                           redis_storage_manager,
+                                           wanted_doi_filepath, publishers_filepath,
                                            testing, cache, is_citing=True, use_orcid_api=use_orcid_api)
         for ndjson_file in all_input_ndjson:
             for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
                 chunk_to_save = f'chunk_{idx}'
                 get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath, storage_path,
-                                           redis_storage_manager,
+                                           wanted_doi_filepath, publishers_filepath,
                                            testing, cache, is_citing=False, use_orcid_api=use_orcid_api)
 
-    elif redis_storage_manager or max_workers > 1:
+    elif max_workers > 1:
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for ndjson_file in all_input_ndjson:
                 for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
@@ -126,7 +122,7 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
                     executor.submit(
                         get_citations_and_metadata,
                         ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, True, use_orcid_api)
+                        publishers_filepath, testing, cache, True, use_orcid_api)
 
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for ndjson_file in all_input_ndjson:
@@ -135,7 +131,7 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
                     executor.submit(
                         get_citations_and_metadata,
                         ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, False, use_orcid_api)
+                        publishers_filepath, testing, cache, False, use_orcid_api)
 
     if cache:
         if os.path.exists(cache):
@@ -153,17 +149,16 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
             os.remove(lock_file)
 
     if testing:
-        storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+        storage_manager = RedisStorageManager(testing=testing)
         storage_manager.delete_storage()
 
 
 def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citations_dir: str, csv_dir: str, chunk_to_save: str,
                                orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath: str | None, storage_path: str | None,
-                               redis_storage_manager: bool,
+                               doi_csv: str | None, publishers_filepath: str | None,
                                testing: bool, cache: str | None, is_citing: bool, use_orcid_api: bool):
 
-    storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
+    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -202,7 +197,7 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
 
     dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                 publishers_filepath_dc=publishers_filepath,
-                                storage_manager=storage_manager, testing=testing, citing=is_citing, use_orcid_api=use_orcid_api)
+                                testing=testing, citing=is_citing, use_orcid_api=use_orcid_api)
 
     index_citations_to_csv = []
     data_subject = []
@@ -425,23 +420,6 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                 continue
         save_files(data_object, index_citations_to_csv, False)
 
-def get_storage_manager(storage_path: str | None, redis_storage_manager: bool, testing: bool) -> SqliteStorageManager | InMemoryStorageManager | RedisStorageManager:
-    if redis_storage_manager:
-        return RedisStorageManager(testing=testing)
-    if storage_path:
-        if not os.path.exists(storage_path):
-            # if parent dir does not exist, it is created
-            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-        if storage_path.endswith(".db"):
-            return SqliteStorageManager(storage_path)
-        elif storage_path.endswith(".json"):
-            return InMemoryStorageManager(storage_path)
-    new_path_dir = os.path.join(os.getcwd(), "storage")
-    if not os.path.exists(new_path_dir):
-        os.makedirs(new_path_dir)
-    return SqliteStorageManager(os.path.join(new_path_dir, "id_valid_dict.db"))
-
 def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -497,20 +475,11 @@ if __name__ == '__main__':
                             help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
                             help='Show extra informational logs')
-    arg_parser.add_argument('-sp', '--storage_path', dest='storage_path', required=False,
-                            help='path of the file where to store data concerning validated pids information.'
-                                 'Pay attention to specify a ".db" file in case you chose the SqliteStorageManager'
-                                 'and a ".json" file if you chose InMemoryStorageManager')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
                             help='parameter to define if the script is to be run in testing mode. Pay attention:'
                                  'by default the script is run in test modality and thus the data managed by redis, '
                                  'stored in a specific redis db, are not retrieved nor permanently saved, since an '
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
-    arg_parser.add_argument('-r', '--redis_storage_manager', dest='redis_storage_manager', action='store_true',
-                            required=False,
-                            help='parameter to define whether or not to use redis as storage manager. Note that by default the parameter '
-                                 'value is set to false, which means that -unless it is differently stated- the storage manager used is'
-                                 'the one chosen as value of the parameter --storage_manager. The redis db used by the storage manager is the n.2')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int,
                             help='Workers number')
     arg_parser.add_argument('--no-orcid-api', dest='no_orcid_api', action='store_true', required=False,
@@ -535,13 +504,10 @@ if __name__ == '__main__':
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
-    storage_path = settings['storage_path'] if settings else args.storage_path
-    storage_path = normalize_path(storage_path) if storage_path else None
     testing = settings['testing'] if settings else args.testing
-    redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
     max_workers = settings['max_workers'] if settings else args.max_workers
     no_orcid_api = settings.get('disable_orcid_api', False) if settings else args.no_orcid_api
     use_orcid_api = not no_orcid_api
 
-    preprocess(datacite_ndjson_dir=datacite_ndjson_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
-               redis_storage_manager=redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api)
+    preprocess(datacite_ndjson_dir=datacite_ndjson_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, testing=testing,
+               max_workers=max_workers, use_orcid_api=use_orcid_api)
