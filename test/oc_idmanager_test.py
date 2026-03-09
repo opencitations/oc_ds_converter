@@ -32,7 +32,7 @@ class IdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        test_dir = join("test", "data")
+        test_dir = "data"
         with open(join(test_dir, "glob.json"), encoding="utf-8") as fp:
             self.data = json.load(fp)
 
@@ -185,7 +185,7 @@ class IdentifierManagerTest(unittest.TestCase):
         self.assertFalse(wdm_file.is_valid((wdm_file.normalise(self.invalid_wikidata_3, include_prefix=True))))
 
         clean_data = {}
-        wdm_nofile_noapi = WikidataManager(clean_data, use_api_service=False)
+        wdm_nofile_noapi = WikidataManager(storage_manager = clean_data, use_api_service = False)
         self.assertTrue(wdm_nofile_noapi.is_valid(self.valid_wikidata_1))
         self.assertTrue(wdm_nofile_noapi.is_valid(self.valid_wikidata_2))
 

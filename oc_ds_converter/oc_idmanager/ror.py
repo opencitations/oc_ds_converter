@@ -18,9 +18,12 @@
 from json import loads
 from re import match, sub
 from time import sleep
+from typing import Optional
 from urllib.parse import quote, unquote
 
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 
@@ -28,31 +31,45 @@ from requests.exceptions import ConnectionError
 class RORManager(IdentifierManager):
     """This class implements an identifier manager for ROR identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service=True, storage_manager:Optional[StorageManager] = None):
         """PMCID manager constructor."""
         super(RORManager, self).__init__()
         self._api = "https://api.ror.org/organizations/"
         self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
         self._p = "ror:"
-        self._data = data
+
+    def validated_as_id(self, id_string):
+        ror_validation_value = self.storage_manager.get_value(id_string)
+        if isinstance(ror_validation_value, bool):
+            return ror_validation_value
+        else:
+            return None
 
     def is_valid(self, ror_id, get_extra_info=False):
         ror_id = self.normalise(ror_id, include_prefix=True)
 
         if ror_id is None:
+            if get_extra_info:
+                return False, {"id":ror_id, "valid":False}
             return False
+
         else:
-            if ror_id not in self._data or self._data[ror_id] is None:
+            id_validation_value = self.storage_manager.get_value(ror_id)
+            if isinstance(id_validation_value, bool):
+                return id_validation_value
+            else:
                 if get_extra_info:
                     info = self.exists(ror_id, get_extra_info=True)
-                    self._data[ror_id] = info[1]
+                    self.storage_manager.set_full_value(ror_id, info[1])
                     return (info[0] and self.syntax_ok(ror_id)), info[1]
-                self._data[ror_id] = dict()
-                self._data[ror_id]["valid"] = True if (self.syntax_ok(ror_id) and self.exists(ror_id)) else False
-                return self._data[ror_id].get("valid")
-            if get_extra_info:
-                return self._data[ror_id].get("valid"), self._data[ror_id]
-            return self._data[ror_id].get("valid")
+                validity_check = self.syntax_ok(ror_id) and self.exists(ror_id)
+                self.storage_manager.set_value(ror_id, validity_check)
+
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         try:
