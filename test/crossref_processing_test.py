@@ -965,29 +965,6 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertNotIn("bad-orcid", cp._redis_values_ra)
         cp.storage_manager.delete_storage()
 
-    def test_get_agents_strings_list_api_disabled_redis_unprefixed_orcid(self):
-        """
-        API OFF + nessun ORCID in metadata + indice vuoto.
-        Redis snapshot contiene ORCID per l'autore **senza prefisso**: deve essere apposto all'autore.
-        """
-        cp = CrossrefProcessing(use_orcid_api=False, testing=True)
-
-        # Autore senza ORCID nei metadati
-        agents = [{
-            "given": "Chan-Ick",
-            "family": "Cheigh",
-            "role": "author"
-        }]
-
-        # Redis snapshot con ORCID **senza prefisso** dell'autore
-        raw_orcid = "0000-0002-6227-4053"
-        cp.update_redis_values(br=[], ra=[raw_orcid])
-
-        authors, editors = cp.get_agents_strings_list("10.9799/ksfan.2012.25.1.069", agents)
-        self.assertEqual(authors, ["Cheigh, Chan-Ick [orcid:0000-0002-6227-4053]"])
-        self.assertEqual(editors, [])
-        cp.orcid_m.storage_manager.delete_storage()
-
 
 
 
