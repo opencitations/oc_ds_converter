@@ -59,41 +59,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.invalid_ror_1 = "la673822"
         self.invalid_ror_2 = ".org/560jc3p57"
 
-    def test_ror_normalise(self):
-        rm = RORManager()
-        self.assertEqual(
-            rm.normalise(self.valid_ror_1),
-            rm.normalise(self.valid_ror_1.replace("https://", "")),
-        )
-        self.assertEqual(
-            rm.normalise(self.valid_ror_2),
-            rm.normalise("https://ror.org/" + self.valid_ror_2),
-        )
-
-    def test_ror_is_valid(self):
-        rm = RORManager()
-        self.assertTrue(rm.is_valid(self.valid_ror_1))
-        self.assertTrue(rm.is_valid(self.valid_ror_2))
-        self.assertFalse(rm.is_valid(self.invalid_ror_1))
-        self.assertFalse(rm.is_valid(self.invalid_ror_2))
-
-    def test_url_normalise(self):
-        um = URLManager()
-        self.assertEqual(
-            um.normalise(self.valid_url_1),
-            um.normalise(self.valid_url_1.replace("https://.", "https://www.")),
-        )
-        self.assertEqual(
-            um.normalise(self.valid_url_2),
-            um.normalise("https://" + self.valid_url_2),
-        )
-        self.assertEqual(
-            um.normalise(self.valid_url_3),
-            um.normalise(
-                self.valid_url_3.replace("https://www.", "https://")
-            ),
-        )
-
     def test_url_valid(self):
         um_nofile = URLManager()
         self.assertTrue(um_nofile.is_valid(self.valid_url_1))

@@ -76,7 +76,7 @@ class RORIdentifierManagerTest(unittest.TestCase):
             expected_output = (False, {"valid": False})
             self.assertEqual(output, expected_output)
 
-    def test_jid_default(self):
+    def test_ror_default(self):
         jm_nofile = RORManager()
         # No support files (it generates it)
         # Default storage manager : in Memory + generates file on method call (not automatically)

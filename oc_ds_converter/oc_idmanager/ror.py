@@ -49,6 +49,7 @@ class RORManager(IdentifierManager):
         else:
             return None
 
+
     def is_valid(self, ror_id, get_extra_info=False):
         ror_id = self.normalise(ror_id, include_prefix=True)
 
