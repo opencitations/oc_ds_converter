@@ -39,6 +39,13 @@ class CrossrefManager(IdentifierManager):
         self._p = "crossref:"
         self._url_id_pref = "https://openalex.org/"
 
+    def validated_as_id(self, id_string):
+        crossref_validation_value = self.storage_manager.get_value(id_string)
+        if isinstance(crossref_validation_value, bool):
+            return crossref_validation_value
+        else:
+            return None
+
     def is_valid(self, cr_member_id, get_extra_info=False):
         cr_member_id = self.normalise(cr_member_id, include_prefix=True)
 
