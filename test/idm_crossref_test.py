@@ -13,6 +13,7 @@ from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 
 class CrossrefIdentifierManagerTest(unittest.TestCase):
     """This class aim at testing identifiers manager."""
@@ -21,7 +22,7 @@ class CrossrefIdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        self.test_dir = join("test", "data")
+        self.test_dir = "data"
         self.test_json_path = join(self.test_dir, "glob.json")
         with open(self.test_json_path, encoding="utf-8") as fp:
             self.data = json.load(fp)
@@ -117,6 +118,8 @@ class CrossrefIdentifierManagerTest(unittest.TestCase):
         # check that the support file was correctly deleted
         self.assertFalse(os.path.exists("storage/id_value.json"))
 
+    #### IN MEMORY STORAGE MANAGER
+
     def test_crossref_memory_file_noapi(self):
         # Uses support file (without updating it)
         # Uses InMemoryStorageManager storage manager
@@ -142,6 +145,8 @@ class CrossrefIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(am_nofile_noapi.is_valid(self.valid_crmid1))
         self.assertTrue(am_nofile_noapi.is_valid(self.invalid_crmid1))
         am_nofile_noapi.storage_manager.delete_storage()
+
+    #### SQLITE STORAGE MANAGER
 
     def test_crossref_sqlite_nofile_api(self):
         # No support files (it generates it)
@@ -201,3 +206,56 @@ class CrossrefIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(am_nofile_noapi.is_valid(self.valid_crmid1))
         self.assertTrue(am_nofile_noapi.is_valid(self.invalid_crmid2))
         am_nofile_noapi.storage_manager.delete_storage()
+
+    #### REDIS STORAGE MANAGER
+
+    def test_crossref_redis_nofile_api(self):
+        # No support files (it generates it)
+        # storage manager : RedisStorageManager
+        # uses API
+        redis_cm_nofile = CrossrefManager(storage_manager=RedisStorageManager())
+        self.assertTrue(redis_cm_nofile.is_valid(self.valid_crmid1))
+        self.assertTrue(redis_cm_nofile.is_valid(self.valid_crmid2))
+        self.assertFalse(redis_cm_nofile.is_valid(self.invalid_crmid1))
+        self.assertFalse(redis_cm_nofile.is_valid(self.invalid_crmid2))
+        # check that the redis db was correctly filled and that it contains all the validated ids
+        validated_ids = {self.valid_crmid1, self.valid_crmid2, self.invalid_crmid1, self.invalid_crmid2}
+        validated_ids = {redis_cm_nofile.normalise(x, include_prefix=True) for x in validated_ids}
+        all_ids_stored = redis_cm_nofile.storage_manager.get_all_keys()
+        # check that all the validated ids are stored in the json file
+        self.assertEqual(validated_ids, all_ids_stored)
+        redis_cm_nofile.storage_manager.delete_storage()
+        # check that the support file was correctly deleted
+        self.assertEqual(redis_cm_nofile.storage_manager.get_all_keys(), set())
+
+    def test_crossref_redis_file_api(self):
+        # Uses data in redis db
+        # Uses RedisStorageManager
+        # does not use API (so a syntactically correct id is considered to be valid)
+        # fills db
+        to_insert = [self.invalid_crmid1, self.valid_crmid1]
+        storage_manager = RedisStorageManager(testing=True)
+        redis_file = CrossrefManager(storage_manager=storage_manager, use_api_service=True)
+        for id in to_insert:
+            norm_id = redis_file.normalise(id, include_prefix=True)
+            is_valid = redis_file.is_valid(norm_id)
+            # insert_tup = (norm_id, is_valid)
+            redis_file.storage_manager.set_value(norm_id, is_valid)
+
+        redis_no_api = CrossrefManager(storage_manager=storage_manager, use_api_service=False)
+        all_db_keys = redis_no_api.storage_manager.get_all_keys()
+        # check that all the normalised ids in the list were correctly inserted in the db
+        self.assertTrue(all(redis_no_api.normalise(x, include_prefix=True) in all_db_keys for x in to_insert))
+        self.assertTrue(redis_no_api.is_valid(self.valid_crmid1))  # is stored in support file as valid
+        self.assertFalse(redis_no_api.is_valid(self.invalid_crmid1))  # is stored in support file as invalid
+        self.assertTrue(redis_no_api.is_valid(self.invalid_crmid2))  # is not stored in support file as invalid, does not exist but has correct syntax
+        redis_no_api.storage_manager.delete_storage()
+
+    def test_crossref_redis_nofile_noapi(self):
+        # Does not use support file
+        # Uses RedisStorageManager storage manager
+        # Does not use API (so a syntactically correct id which is not valid is considered to be valid)
+        cr_nofile_noapi = CrossrefManager(storage_manager=SqliteStorageManager(), use_api_service=False)
+        self.assertTrue(cr_nofile_noapi.is_valid(self.valid_crmid1))
+        self.assertTrue(cr_nofile_noapi.is_valid(self.invalid_crmid2))
+        cr_nofile_noapi.storage_manager.delete_storage()
