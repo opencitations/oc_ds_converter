@@ -26,10 +26,12 @@ import fakeredis
 
 from oc_ds_converter.datasource.redis import RedisDataSource
 from oc_ds_converter.lib.console import create_progress
+from oc_ds_converter.oc_idmanager import DOIManager
 
 
 class OrcidIndexInterface(Protocol):
     def get_value(self, id_string: str, /) -> set[str] | None: ...
+    def get_values_batch(self, ids: list[str], /) -> dict[str, set[str]]: ...
 
 
 class OrcidIndexRedis:
@@ -45,6 +47,19 @@ class OrcidIndexRedis:
         if result:
             return result
         return None
+
+    def get_values_batch(self, dois: list[str]) -> dict[str, set[str]]:
+        if not dois:
+            return {}
+        pipe = self._r.pipeline()
+        for doi in dois:
+            pipe.smembers(doi)
+        results = pipe.execute()
+        return {
+            doi: cast(set[str], members)
+            for doi, members in zip(dois, results)
+            if members
+        }
 
     def add_values_batch(self, data: dict[str, set[str]]) -> None:
         pipe = self._r.pipeline()
@@ -74,6 +89,7 @@ def load_orcid_index_to_redis(
             if cur_file.endswith('.csv'):
                 files_to_process.append(cur_dir + sep + cur_file)
 
+    doi_manager = DOIManager()
     with create_progress() as progress:
         task = progress.add_task("[green]Loading DOI-ORCID index files", total=len(files_to_process))
         batch: dict[str, set[str]] = {}
@@ -83,7 +99,10 @@ def load_orcid_index_to_redis(
             with open(csv_path, 'r', encoding='utf-8') as f:
                 reader = DictReader(f)
                 for row in reader:
-                    doi = row['id']
+                    raw_doi = row['id']
+                    doi = doi_manager.normalise(raw_doi, include_prefix=True)
+                    if not doi:
+                        continue
                     value = row['value']
                     if doi not in batch:
                         batch[doi] = set()

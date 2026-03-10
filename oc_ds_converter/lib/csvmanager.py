@@ -112,6 +112,9 @@ class CSVManager(object):
         if id_string in self.data:
             return set(self.data[id_string])
 
+    def get_values_batch(self, ids: list[str]) -> dict[str, set[str]]:
+        return {id_str: set(self.data[id_str]) for id_str in ids if id_str in self.data}
+
     def add_value(self, id_string, value):
         '''
         It adds the value specified in the set of values associated to 'id_string'.

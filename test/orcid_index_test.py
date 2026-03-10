@@ -82,10 +82,10 @@ class TestLoadOrcidIndexToRedis(unittest.TestCase):
 
         load_orcid_index_to_redis(self.temp_dir, self.orcid_index)
 
-        result1 = self.orcid_index.get_value("10.1234/article1")
+        result1 = self.orcid_index.get_value("doi:10.1234/article1")
         self.assertEqual(result1, {"Smith, John orcid:0000-0001-2345-6789", "Doe, Jane orcid:0000-0002-3456-7890"})
 
-        result2 = self.orcid_index.get_value("10.1234/article2")
+        result2 = self.orcid_index.get_value("doi:10.1234/article2")
         self.assertEqual(result2, {"Brown, Alice orcid:0000-0003-4567-8901"})
 
     def test_load_nonexistent_directory(self) -> None:

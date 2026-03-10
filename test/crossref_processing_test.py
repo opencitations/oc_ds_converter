@@ -260,6 +260,8 @@ class TestCrossrefProcessing(unittest.TestCase):
         c_processing = CrossrefProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, publishers_filepath=None)
         data = load_json(DATA, None)  # type: ignore[arg-type]
         assert data is not None
+        dois_to_prefetch = [item.get("DOI") for item in data['items'] if item.get("DOI")]
+        c_processing.prefetch_doi_orcid_index(dois_to_prefetch)
         output = list()
         for item in data['items']:
             tabular_data = c_processing.csv_creator(item)
@@ -568,6 +570,7 @@ class TestCrossrefProcessing(unittest.TestCase):
             }
         ]
         crossref_processor = CrossrefProcessing(IOD, WANTED_DOIS_FOLDER)
+        crossref_processor.prefetch_doi_orcid_index(['10.9799/ksfan.2012.25.1.105'])
         authors_strings_list, _ = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105',
                                                                              authors_list)
         expected_authors_list = ['Kim, Myung-Hee', 'Seo, Jin-Seon', 'Choi, Mi-Kyeong [orcid:0000-0002-6227-4053]',
@@ -591,6 +594,7 @@ class TestCrossrefProcessing(unittest.TestCase):
             }
         ]
         crossref_processor = CrossrefProcessing(IOD, WANTED_DOIS_FOLDER)
+        crossref_processor.prefetch_doi_orcid_index(['10.9799/ksfan.2012.25.1.105'])
         authors_strings_list, _ = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105',
                                                                              authors_list)
         expected_authors_list = ['Choi, Mi-Kyeong [orcid:0000-0002-6227-4053]', 'Choi, Mi-Hong']
@@ -695,8 +699,9 @@ class TestCrossrefProcessing(unittest.TestCase):
         ]
         crossref_processor = CrossrefProcessing(None, None)
         csv_manager = CSVManager()
-        csv_manager.data = {'10.9799/ksfan.2012.25.1.105': {'Malek, Sri Nurestri Abdul [0000-0001-6278-8559]'}}
+        csv_manager.data = {'doi:10.9799/ksfan.2012.25.1.105': {'Malek, Sri Nurestri Abdul [0000-0001-6278-8559]'}}
         crossref_processor.orcid_index = csv_manager
+        crossref_processor.prefetch_doi_orcid_index(['10.9799/ksfan.2012.25.1.105'])
         authors_strings_list, editors_strings_list = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105', authors_list)
         expected_authors_list = ['Paravamsivam, Puvaneswari', 'Heng, Chua Kek', 'Malek, Sri Nurestri Abdul [orcid:0000-0001-6278-8559]', 'Sabaratnam, Vikineswary', 'M, Ravishankar Ram', 'Kuppusamy, Umah Rani']
         expected_editors_list = ['Malek, Sri Nurestri Abdul [orcid:0000-0001-6278-8559]']
@@ -788,12 +793,14 @@ class TestCrossrefProcessing(unittest.TestCase):
         """Test ORCID validation using ORCID index before API validation"""
         # Setup
         test_doi = "10.1234/test123"
+        test_doi_prefixed = "doi:10.1234/test123"
         test_orcid = "0000-0002-1234-5678"
         test_name = "Smith, John"
 
         # Create CrossrefProcessing instance with ORCID index
         cp = CrossrefProcessing(testing=True)
-        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")  # type: ignore[attr-defined]
+        cp.orcid_index.add_value(test_doi_prefixed, f"{test_name} [orcid:{test_orcid}]")  # type: ignore[attr-defined]
+        cp.prefetch_doi_orcid_index([test_doi])
 
         # Test Case 1: ORCID found in index
         out_1 = cp.find_crossref_orcid(test_orcid, test_doi)
@@ -832,10 +839,12 @@ class TestCrossrefProcessing(unittest.TestCase):
         """API OFF + present in DOI→ORCID index: must resolve and be saved in tmp storage."""
         cp = CrossrefProcessing(use_orcid_api=False, testing=True)
         test_doi = "10.1234/test"
+        test_doi_prefixed = "doi:10.1234/test"
         test_orcid = "0000-0002-1234-5678"
         test_name = "Smith, John"
 
-        cp.orcid_index.add_value(test_doi, f"{test_name} [orcid:{test_orcid}]")  # type: ignore[attr-defined]
+        cp.orcid_index.add_value(test_doi_prefixed, f"{test_name} [orcid:{test_orcid}]")  # type: ignore[attr-defined]
+        cp.prefetch_doi_orcid_index([test_doi])
 
         out = cp.find_crossref_orcid(test_orcid, test_doi)
         self.assertEqual(out, f"orcid:{test_orcid}")
@@ -911,6 +920,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         doi_pref = "doi:10.1234/test-idx"
         test_orcid = "0000-0002-9999-8888"
         cp.orcid_index.add_value(doi_pref, f"Smith, John [orcid:{test_orcid}]")  # type: ignore[attr-defined]
+        cp.prefetch_doi_orcid_index(["10.1234/test-idx"])
 
         # Autore senza ORCID in metadati; DOI passato **senza prefisso**
         agents = [{

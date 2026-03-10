@@ -86,6 +86,7 @@ class CrossrefProcessing(RaProcessor):
 
         self._redis_values_br = []
         self._redis_values_ra = []
+        self._doi_orcid_cache: dict[str, set[str]] = {}
 
         self._stats_redis_hit = 0
         self._stats_api_calls = 0
@@ -114,6 +115,29 @@ class CrossrefProcessing(RaProcessor):
                 self.orcid_m.normalise(r, include_prefix=True) for r in (ra or [])
             ) if x
         ]
+
+    def prefetch_doi_orcid_index(self, dois: list[str]) -> None:
+        keys = [
+            norm for doi in dois
+            if (norm := self.doi_m.normalise(doi, include_prefix=True))
+        ]
+        self._doi_orcid_cache = self.orcid_index.get_values_batch(keys)
+
+    def orcid_finder(self, doi: str) -> dict[str, str]:
+        norm_doi = self.doi_m.normalise(doi, include_prefix=True)
+        if not norm_doi:
+            return {}
+        people = self._doi_orcid_cache.get(norm_doi)
+        if not people:
+            return {}
+        found: dict[str, str] = {}
+        for person in people:
+            match = re.search(r'\d{4}-\d{4}-\d{4}-\d{3}[\dX]', person)
+            if match:
+                orcid = match.group(0)
+                name = person[:person.find(orcid) - 1]
+                found[orcid] = name.strip().lower()
+        return found
 
     def to_validated_id_list(self, norm_id_dict):
         valid_id_list = []
@@ -458,18 +482,9 @@ class CrossrefProcessing(RaProcessor):
         authors_strings_list = []
         editors_string_list = []
 
-        # --- 1) DOI → prova indice in cascata (prefissato, non prefissato, raw) ---
+        # --- 1) DOI → lookup indice ---
         t0 = time.perf_counter()
-        norm_doi_pref = self.doi_m.normalise(doi, include_prefix=True) if doi else None
-        norm_doi_nopref = self.doi_m.normalise(doi, include_prefix=False) if doi else None
-
-        raw_index = None
-        for key in (norm_doi_pref, norm_doi_nopref, doi):
-            if not key:
-                continue
-            raw_index = self.orcid_finder(key)
-            if raw_index:
-                break  # trovato qualcosa nell'indice
+        raw_index = self.orcid_finder(doi) if doi else None
         self._t_orcid_finder += time.perf_counter() - t0
 
         # --- 2) Parser indice → lista candidati (family, given, orcid normalizzato) ---

@@ -111,15 +111,21 @@ def _extract_redis_ids_and_update(
 ) -> None:
     all_br: list[str] = []
     all_ra: list[str] = []
+    all_dois_for_orcid_index: list[str] = []
 
     for entity in entity_list:
-        if entity and "reference" in entity:
-            has_doi_references = bool([x for x in entity["reference"] if x.get("DOI")])
-            if has_doi_references:
-                ent_all_br, ent_all_ra = processor.extract_all_ids(entity, processing_citing)
-                all_br.extend(ent_all_br)
-                all_ra.extend(ent_all_ra)
+        if entity:
+            doi = entity.get("DOI")
+            if doi:
+                all_dois_for_orcid_index.append(doi)
+            if "reference" in entity:
+                has_doi_references = bool([x for x in entity["reference"] if x.get("DOI")])
+                if has_doi_references:
+                    ent_all_br, ent_all_ra = processor.extract_all_ids(entity, processing_citing)
+                    all_br.extend(ent_all_br)
+                    all_ra.extend(ent_all_ra)
 
+    processor.prefetch_doi_orcid_index(all_dois_for_orcid_index)
     redis_validity_values_br = processor.get_redis_validity_list(all_br, "br")
     redis_validity_values_ra = processor.get_redis_validity_list(all_ra, "ra")
     processor.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
