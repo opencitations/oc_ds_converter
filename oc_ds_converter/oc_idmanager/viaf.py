@@ -42,7 +42,10 @@ class ViafManager(IdentifierManager):
         else:
             self.storage_manager = storage_manager
 
-        self._api = "http://www.viaf.org/viaf/"
+        self._api = f"http://viaf.org/viaf/"
+        self._headers = {
+            "Accept": "application/json"
+        }
         self._use_api_service = use_api_service
         self._p = "viaf:"
 
@@ -106,22 +109,30 @@ class ViafManager(IdentifierManager):
                 while tentative:
                     tentative -= 1
                     try:
-                        r = get(self._api + quote(viaf_id) + '/viaf.json', headers=self._headers, timeout=30)
+                        r = get(self._api + quote(viaf_id), headers=self._headers, timeout=30)
                         if r.status_code == 200:
                             r.encoding = "utf-8"
                             json_res = loads(r.text)
                             if get_extra_info:
-                                try:
-                                    result = True if json_res['viafID'] == str(viaf_id) else False
-                                    extra_info_result["valid"] = result
-                                    return result, extra_info_result
-                                except KeyError:
+                                VIAFCluster = json_res.get('ns1:VIAFCluster')
+                                if VIAFCluster:
+                                    try:
+                                        result = True if str(VIAFCluster['ns1:viafID']) == str(viaf_id) else False
+                                        extra_info_result["valid"] = result
+                                        return result, extra_info_result
+                                    except KeyError:
+                                        extra_info_result["valid"] = False
+                                        return False, extra_info_result
+                                else:
                                     extra_info_result["valid"] = False
                                     return False, extra_info_result
-                            try:
-                                return True if json_res['viafID'] == str(viaf_id) else False
-                            except KeyError:
-                                return False
+                            VIAFCluster = json_res.get('ns1:VIAFCluster')
+                            if VIAFCluster:
+                                try:
+                                    result = True if str(VIAFCluster['ns1:viafID']) == str(viaf_id) else False
+                                    return result
+                                except KeyError:
+                                    return False
                         elif 400 <= r.status_code < 500:
                             if get_extra_info:
                                 extra_info_result["valid"] = False
