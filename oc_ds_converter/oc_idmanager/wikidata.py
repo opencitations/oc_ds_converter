@@ -23,36 +23,54 @@ from urllib.parse import quote, unquote
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
+from typing import Type, Optional
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 
 
 class WikidataManager(IdentifierManager):
     """This class implements an identifier manager for wikidata identifier"""
 
-    def __init__(self, data={}, use_api_service=True):
+    def __init__(self, use_api_service = True, storage_manager:Optional[StorageManager] = None):
         """Wikidata manager constructor."""
         super(WikidataManager, self).__init__()
         self._api = "https://www.wikidata.org/wiki/Special:EntityData/"
         self._use_api_service = use_api_service
+        if storage_manager is None:
+            self.storage_manager = InMemoryStorageManager()
+        else:
+            self.storage_manager = storage_manager
         self._p = "wikidata:"
-        self._data = data
+
+    def validated_as_id(self, id_string):
+        wikidata_validation_value = self.storage_manager.get_value(id_string)
+        if isinstance(wikidata_validation_value, bool):
+            return wikidata_validation_value
+        else:
+            return None
 
     def is_valid(self, wikidata_id, get_extra_info=False):
         wikidata_id = self.normalise(wikidata_id, include_prefix=True)
 
         if wikidata_id is None:
+            if get_extra_info:
+                return False, {"id":wikidata_id, "valid": False}
             return False
         else:
-            if wikidata_id not in self._data or self._data[wikidata_id] is None:
+            wikidata_validation_value = self.storage_manager.get_value(wikidata_id)
+            if isinstance(wikidata_validation_value, bool):
+                if get_extra_info:
+                    return wikidata_validation_value, {"id": wikidata_id, "valid": wikidata_validation_value}
+                return wikidata_validation_value
+
+            else:
                 if get_extra_info:
                     info = self.exists(wikidata_id, get_extra_info=True)
-                    self._data[wikidata_id] = info[1]
+                    self.storage_manager.set_full_value(wikidata_id, info[1])
                     return (info[0] and self.syntax_ok(wikidata_id)), info[1]
-                self._data[wikidata_id] = dict()
-                self._data[wikidata_id]["valid"] = True if (self.syntax_ok(wikidata_id) and self.exists(wikidata_id)) else False
-                return self._data[wikidata_id].get("valid")
-            if get_extra_info:
-                return self._data[wikidata_id].get("valid"), self._data[wikidata_id]
-            return self._data[wikidata_id].get("valid")
+                validity_check = self.syntax_ok(wikidata_id) and self.exists(wikidata_id)
+                self.storage_manager.set_value(wikidata_id, validity_check)
+                return validity_check
 
     def normalise(self, id_string, include_prefix=False):
         try:
