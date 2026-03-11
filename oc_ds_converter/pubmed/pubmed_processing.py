@@ -22,8 +22,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class PubmedProcessing(RaProcessor):
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_pubmed: str | None = None, journals_filepath: str | None = None, testing: bool = True):
-        super(PubmedProcessing, self).__init__(orcid_index, doi_csv)
+    def __init__(self, orcid_index: str | None = None, publishers_filepath_pubmed: str | None = None, journals_filepath: str | None = None, testing: bool = True, exclude_existing: bool = False):
+        super().__init__(orcid_index)
+        self.exclude_existing = exclude_existing
         self.nihrf = NIHResourceFinder()
         self.doi_m = DOIManager()
         self.pmid_m = PMIDManager()
@@ -92,7 +93,7 @@ class PubmedProcessing(RaProcessor):
         row = dict()
         doi = ""
         pmid = self.pmid_m.normalise(str(item['pmid']))
-        if (pmid and self.doi_set and pmid in self.doi_set) or (pmid and not self.doi_set):
+        if pmid:
             # create empty row
             keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
                     'publisher', 'editor']

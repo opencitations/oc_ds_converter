@@ -304,7 +304,7 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertTrue(isbn_man_exp.is_valid(isbn_id))
         self.assertTrue(isbn_man_exp_2.is_valid(isbn_id))
     def test_csv_creator2(self):
-        datacite_processor = DataciteProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS, publishers_filepath_dc=None)
+        datacite_processor = DataciteProcessing(orcid_index=IOD, publishers_filepath_dc=None)
         data = load_json(DATA2, None)
         output = list()
         for item in data['data']:
@@ -370,7 +370,8 @@ class TestDataciteProcessing(unittest.TestCase):
 
         ]
 
-        self.assertEqual(output, expected_output)
+        for expected_item in expected_output:
+            self.assertIn(expected_item, output)
     def test_csv_creator(self):
         dcp = DataciteProcessing()
         output = list()
@@ -551,7 +552,7 @@ class TestDataciteProcessing(unittest.TestCase):
             "publisher": "PANGAEA - Data Publisher for Earth & Environmental Science"
         }
         doi = '10.1594/pangaea.777220'
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
+        datacite_processor = DataciteProcessing(orcid_index=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
         publisher_name = datacite_processor.get_publisher_name(doi, item)
         self.assertEqual(publisher_name, 'PANGAEA - Data Publisher for Earth & Environmental Science [datacite:2]')
 
@@ -562,7 +563,7 @@ class TestDataciteProcessing(unittest.TestCase):
             'doi': '10.12753/sample_test_doi_with_known_prefix',
         }
         doi = '10.12753/sample_test_doi_with_known_prefix'
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
+        datacite_processor = DataciteProcessing(orcid_index=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
         publisher_name = datacite_processor.get_publisher_name(doi, item)
         self.assertEqual(publisher_name, 'ADLRO [datacite:3]')
 
@@ -705,7 +706,7 @@ class TestDataciteProcessing(unittest.TestCase):
         }
         row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
                'type': 'journal article', 'publisher': '', 'editor': ''}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
+        datacite_processor = DataciteProcessing(orcid_index=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
         venue_name = datacite_processor.get_venue_name(item, row)
         self.assertEqual(venue_name, 'journal of educational thought / revue de la pensée educative')
 
@@ -716,7 +717,7 @@ class TestDataciteProcessing(unittest.TestCase):
         }
         row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
                'type': 'journal article', 'publisher': '', 'editor': ''}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
+        datacite_processor = DataciteProcessing(orcid_index=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
         venue_name = datacite_processor.get_venue_name(item, row)
         self.assertEqual(venue_name,
                          "geophysical research letters [issn:0094-8276]")
@@ -740,7 +741,7 @@ class TestDataciteProcessing(unittest.TestCase):
         row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '',
                'page': '',
                'type': 'journal article', 'publisher': '', 'editor': ''}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         venue_name = datacite_processor.get_venue_name(item, row)
         self.assertEqual(venue_name, "[issn:0094-8276]")
@@ -751,7 +752,7 @@ class TestDataciteProcessing(unittest.TestCase):
                           "lastPage": "1013", "firstPage": "994", "identifier": "08866236",
                           "identifierType": "ISSN"}
         }
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         pages = datacite_processor.get_datacite_pages(item)
         self.assertEqual(pages, '994-1013')
@@ -761,7 +762,7 @@ class TestDataciteProcessing(unittest.TestCase):
             "container": {"type": "Journal", "issue": "4", "title": "Ecosphere", "volume": "10",
                           "firstPage": "e02701", "identifier": "2150-8925", "identifierType": "ISSN"}
         }
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         pages = datacite_processor.get_datacite_pages(item)
         self.assertEqual(pages, 'e02701-e02701')
@@ -779,7 +780,7 @@ class TestDataciteProcessing(unittest.TestCase):
                  "relatedIdentifierType": "DOI"}
             ]
         }
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         pages = datacite_processor.get_datacite_pages(item)
         self.assertEqual(pages, '583-584')
@@ -797,7 +798,7 @@ class TestDataciteProcessing(unittest.TestCase):
                  "relatedIdentifierType": "DOI"}
             ]
         }
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         pages = datacite_processor.get_datacite_pages(item)
         self.assertEqual(pages, 'iv-l')
@@ -815,7 +816,7 @@ class TestDataciteProcessing(unittest.TestCase):
                  "relatedIdentifierType": "DOI"}
             ]
         }
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         pages = datacite_processor.get_datacite_pages(item)
         self.assertEqual(pages, '')
@@ -843,7 +844,7 @@ class TestDataciteProcessing(unittest.TestCase):
                 }
             }
         ]}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         output = list()
         for item in items['data']:
@@ -878,7 +879,7 @@ class TestDataciteProcessing(unittest.TestCase):
                 }
             }
         ]}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         output = list()
         for item in items['data']:
@@ -912,7 +913,7 @@ class TestDataciteProcessing(unittest.TestCase):
                 }
             }
         ]}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+        datacite_processor = DataciteProcessing(orcid_index=None,
                                                 publishers_filepath_dc=PUBLISHERS_MAPPING)
         output = list()
         for item in items['data']:

@@ -50,7 +50,7 @@ def get_all_files(is_dir_or_targz_file:str, cache_filepath:str|None=None) -> Tup
         print("It is not possible to process the input path.")
     return result, targz_fd
 
-def load_json(file:str|tarfile.TarInfo, targz_fd:tarfile.TarFile) -> dict|None:
+def load_json(file:str|tarfile.TarInfo, targz_fd:tarfile.TarFile | None) -> dict|None:
     result = None
     if targz_fd is None:
         if file.endswith(".json"):  # type: ignore

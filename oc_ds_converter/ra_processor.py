@@ -33,11 +33,9 @@ class RaProcessor(object):
     def __init__(
         self,
         orcid_index: str | OrcidIndexInterface | None = None,
-        doi_csv: str | None = None,
         publishers_filepath: str | None = None,
         citing_entities: str | None = None,
     ):
-        self.doi_set = CSVManager.load_csv_column_as_set(doi_csv, 'id') if doi_csv else None
         self.publishers_mapping = self.load_publishers_mapping(publishers_filepath) if publishers_filepath else None
         if orcid_index is None:
             self.orcid_index: OrcidIndexInterface = CSVManager(None)

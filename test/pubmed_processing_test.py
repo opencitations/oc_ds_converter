@@ -25,7 +25,7 @@ class TestPubmedProcessing(unittest.TestCase):
     maxDiff = None
 
     def test_csv_creator(self):
-        pubmed_processor = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER, publishers_filepath_pubmed=None, journals_filepath=None)
+        pubmed_processor = PubmedProcessing(orcid_index=IOD, publishers_filepath_pubmed=None, journals_filepath=None)
         data = open(DATA, newline="")
         reader = csv.DictReader(data)
         output = list()
@@ -62,6 +62,17 @@ class TestPubmedProcessing(unittest.TestCase):
             {'id': 'pmid:3 doi:10.1016/0006-291x(75)90498-2',
              'title': 'Metal substitutions incarbonic anhydrase: a halide ion probe study.',
              'author': 'R J Smith; R G Bryant',
+             'pub_date': '1975',
+             'venue': f'Biochemical and biophysical research communications {issnstr_1}',
+             'volume': '',
+             'issue': '',
+             'page': '',
+             'type': 'journal article',
+             'publisher': 'Elsevier BV',
+             'editor': ''},
+            {'id': 'pmid:4 doi:10.1016/0006-291x(75)90506-9',
+             'title': 'Effect of chloroquine on cultured fibroblasts: release of lysosomal hydrolases and inhibition of their uptake.',
+             'author': 'U N Wiesmann; S DiDonato; N N Herschkowitz',
              'pub_date': '1975',
              'venue': f'Biochemical and biophysical research communications {issnstr_1}',
              'volume': '',
@@ -116,6 +127,17 @@ class TestPubmedProcessing(unittest.TestCase):
              'type': 'journal article',
              'publisher': 'Elsevier BV',
              'editor': ''},
+            {'id': 'pmid:4 doi:10.1016/0006-291x(75)90506-9',
+             'title': 'Effect of chloroquine on cultured fibroblasts: release of lysosomal hydrolases and inhibition of their uptake.',
+             'author': 'U N Wiesmann; S DiDonato; N N Herschkowitz',
+             'pub_date': '1975',
+             'venue': f'Biochemical and biophysical research communications {issnstr_2}',
+             'volume': '',
+             'issue': '',
+             'page': '',
+             'type': 'journal article',
+             'publisher': 'Elsevier BV',
+             'editor': ''},
             {'id': 'pmid:5 doi:10.1016/0006-291x(75)90508-2',
              'title': 'Atomic models for the polypeptide backbones of myohemerythrin and hemerythrin.',
              'author': 'W A Hendrickson; K B Ward',
@@ -132,7 +154,7 @@ class TestPubmedProcessing(unittest.TestCase):
         self.assertTrue(output == expected_output or output == expected_output_alt)
 
     def test_csv_creator_w_journal_dict(self):
-        pubmed_processor = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER, journals_filepath=JOURNALS_DICT)
+        pubmed_processor = PubmedProcessing(orcid_index=IOD, journals_filepath=JOURNALS_DICT)
         data = open(DATA, newline="")
         reader = csv.DictReader(data)
         output = list()
@@ -168,6 +190,17 @@ class TestPubmedProcessing(unittest.TestCase):
             {'id': 'pmid:3 doi:10.1016/0006-291x(75)90498-2',
              'title': 'Metal substitutions incarbonic anhydrase: a halide ion probe study.',
              'author': 'R J Smith; R G Bryant',
+             'pub_date': '1975',
+             'venue': f'Biochemical and biophysical research communications {issnstr_2}',
+             'volume': '',
+             'issue': '',
+             'page': '',
+             'type': 'journal article',
+             'publisher': 'Elsevier BV',
+             'editor': ''},
+            {'id': 'pmid:4 doi:10.1016/0006-291x(75)90506-9',
+             'title': 'Effect of chloroquine on cultured fibroblasts: release of lysosomal hydrolases and inhibition of their uptake.',
+             'author': 'U N Wiesmann; S DiDonato; N N Herschkowitz',
              'pub_date': '1975',
              'venue': f'Biochemical and biophysical research communications {issnstr_2}',
              'volume': '',
@@ -223,6 +256,17 @@ class TestPubmedProcessing(unittest.TestCase):
              'type': 'journal article',
              'publisher': 'Elsevier BV',
              'editor': ''},
+            {'id': 'pmid:4 doi:10.1016/0006-291x(75)90506-9',
+             'title': 'Effect of chloroquine on cultured fibroblasts: release of lysosomal hydrolases and inhibition of their uptake.',
+             'author': 'U N Wiesmann; S DiDonato; N N Herschkowitz',
+             'pub_date': '1975',
+             'venue': f'Biochemical and biophysical research communications {issnstr_1}',
+             'volume': '',
+             'issue': '',
+             'page': '',
+             'type': 'journal article',
+             'publisher': 'Elsevier BV',
+             'editor': ''},
             {'id': 'pmid:5 doi:10.1016/0006-291x(75)90508-2',
              'title': 'Atomic models for the polypeptide backbones of myohemerythrin and hemerythrin.',
              'author': 'W A Hendrickson; K B Ward',
@@ -241,13 +285,13 @@ class TestPubmedProcessing(unittest.TestCase):
         self.assertTrue(output == expected_output or output == expected_output_alt)
 
     def test_orcid_finder(self):
-        pubmed_processor = PubmedProcessing(IOD, WANTED_PMIDS)
+        pubmed_processor = PubmedProcessing(orcid_index=IOD)
         orcid_found = pubmed_processor.orcid_finder('10.1016/0006-291x(75)90482-9')
         expected_output = {'0000-0000-0000-0000': 'sarma, r h'}
         self.assertEqual(orcid_found, expected_output)
 
     def test_get_agents_strings_list(self):
-        pubmed_processor = PubmedProcessing(orcid_index=ALL_CASES_IOD, doi_csv=WANTED_PMIDS)
+        pubmed_processor = PubmedProcessing(orcid_index=ALL_CASES_IOD, )
         agents_list = [{'role': 'author', 'name': 'Arianna Moretti', 'family': '', 'given': ''}, {'role': 'author', 'name': 'S Peroni', 'family': '', 'given': ''}, {'role': 'author', 'name': 'Chiara D Giambattista', 'family': '', 'given': ''}]
         ag = pubmed_processor.get_agents_strings_list("10.3000/1000000001", agents_list)
         self.assertEqual(ag[0], ['Moretti, Arianna [orcid:0000-0001-5486-7070]', 'Peroni, Silvio [orcid:0000-0003-0530-4305]', 'Di Giambattista, Chiara [orcid:0000-0001-8665-095X]'] )
@@ -255,14 +299,14 @@ class TestPubmedProcessing(unittest.TestCase):
     def test_get_venue_name_with_extended_map(self):
         item = {
              "journal": "Biochim Biophys Acta"}
-        pubmed_processor = PubmedProcessing(orcid_index=None, doi_csv=None, journals_filepath=JOURNALS_DICT)
+        pubmed_processor = PubmedProcessing(orcid_index=None, journals_filepath=JOURNALS_DICT)
         venue_name = pubmed_processor.get_venue_name(item, "59")
         self.assertEqual(venue_name, "Biochimica et biophysica acta [issn:0006-3002]")
 
     def test_get_venue_name_with_extended_map_ISSN(self):
         item = {
              "journal": "Biochem Biophys Res Commun"}
-        pubmed_processor = PubmedProcessing(orcid_index=None, doi_csv=None, journals_filepath=JOURNALS_DICT)
+        pubmed_processor = PubmedProcessing(orcid_index=None, journals_filepath=JOURNALS_DICT)
         venue_name = pubmed_processor.get_venue_name(item, "2")
         alt_1 = "Biochemical and biophysical research communications [issn:0006-291X issn:1090-2104]"
         alt_2 = "Biochemical and biophysical research communications [issn:1090-2104 issn:0006-291X]"
@@ -271,7 +315,7 @@ class TestPubmedProcessing(unittest.TestCase):
     def test_get_venue_name_no_extended_map(self):
         item = {
              "journal": "Biochim Biophys Acta"}
-        pubmed_processor = PubmedProcessing(orcid_index=None, doi_csv=None, journals_filepath=None)
+        pubmed_processor = PubmedProcessing(orcid_index=None, journals_filepath=None)
         venue_name = pubmed_processor.get_venue_name(item, "59")
         self.assertEqual(venue_name, "Biochimica et biophysica acta [issn:0006-3002]")
 
@@ -304,7 +348,7 @@ class TestPubmedProcessing(unittest.TestCase):
         ra_list_4 = [{'role': 'author', 'name': 'R J Smith', 'family': '', 'given': ''},
                       {'role': 'author', 'name': 'R J Smith Bryant', 'family': '', 'given': ''},
                       {'role': 'author', 'name': 'Ronald Bryant', 'family': '', 'given': ''}]
-        pubmed_processor_ra = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER, publishers_filepath_pubmed=None, journals_filepath=None)
+        pubmed_processor_ra = PubmedProcessing(orcid_index=IOD, publishers_filepath_pubmed=None, journals_filepath=None)
         homonyms_l1 = pubmed_processor_ra.find_homonyms(ra_list_1)
         homonyms_l2 = pubmed_processor_ra.find_homonyms(ra_list_2)
         homonyms_l3 = pubmed_processor_ra.find_homonyms(ra_list_3)
@@ -316,7 +360,7 @@ class TestPubmedProcessing(unittest.TestCase):
         self.assertCountEqual(homonyms_l4, {'R J Smith': ['R J Smith Bryant'], 'R J Smith Bryant': ['Ronald Bryant', 'R J Smith'], 'Ronald Bryant': ['R J Smith Bryant']})
 
     def test_compute_affinity(self):
-        pubmed_processor_ra_ca = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER, publishers_filepath_pubmed=None, journals_filepath=None)
+        pubmed_processor_ra_ca = PubmedProcessing(orcid_index=IOD, publishers_filepath_pubmed=None, journals_filepath=None)
         target_full_names = "Anna Cristiana Cardinali Santelli"
         ra_list_1 = ["Anna Cardinali", "Anna C. Santelli", "A.Cristiana Santelli Cardinali", "Anna Cristiana Santelli Cardinali", "Anna C S C", "Anna cristiana Santelli   CARDINALI"]
         ra_list_2 = ["Anna Cardinali", "Anna C. Santelli", "A.Cristiana Santelli Cardinali", "Anna C S C", "Anna cristiana Santelli   CARDINALI"]
@@ -338,7 +382,7 @@ class TestPubmedProcessing(unittest.TestCase):
 
 
     def test_redis_db(self):
-        pubmed_processor = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER, journals_filepath=JOURNALS_DICT)
+        pubmed_processor = PubmedProcessing(orcid_index=IOD, journals_filepath=JOURNALS_DICT)
         inp_ent = {'pmid': '5', 'doi': '10.1016/0006-291x(75)90508-2',
              'title': 'Atomic models for the polypeptide backbones of myohemerythrin and hemerythrin.',
              'authors': 'W A Hendrickson, K B Ward', 'year': '1975', 'journal': 'Biochem Biophys Res Commun',
@@ -373,7 +417,7 @@ class TestPubmedProcessing(unittest.TestCase):
              'authors': 'W A Hendrickson, K B Ward', 'year': '1975', 'journal': 'Biochem Biophys Res Commun',
              'cited_by': '7118409 6768892 2619971 2190210 3380793 20577584 8372226 7012375 856811 678527 33255345 33973855 402092 7012894 1257769 861288 1061139 3681996', 'references': '4882249 5059118 14834145 1056020 5509841'}
 
-        pubmed_processor = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER,
+        pubmed_processor = PubmedProcessing(orcid_index=IOD,
                                             journals_filepath=JOURNALS_DICT)
 
         citation_list = pubmed_processor.get_citations("pmid:5", inp_ent)
@@ -387,7 +431,7 @@ class TestPubmedProcessing(unittest.TestCase):
              'author': 'W A Hendrickson; K B Ward', 'pub_date': '1975', 'venue': 'Biochemical and biophysical research communications [issn:0006-291X issn:1090-2104]',
              'volume': '', 'issue': '', 'page': '', 'type': 'journal article', 'publisher': 'Elsevier BV', 'editor': ''}
 
-        pubmed_processor = PubmedProcessing(orcid_index=IOD, doi_csv=WANTED_PMIDS_FOLDER,
+        pubmed_processor = PubmedProcessing(orcid_index=IOD,
                                             journals_filepath=JOURNALS_DICT)
 
         out_citing_pmid = pubmed_processor.get_citing_pmid((inp_ent_meta))

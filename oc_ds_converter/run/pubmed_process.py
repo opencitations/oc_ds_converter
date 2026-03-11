@@ -27,7 +27,7 @@ from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
 from tqdm import tqdm
 
-from oc_ds_converter.pubmed.pubmed_processing import *
+from oc_ds_converter.pubmed.pubmed_processing import PubmedProcessing
 
 
 def to_meta_file(cur_n, lines, interval, csv_dir):
@@ -52,14 +52,14 @@ def to_meta_file(cur_n, lines, interval, csv_dir):
 
 
 def preprocess(pubmed_csv_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str,
-               journals_filepath: str | None, wanted_doi_filepath: str | None = None, verbose: bool = False, interval: int = 1000,
-               testing: bool = True, cache: str | None = None) -> None:
+               journals_filepath: str | None, verbose: bool = False, interval: int = 1000,
+               testing: bool = True, cache: str | None = None, exclude_existing: bool = False) -> None:
     if not interval:
         interval = 1000
     else:
         try:
             interval = int(interval)
-        except:
+        except ValueError:
             interval = 1000
 
     if not os.path.exists(csv_dir):
@@ -67,34 +67,32 @@ def preprocess(pubmed_csv_dir: str, publishers_filepath: str | None, orcid_doi_f
 
     filter = ["pmid", "doi", "title", "authors", "year", "journal", "references"]
     if verbose:
-        if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
+        if publishers_filepath or orcid_doi_filepath:
             what = list()
             if publishers_filepath:
                 what.append('publishers mapping')
             if orcid_doi_filepath:
                 what.append('DOI-ORCID index')
-            if wanted_doi_filepath:
-                what.append('wanted DOIs CSV')
             log = '[INFO: pubmed_process] Processing: ' + '; '.join(what)
             print(log)
 
-    pubmed_csv = PubmedProcessing(orcid_index=orcid_doi_filepath, doi_csv=wanted_doi_filepath,
+    pubmed_csv = PubmedProcessing(orcid_index=orcid_doi_filepath,
                                   publishers_filepath_pubmed=publishers_filepath, journals_filepath=journals_filepath,
-                                  testing=testing)
+                                  testing=testing, exclude_existing=exclude_existing)
     if verbose:
         print(f'[INFO: pubmed_process] Getting all files from {pubmed_csv_dir}')
 
     all_files, targz_fd = get_all_files_by_type(pubmed_csv_dir, ".csv")
-    lines = []
-    count = 0
-    skiprows = range(1, count) if count > 0 else None
+    lines: list[dict[str, str]] = []
+    count: int = 0
     rows_done = 0
     if cache:
         if not os.path.exists(cache):
             with open(cache, 'w', encoding='utf8') as f:
                 f.write('0')
         with open(cache, 'r', encoding='utf8') as f:
-            count = f.read().splitlines()[0]
+            count = int(f.read().splitlines()[0])
+    skiprows = list(range(1, count)) if count > 0 else None
     dtype = {'pmid': str, 'doi': str, 'title': str, 'authors': str, 'year': str, 'journal': str, 'references': str}
     for file in all_files:
         chunksize = 100000
@@ -102,13 +100,17 @@ def preprocess(pubmed_csv_dir: str, publishers_filepath: str | None, orcid_doi_f
             number_of_rows = sum(1 for _ in f) - 1
         pbar = tqdm(total=number_of_rows)
         pbar.update(count)
-        with pd.read_csv(file, usecols=filter, chunksize=chunksize, skiprows=skiprows, dtype=dtype) as reader:
+        with pd.read_csv(file, usecols=filter, chunksize=chunksize, skiprows=skiprows, dtype=dtype) as reader:  # pyright: ignore[reportCallIssue,reportArgumentType]
             for chunk in reader:
                 chunk.fillna("", inplace=True)
                 df_dict_list = chunk.to_dict("records")
                 filt_values = [d for d in df_dict_list if (d.get("cited_by") or d.get("references"))]
 
                 for item in filt_values:
+                    if pubmed_csv.exclude_existing:
+                        pmid = pubmed_csv.pmid_m.normalise(str(item['pmid']), include_prefix=True)
+                        if pmid and pubmed_csv.BR_redis.exists_as_set(pmid):
+                            continue
                     tabular_data = pubmed_csv.csv_creator(item)
                     if tabular_data:
                         lines.append(tabular_data)
@@ -149,16 +151,16 @@ if __name__ == '__main__':
                             help='JSON filepath containing information about the ISSN - journal names mapping')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
-    arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
-                            help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
                             help='Show a loading bar, elapsed time and estimated time')
     arg_parser.add_argument('-int', '--interval', dest='interval', type=int, required=False, default=1000,
                             help='int number of lines for each output csv. If nothing is declared, the default is 1000')
     arg_parser.add_argument('-t', '--testing', dest='testing', action='store_true', required=False,
                             help='testing flag to define what to use for data validation (fakeredis instance or real redis DB)')
-    arg_parser.add_argument('-c', '--cache', dest='cache', required=False,
+    arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                             help='cache txt filepath')
+    arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
+                            help='Exclude entities that already exist in Meta from the output CSV')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -176,12 +178,11 @@ if __name__ == '__main__':
     journals_filepath = normalize_path(journals_filepath) if journals_filepath else None
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
-    wanted_doi_filepath = settings['wanted_doi_filepath'] if settings else args.wanted_doi_filepath
-    wanted_doi_filepath = normalize_path(wanted_doi_filepath) if wanted_doi_filepath else None
     verbose = settings['verbose'] if settings else args.verbose
     testing = settings['testing'] if settings else args.testing
+    exclude_existing = settings.get('exclude_existing', False) if settings else args.exclude_existing
     print("Data Preprocessing Phase: started")
     preprocess(pubmed_csv_dir=pubmed_csv_dir, publishers_filepath=publishers_filepath,
                journals_filepath=journals_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir,
-               wanted_doi_filepath=wanted_doi_filepath, verbose=verbose, interval=interval, testing=testing,
-               cache=args.cache)
+               verbose=verbose, interval=interval, testing=testing,
+               cache=args.cache, exclude_existing=exclude_existing)

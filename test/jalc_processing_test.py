@@ -75,8 +75,8 @@ class TestJalcProcessing(unittest.TestCase):
         }
 
     def test_csv_creator(self):
-        jalc_processor_citing = JalcProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, citing=True)
-        jalc_processor_cited = JalcProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, citing=False)
+        jalc_processor_citing = JalcProcessing(orcid_index=IOD, citing=True)
+        jalc_processor_cited = JalcProcessing(orcid_index=IOD, citing=False)
         with open(DATA, "r", encoding="utf-8") as content:
             data = json.load(content)
         output = list()
@@ -100,6 +100,17 @@ class TestJalcProcessing(unittest.TestCase):
              'page': '2_1-2_7',
              'type': 'journal article',
              'publisher': '特定非営利活動法人 日本ロケット協会',
+             'editor': ''},
+            {'id': 'doi:10.1063/1.1656693',
+             'title': '',
+             'author': '',
+             'issue': '',
+             'volume': '39',
+             'venue': '',
+             'pub_date': '1968',
+             'page': '2915-2915',
+             'type': '',
+             'publisher': '',
              'editor': ''},
             {'id': 'doi:10.1016/0022-0248(83)90411-6',
              'title': '',

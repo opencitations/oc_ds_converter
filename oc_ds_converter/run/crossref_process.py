@@ -52,7 +52,6 @@ def _run_iteration(
     preprocessed_citations_dir: str,
     csv_dir: str,
     orcid_doi_filepath: str | None,
-    wanted_doi_filepath: str | None,
     publishers_filepath: str | None,
     testing: bool,
     cache: str | None,
@@ -60,6 +59,7 @@ def _run_iteration(
     use_orcid_api: bool,
     max_workers: int = 1,
     use_redis_publishers: bool = False,
+    exclude_existing: bool = False,
 ) -> None:
     iteration_label = "citing entities" if processing_citing else "cited entities"
     iteration_num = "First" if processing_citing else "Second"
@@ -71,9 +71,9 @@ def _run_iteration(
             for filename in all_files:
                 was_processed = get_citations_and_metadata(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                    wanted_doi_filepath, publishers_filepath,
+                    publishers_filepath,
                     testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api,
-                    use_redis_publishers=use_redis_publishers
+                    use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing
                 )
                 advance_progress(progress, task, processed=was_processed)
         else:
@@ -86,8 +86,9 @@ def _run_iteration(
                     future = executor.submit(
                         get_citations_and_metadata,
                         filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                        wanted_doi_filepath, publishers_filepath,
-                        testing, cache, processing_citing, use_orcid_api, use_redis_publishers
+                        publishers_filepath,
+                        testing, cache, processing_citing, use_orcid_api, use_redis_publishers,
+                        exclude_existing
                     )
                     futures.append(future)
                 for future in futures:
@@ -201,9 +202,12 @@ def _process_citing_entities(
     t_normalise = 0.0
     t_storage_check = 0.0
     t_csv_creator = 0.0
+    t_meta_check = 0.0
     n_normalise = 0
     n_storage_check = 0
     n_csv_creator = 0
+    n_meta_check = 0
+    n_skipped_existing = 0
 
     for entity in source_dict:
         if entity:
@@ -223,6 +227,17 @@ def _process_citing_entities(
             n_storage_check += 1
 
             if not in_storage:
+                # If exclude_existing is enabled, skip entities that already exist in Meta
+                if processor.exclude_existing:
+                    t0 = time.perf_counter()
+                    exists_in_meta = processor.BR_redis.exists_as_set(norm_source_id)
+                    t_meta_check += time.perf_counter() - t0
+                    n_meta_check += 1
+                    if exists_in_meta:
+                        n_skipped_existing += 1
+                        processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
+                        continue
+
                 # Add the id as valid to the temporary storage manager and create a meta csv row
                 processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
                 t0 = time.perf_counter()
@@ -235,11 +250,15 @@ def _process_citing_entities(
                     if processed_source_id:
                         citing_entity_rows.append(source_tab_data)
 
-    console.print(
+    stats_line = (
         f"  [dim][citing] normalise={t_normalise:.2f}s({n_normalise}) "
         f"storage_check={t_storage_check:.2f}s({n_storage_check}) "
-        f"csv_creator={t_csv_creator:.2f}s({n_csv_creator})[/dim]"
+        f"csv_creator={t_csv_creator:.2f}s({n_csv_creator})"
     )
+    if processor.exclude_existing:
+        stats_line += f" meta_check={t_meta_check:.2f}s({n_meta_check}) skipped={n_skipped_existing}"
+    stats_line += "[/dim]"
+    console.print(stats_line)
     processor.log_csv_creator_stats()
     return citing_entity_rows
 
@@ -255,10 +274,13 @@ def _process_cited_entities(
     t_validated_as = 0.0
     t_to_validated = 0.0
     t_csv_creator = 0.0
+    t_meta_check = 0.0
     n_normalise = 0
     n_validated_as = 0
     n_to_validated = 0
     n_csv_creator = 0
+    n_meta_check = 0
+    n_skipped_existing = 0
 
     for entity in source_dict:
         if entity and "reference" in entity:
@@ -294,6 +316,17 @@ def _process_cited_entities(
                                 n_to_validated += 1
 
                                 if norm_id in validated_list:
+                                    valid_target_ids.append(norm_id)
+                                    # If exclude_existing is enabled, skip metadata creation for entities already in Meta
+                                    if processor.exclude_existing:
+                                        t0 = time.perf_counter()
+                                        exists_in_meta = processor.BR_redis.exists_as_set(norm_id)
+                                        t_meta_check += time.perf_counter() - t0
+                                        n_meta_check += 1
+                                        if exists_in_meta:
+                                            n_skipped_existing += 1
+                                            continue
+
                                     cited_entity_dict = {"DOI": norm_id}
                                     t0 = time.perf_counter()
                                     target_tab_data = processor.csv_creator(cited_entity_dict)
@@ -304,19 +337,22 @@ def _process_cited_entities(
                                         processed_target_id = target_tab_data.get("id")
                                         if processed_target_id:
                                             cited_entity_rows.append(target_tab_data)
-                                            valid_target_ids.append(norm_id)
                             elif stored_validity is True:
                                 valid_target_ids.append(norm_id)
 
                     for target_id in valid_target_ids:
                         citation_rows.append({"citing": norm_source_id, "cited": target_id})
 
-    console.print(
+    stats_line = (
         f"  [dim][cited] normalise={t_normalise:.2f}s({n_normalise}) "
         f"validated_as={t_validated_as:.2f}s({n_validated_as}) "
         f"to_validated={t_to_validated:.2f}s({n_to_validated}) "
-        f"csv_creator={t_csv_creator:.2f}s({n_csv_creator})[/dim]"
+        f"csv_creator={t_csv_creator:.2f}s({n_csv_creator})"
     )
+    if processor.exclude_existing:
+        stats_line += f" meta_check={t_meta_check:.2f}s({n_meta_check}) skipped={n_skipped_existing}"
+    stats_line += "[/dim]"
+    console.print(stats_line)
     processor.log_validation_stats()
     processor.log_csv_creator_stats()
     return cited_entity_rows, citation_rows
@@ -326,13 +362,13 @@ def preprocess(
     crossref_json_dir: str,
     orcid_doi_filepath: str | None,
     csv_dir: str,
-    wanted_doi_filepath: str | None = None,
     cache: str | None = None,
     testing: bool = True,
     max_workers: int = 1,
     use_orcid_api: bool = True,
     update_publishers: bool = False,
     publishers_max_age: int = 30,
+    exclude_existing: bool = False,
 ) -> None:
 
     # create output dir if does not exist
@@ -374,9 +410,6 @@ def preprocess(
     else:
         console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
 
-    if wanted_doi_filepath:
-        console.print('[cyan]Processing: wanted DOIs CSV[/cyan]')
-
     # create output dir for citation data
     preprocessed_citations_dir = csv_dir + "_citations"
     if not os.path.exists(preprocessed_citations_dir):
@@ -389,12 +422,11 @@ def preprocess(
 
     iteration_args = (
         all_files, targz_fd, preprocessed_citations_dir, csv_dir, None,
-        wanted_doi_filepath, publishers_filepath,
-        testing, cache
+        publishers_filepath, testing, cache
     )
 
-    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers)
-    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers)
+    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing)
+    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing)
 
     # DELETE CACHE AND .LOCK FILE
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
@@ -408,9 +440,9 @@ def preprocess(
 
 def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath: str | None,
+                               publishers_filepath: str | None,
                                testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool,
-                               use_redis_publishers: bool = False) -> bool:
+                               use_redis_publishers: bool = False, exclude_existing: bool = False) -> bool:
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
     if cache:
@@ -452,9 +484,10 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
 
     t0 = time.perf_counter()
     crossref_csv = CrossrefProcessing(
-        orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath=publishers_filepath,
+        orcid_index=orcid_index, publishers_filepath=publishers_filepath,
         testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api,
-        use_redis_orcid_index=True, use_redis_publishers=use_redis_publishers
+        use_redis_orcid_index=True, use_redis_publishers=use_redis_publishers,
+        exclude_existing=exclude_existing
     )
     t_init = time.perf_counter() - t0
 
@@ -525,8 +558,6 @@ if __name__ == '__main__':  # pragma: no cover
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='Directory containing DOI-ORCID index CSV files. If specified, updates the Redis '
                                  'DOI-ORCID index database. If not specified, uses the existing index in Redis.')
-    arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
-                            help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                             help='Path to a JSON file for caching processed files. Tracks which files have been '
                                  'processed to allow resuming. Deleted at the end of successful processing.')
@@ -542,6 +573,9 @@ if __name__ == '__main__':  # pragma: no cover
                             help='Force update of publishers data from Crossref API, ignoring age check')
     arg_parser.add_argument('--publishers-max-age', dest='publishers_max_age', required=False, default=30, type=int,
                             help='Maximum age in days for publishers data before automatic update (default: 30)')
+    arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
+                            help='Exclude entities that already exist in Meta from the output CSV (metadata only, '
+                                 'not citations). When enabled, checks DB-META-BR before creating metadata rows.')
 
     args = arg_parser.parse_args()
     config = args.config
@@ -555,8 +589,6 @@ if __name__ == '__main__':  # pragma: no cover
     csv_dir = normalize_path(csv_dir)
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
-    wanted_doi_filepath = settings['wanted_doi_filepath'] if settings else args.wanted_doi_filepath
-    wanted_doi_filepath = normalize_path(wanted_doi_filepath) if wanted_doi_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     testing = settings.get('testing', args.testing) if settings else args.testing
@@ -565,6 +597,7 @@ if __name__ == '__main__':  # pragma: no cover
     use_orcid_api = not no_orcid_api
     update_publishers = settings.get('update_publishers', args.update_publishers) if settings else args.update_publishers
     publishers_max_age = settings.get('publishers_max_age', args.publishers_max_age) if settings else args.publishers_max_age
+    exclude_existing = settings.get('exclude_existing', args.exclude_existing) if settings else args.exclude_existing
 
     if max_workers > 1 and crossref_json_dir.endswith('.tar.gz'):
         arg_parser.error(
@@ -576,11 +609,11 @@ if __name__ == '__main__':  # pragma: no cover
         crossref_json_dir=crossref_json_dir,
         orcid_doi_filepath=orcid_doi_filepath,
         csv_dir=csv_dir,
-        wanted_doi_filepath=wanted_doi_filepath,
         cache=cache,
         testing=testing,
         max_workers=max_workers,
         use_orcid_api=use_orcid_api,
         update_publishers=update_publishers,
         publishers_max_age=publishers_max_age,
+        exclude_existing=exclude_existing,
     )

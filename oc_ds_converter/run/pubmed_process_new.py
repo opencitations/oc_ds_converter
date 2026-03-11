@@ -34,7 +34,7 @@ from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 
 def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
-               csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False,
+               csv_dir: str, cache: str | None = None, verbose: bool = False,
                testing: bool = True, max_workers: int = 1) -> None:
 
     els_to_be_skipped=[]
@@ -61,14 +61,12 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
         os.makedirs(preprocessed_citations_dir)
 
     if verbose:
-        if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
+        if publishers_filepath or orcid_doi_filepath:
             what = list()
             if publishers_filepath:
                 what.append('publishers mapping')
             if orcid_doi_filepath:
                 what.append('DOI-ORCID index')
-            if wanted_doi_filepath:
-                what.append('wanted DOIs CSV')
             log = '[INFO: jalc_process] Processing: ' + '; '.join(what)
             print(log)
 
@@ -105,11 +103,11 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
     if max_workers == 1:
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                       wanted_doi_filepath, publishers_filepath,
+                                       publishers_filepath,
                                        testing, cache, is_citing=True)
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                       wanted_doi_filepath, publishers_filepath,
+                                       publishers_filepath,
                                        testing, cache, is_citing=False)
 
 
@@ -118,14 +116,14 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
             for zip_file in all_input_zip:
                 executor.submit(
                     get_citations_and_metadata,
-                    zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
+                    zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                     publishers_filepath, testing, cache, True)
 
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for zip_file in all_input_zip:
                 executor.submit(
                     get_citations_and_metadata,
-                    zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath, wanted_doi_filepath,
+                    zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                     publishers_filepath, testing, cache, False)
 
     if cache:
@@ -307,10 +305,8 @@ def assign_chunks(n_processes, interval, n_total_rows, cache, lock=None) -> tupl
 
 
 def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, csv_dir: str,
-                               orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath_jalc: str | None,
+                               orcid_index: str | None, publishers_filepath_jalc: str | None,
                                testing: bool, cache: str | None, is_citing: bool):
-    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -346,7 +342,7 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         if not is_citing and filename in cache_dict["cited"]:
             return
 
-    jalc_csv = JalcProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
+    jalc_csv = JalcProcessing(orcid_index=orcid_index,
                               publishers_filepath_jalc=publishers_filepath_jalc,
                               testing=testing, citing=is_citing)
     index_citations_to_csv = []
@@ -550,8 +546,6 @@ if __name__ == '__main__':
                             help='CSV file path containing information about publishers (id, name, prefix)')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
-    arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
-                            help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                             help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
@@ -577,14 +571,12 @@ if __name__ == '__main__':
     publishers_filepath = normalize_path(publishers_filepath) if publishers_filepath else None
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
-    wanted_doi_filepath = settings['wanted_doi_filepath'] if settings else args.wanted_doi_filepath
-    wanted_doi_filepath = normalize_path(wanted_doi_filepath) if wanted_doi_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
     testing = settings['testing'] if settings else args.testing
     max_workers = settings['max_workers'] if settings else args.max_workers
 
-    preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, testing=testing,
+    preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, cache=cache, verbose=verbose, testing=testing,
                max_workers=max_workers)
 

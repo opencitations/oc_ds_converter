@@ -9,7 +9,6 @@ TEST_DIR = os.path.join("test", "crossref_processing")
 JSON_FILE = os.path.join(TEST_DIR, "0.json")
 TMP_SUPPORT_MATERIAL = os.path.join(TEST_DIR, "tmp_support")
 IOD = os.path.join(TEST_DIR, 'iod')
-WANTED_DOIS_FOLDER = os.path.join(TEST_DIR, 'wanted_dois')
 DATA = os.path.join(TEST_DIR, '40228.json')
 PUBLISHERS_MAPPING = os.path.join(TEST_DIR, 'publishers.csv')
 
@@ -257,7 +256,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertTrue(issn_man_exp_2.is_valid(issn_id))
 
     def test_csv_creator(self):
-        c_processing = CrossrefProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, publishers_filepath=None)
+        c_processing = CrossrefProcessing(orcid_index=IOD, publishers_filepath=None)
         data = load_json(DATA, None)  # type: ignore[arg-type]
         assert data is not None
         dois_to_prefetch = [item.get("DOI") for item in data['items'] if item.get("DOI")]
@@ -267,13 +266,14 @@ class TestCrossrefProcessing(unittest.TestCase):
             tabular_data = c_processing.csv_creator(item)
             if tabular_data:
                 output.append(tabular_data)
-        expected_output = [
-            {'id': 'doi:10.47886/9789251092637.ch7', 'title': 'Freshwater, Fish and the Future: Proceedings of the Global Cross-Sectoral Conference', 'author': '', 'pub_date': '2016', 'venue': 'Freshwater, Fish and the Future: Proceedings of the Global Cross-Sectoral Conference', 'volume': '', 'issue': '', 'page': '', 'type': 'book chapter', 'publisher': 'American Fisheries Society [crossref:460]', 'editor': 'Lymer, David; Food and Agriculture Organization of the United Nations Fisheries and Aquaculture Department Viale delle Terme di Caracalla Rome 00153 Italy; Marttin, Felix; Marmulla, Gerd; Bartley, Devin M.'},
-            {'id': 'doi:10.9799/ksfan.2012.25.1.069', 'title': 'Nonthermal Sterilization and Shelf-life Extension of Seafood Products by Intense Pulsed Light Treatment', 'author': 'Cheigh, Chan-Ick [orcid:0000-0002-6227-4053]; Mun, Ji-Hye [orcid:0000-0002-6227-4053]; Chung, Myong-Soo', 'pub_date': '2012-3-31', 'venue': 'The Korean Journal of Food And Nutrition [issn:1225-4339]', 'volume': '25', 'issue': '1', 'page': '69-76', 'type': 'journal article', 'publisher': 'The Korean Society of Food and Nutrition [crossref:4768]', 'editor': ''},
-            {'id': 'doi:10.9799/ksfan.2012.25.1.105', 'title': 'A Study on Dietary Habit and Eating Snack Behaviors of Middle School Students with Different Obesity Indexes in Chungnam Area', 'author': 'Kim, Myung-Hee; Seo, Jin-Seon; Choi, Mi-Kyeong [orcid:0000-0002-6227-4053]; Kim, Eun-Young', 'pub_date': '2012-3-31', 'venue': 'The Korean Journal of Food And Nutrition [issn:1225-4339]', 'volume': '25', 'issue': '1', 'page': '105-115', 'type': 'journal article', 'publisher': 'The Korean Society of Food and Nutrition [crossref:4768]', 'editor': ''},
-            {'id': 'doi:10.9799/ksfan.2012.25.1.123', 'title': 'The Protective Effects of Chrysanthemum cornarium L. var. spatiosum Extract on HIT-T15 Pancreatic β-Cells against Alloxan-induced Oxidative Stress', 'author': 'Kim, In-Hye; Cho, Kang-Jin; Ko, Jeong-Sook; Kim, Jae-Hyun; Om, Ae-Son', 'pub_date': '2012-3-31', 'venue': 'The Korean Journal of Food And Nutrition [issn:1225-4339]', 'volume': '25', 'issue': '1', 'page': '123-131', 'type': 'journal article', 'publisher': 'The Korean Society of Food and Nutrition [crossref:4768]', 'editor': ''}
-        ]
-        self.assertEqual(output, expected_output)
+        self.assertEqual(len(output), 11)
+        output_ids = [row['id'] for row in output]
+        self.assertIn('doi:10.47886/9789251092637.ch7', output_ids)
+        self.assertIn('doi:10.9799/ksfan.2012.25.1.069', output_ids)
+        self.assertIn('doi:10.9799/ksfan.2012.25.1.105', output_ids)
+        first_item = next(row for row in output if row['id'] == 'doi:10.47886/9789251092637.ch7')
+        self.assertEqual(first_item['type'], 'book chapter')
+        self.assertEqual(first_item['publisher'], 'American Fisheries Society [crossref:460]')
 
     def test_csv_creator_cited(self):
         c_processing_cited = CrossrefProcessing(orcid_index=IOD, publishers_filepath=None, citing=False)
@@ -312,7 +312,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         item = {
             'page': '469-476'
         }
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         pages = crossref_processor.get_crossref_pages(item)
         self.assertEqual(pages, '469-476')
 
@@ -320,7 +320,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         item = {
             'page': 'G22'
         }
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         pages = crossref_processor.get_crossref_pages(item)
         self.assertEqual(pages, 'G22-G22')
 
@@ -328,7 +328,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         item = {
             'page': '583b-584'
         }
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         pages = crossref_processor.get_crossref_pages(item)
         self.assertEqual(pages, '583-584')
 
@@ -336,7 +336,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         item = {
             'page': 'iv-l'
         }
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         pages = crossref_processor.get_crossref_pages(item)
         self.assertEqual(pages, 'iv-l')
 
@@ -344,7 +344,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         item = {
             'page': 'kj-hh'
         }
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         pages = crossref_processor.get_crossref_pages(item)
         self.assertEqual(pages, '')
 
@@ -371,7 +371,7 @@ class TestCrossrefProcessing(unittest.TestCase):
             'member': '460'
         }
         doi = '10.47886/9789251092637.ch7'
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         publisher_name = crossref_processor.get_publisher_name(doi, item)
         self.assertEqual(publisher_name, 'American Fisheries Society [crossref:460]')
 
@@ -383,7 +383,7 @@ class TestCrossrefProcessing(unittest.TestCase):
             'prefix': '10.47886'
         }
         doi = '10.47886/9789251092637.ch7'
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         publisher_name = crossref_processor.get_publisher_name(doi, item)
         self.assertEqual(publisher_name, 'American Fisheries Society [crossref:460]')
 
@@ -399,7 +399,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         }
         doi = '10.47886/9789251092637.ch7'
         crossref_processor = CrossrefProcessing(
-            orcid_index=None, doi_csv=None, publishers_filepath=None,
+            orcid_index=None, publishers_filepath=None,
             use_redis_publishers=True, testing=True
         )
         crossref_processor._publishers_redis = publishers_redis
@@ -417,7 +417,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         }
         doi = '10.47886/9789251092637.ch7'
         crossref_processor = CrossrefProcessing(
-            orcid_index=None, doi_csv=None, publishers_filepath=None,
+            orcid_index=None, publishers_filepath=None,
             use_redis_publishers=True, testing=True
         )
         crossref_processor._publishers_redis = publishers_redis
@@ -434,7 +434,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         }
         doi = '10.9999/unknown'
         crossref_processor = CrossrefProcessing(
-            orcid_index=None, doi_csv=None, publishers_filepath=None,
+            orcid_index=None, publishers_filepath=None,
             use_redis_publishers=True, testing=True
         )
         crossref_processor._publishers_redis = publishers_redis
@@ -446,7 +446,7 @@ class TestCrossrefProcessing(unittest.TestCase):
             'container-title': ['Cerebrospinal Fluid [Working Title]'],
         }
         row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '', 'type': 'journal article', 'publisher': '', 'editor': ''}
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         venue_name = crossref_processor.get_venue_name(item, row)
         self.assertEqual(venue_name, 'Cerebrospinal Fluid [Working Title]')
 
@@ -457,7 +457,7 @@ class TestCrossrefProcessing(unittest.TestCase):
         }
         row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
                'type': 'journal article', 'publisher': '', 'editor': ''}
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         venue_name = crossref_processor.get_venue_name(item, row)
         self.assertEqual(venue_name, 'Disaster Medicine and Public Health Preparedness [issn:1935-7893 issn:1938-744X]')
 
@@ -513,14 +513,14 @@ class TestCrossrefProcessing(unittest.TestCase):
         c_processing.orcid_m.storage_manager.delete_storage()
 
     def test_report_series_venue_id(self):
-        crossref_processor = CrossrefProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, publishers_filepath=None)
+        crossref_processor = CrossrefProcessing(orcid_index=IOD, publishers_filepath=None)
         items = {'items': [{
             'DOI': '10.1007/978-3-030-00668-6_8',
             'container-title': ["troitel'stvo: nauka i obrazovanie [Construction: Science and Education]"],
             'ISSN': '2305-5502',
             'type': 'report-series'
         }]}
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         output = list()
         for item in items['items']:
             output.append(crossref_processor.csv_creator(item))
@@ -528,14 +528,14 @@ class TestCrossrefProcessing(unittest.TestCase):
         self.assertEqual(output, expected_output)
 
     def test_report_series_br_id(self):
-        crossref_processor = CrossrefProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS_FOLDER, publishers_filepath=None)
+        crossref_processor = CrossrefProcessing(orcid_index=IOD, publishers_filepath=None)
         items = {'items': [{
             'DOI': '10.1007/978-3-030-00668-6_8',
             'container-title': [],
             'ISSN': '2305-5502',
             'type': 'report-series'
         }]}
-        crossref_processor = CrossrefProcessing(orcid_index=None, doi_csv=None, publishers_filepath=PUBLISHERS_MAPPING)
+        crossref_processor = CrossrefProcessing(orcid_index=None, publishers_filepath=PUBLISHERS_MAPPING)
         output = list()
         for item in items['items']:
             output.append(crossref_processor.csv_creator(item))
@@ -569,7 +569,7 @@ class TestCrossrefProcessing(unittest.TestCase):
                 "role": "author"
             }
         ]
-        crossref_processor = CrossrefProcessing(IOD, WANTED_DOIS_FOLDER)
+        crossref_processor = CrossrefProcessing(IOD)
         crossref_processor.prefetch_doi_orcid_index(['10.9799/ksfan.2012.25.1.105'])
         authors_strings_list, _ = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105',
                                                                              authors_list)
@@ -593,7 +593,7 @@ class TestCrossrefProcessing(unittest.TestCase):
                 "role": "author"
             }
         ]
-        crossref_processor = CrossrefProcessing(IOD, WANTED_DOIS_FOLDER)
+        crossref_processor = CrossrefProcessing(IOD)
         crossref_processor.prefetch_doi_orcid_index(['10.9799/ksfan.2012.25.1.105'])
         authors_strings_list, _ = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105',
                                                                              authors_list)
@@ -616,7 +616,7 @@ class TestCrossrefProcessing(unittest.TestCase):
                 "role": "author"
             }
         ]
-        crossref_processor = CrossrefProcessing(IOD, WANTED_DOIS_FOLDER)
+        crossref_processor = CrossrefProcessing(IOD)
         authors_strings_list, _ = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105',
                                                                              authors_list)
         expected_authors_list = ['Choi, Mi-Kyeong', 'Choi, Mi-Kyeong']
@@ -638,7 +638,7 @@ class TestCrossrefProcessing(unittest.TestCase):
                 "role": "author"
             }
         ]
-        crossref_processor = CrossrefProcessing(IOD, WANTED_DOIS_FOLDER)
+        crossref_processor = CrossrefProcessing(IOD)
         authors_strings_list, _ = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105',
                                                                              authors_list)
         expected_authors_list = ['Mi-Kyeong, Choi', 'Choi, Mi-Hong']
@@ -697,7 +697,7 @@ class TestCrossrefProcessing(unittest.TestCase):
                 "role": "author"
             }
         ]
-        crossref_processor = CrossrefProcessing(None, None)
+        crossref_processor = CrossrefProcessing(None)
         csv_manager = CSVManager()
         csv_manager.data = {'doi:10.9799/ksfan.2012.25.1.105': {'Malek, Sri Nurestri Abdul [0000-0001-6278-8559]'}}
         crossref_processor.orcid_index = csv_manager

@@ -51,12 +51,13 @@ def _clean_markup(text: str) -> str:
 
 class CrossrefProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False, use_redis_publishers: bool = False):
+    def __init__(self, orcid_index: str | None = None, publishers_filepath: str | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False, use_redis_publishers: bool = False, exclude_existing: bool = False):
         orcid_index_obj = OrcidIndexRedis(testing=testing) if use_redis_orcid_index and orcid_index is None else orcid_index
-        super(CrossrefProcessing, self).__init__(orcid_index_obj, doi_csv, publishers_filepath)
+        super(CrossrefProcessing, self).__init__(orcid_index_obj, publishers_filepath)
         self.citing = citing
         self.use_orcid_api = use_orcid_api
         self.use_redis_publishers = use_redis_publishers
+        self.exclude_existing = exclude_existing
         self._publishers_redis: PublishersRedis | None = None
         if use_redis_publishers:
             self._publishers_redis = PublishersRedis(testing=testing)
@@ -258,7 +259,7 @@ class CrossrefProcessing(RaProcessor):
             doi = doi_manager.normalise(str(item['DOI'][0]), include_prefix=False)
         else:
             doi = doi_manager.normalise(str(item['DOI']), include_prefix=False)
-        if (doi and self.doi_set and doi in self.doi_set) or (doi and not self.doi_set):
+        if doi:
             # create empty row
             keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
                     'publisher', 'editor']

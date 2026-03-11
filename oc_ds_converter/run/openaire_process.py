@@ -23,8 +23,8 @@ from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
 
 def preprocess(
         openaire_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
-        csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False,
-        testing: bool = True, max_workers: int = 1, target: int = 50000) -> None:
+        csv_dir: str, cache: str | None = None, verbose: bool = False,
+        testing: bool = True, max_workers: int = 1, target: int = 50000, exclude_existing: bool = False) -> None:
 
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(openaire_json_dir)
@@ -57,14 +57,12 @@ def preprocess(
     if not os.path.exists(preprocessed_citations_dir):
         makedirs(preprocessed_citations_dir)
     if verbose:
-        if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
+        if publishers_filepath or orcid_doi_filepath:
             what = list()
             if publishers_filepath:
                 what.append('publishers mapping')
             if orcid_doi_filepath:
                 what.append('DOI-ORCID index')
-            if wanted_doi_filepath:
-                what.append('wanted DOIs CSV')
             log = '[INFO: openaire_process] Processing: ' + '; '.join(what)
             print(log)
 
@@ -77,7 +75,7 @@ def preprocess(
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type)
         if max_workers == 1:
             for filename in all_files:
-                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, testing, cache, target)
+                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, publishers_filepath, testing, cache, target, exclude_existing)
 
 
         elif max_workers > 1:
@@ -85,16 +83,16 @@ def preprocess(
                 for filename in all_files:
                     executor.submit(
                         get_citations_and_metadata,
-                        tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, wanted_doi_filepath, publishers_filepath, testing, cache, target
+                        tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, publishers_filepath, testing, cache, target, exclude_existing
                     )
 
 
     if cache:
         if os.path.exists(cache):
             os.remove(cache)
-    lock_file = cache + ".lock"
-    if os.path.exists(lock_file):
-        os.remove(lock_file)
+        lock_file = cache + ".lock"
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
 
     # added to avoid order-related issues in sequential tests runs
     if testing:
@@ -102,9 +100,7 @@ def preprocess(
         storage_manager.delete_storage()
 
 
-def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str | None, doi_csv: str | None, publishers_filepath_openaire: str | None, testing: bool, cache: str | None, target: int = 50000):
-
-    storage_manager = RedisStorageManager(testing=testing)
+def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str | None, publishers_filepath_openaire: str | None, testing: bool, cache: str | None, target: int = 50000, exclude_existing: bool = False):
 
     if cache:
         if not cache.endswith(".json"):
@@ -155,7 +151,7 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                     else:
                         last_part_processed = cache_dict[tar][filename]
 
-    openaire_csv = OpenaireProcessing(orcid_index=orcid_index, doi_csv=doi_csv, publishers_filepath_openaire=publishers_filepath_openaire, testing=testing)
+    openaire_csv = OpenaireProcessing(orcid_index=orcid_index, publishers_filepath_openaire=publishers_filepath_openaire, testing=testing, exclude_existing=exclude_existing)
 
     index_citations_to_csv = []
     data = []
@@ -358,7 +354,8 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                                 all_citing_valid = processed_source_ids
                                 if all_citing_valid: # It meanst that there is at least one valid id for the citing entity
                                     any_source_id = all_citing_valid[0]
-                                    data.append(source_tab_data) # Otherwise the row should not be included in meta tables
+                                    if not (openaire_csv.exclude_existing and openaire_csv.BR_redis.exists_as_set(any_source_id)):
+                                        data.append(source_tab_data) # Otherwise the row should not be included in meta tables
 
 
                         # skip creation of a new row in meta table because there is no new id to be validated
@@ -376,7 +373,8 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                                 all_cited_valid = processed_target_ids
                                 if all_cited_valid:
                                     any_target_id = all_cited_valid[0]
-                                    data.append(target_tab_data) # otherwise the row should not be included in meta tables
+                                    if not (openaire_csv.exclude_existing and openaire_csv.BR_redis.exists_as_set(any_target_id)):
+                                        data.append(target_tab_data) # otherwise the row should not be included in meta tables
 
                         # skip creation of a new row in meta table because there is no new id to be validated
                         # "any_target_id" will be chosen among the valid source entity ids, if any
@@ -413,8 +411,6 @@ if __name__ == '__main__':
                             help='CSV file path containing information about publishers (id, name, prefix)')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
-    arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
-                            help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                         help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
@@ -425,6 +421,8 @@ if __name__ == '__main__':
                                  'stored in a specific redis db, are not retrieved nor permanently saved, since an '
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int, help='Workers number')
+    arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
+                            help='Exclude entities that already exist in Meta from the output CSV')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -439,14 +437,13 @@ if __name__ == '__main__':
     publishers_filepath = normalize_path(publishers_filepath) if publishers_filepath else None
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
-    wanted_doi_filepath = settings['wanted_doi_filepath'] if settings else args.wanted_doi_filepath
-    wanted_doi_filepath = normalize_path(wanted_doi_filepath) if wanted_doi_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
     testing = settings['testing'] if settings else args.testing
     max_workers = settings['max_workers'] if settings else args.max_workers
+    exclude_existing = settings.get('exclude_existing', False) if settings else args.exclude_existing
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
-               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath,
-               cache=cache, verbose=verbose, testing=testing, max_workers=max_workers)
+               orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir,
+               cache=cache, verbose=verbose, testing=testing, max_workers=max_workers, exclude_existing=exclude_existing)

@@ -9,7 +9,6 @@ import warnings
 from os.path import exists
 from pathlib import Path
 from re import search
-from typing import Optional
 
 from bs4 import BeautifulSoup
 
@@ -28,8 +27,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class OpenaireProcessing(RaProcessor):
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_openaire: str | None = None, testing: bool = True):
-        super(OpenaireProcessing, self).__init__(orcid_index, doi_csv)
+    def __init__(self, orcid_index: str | None = None, publishers_filepath_openaire: str | None = None, testing: bool = True, exclude_existing: bool = False):
+        super(OpenaireProcessing, self).__init__(orcid_index)
+        self.exclude_existing = exclude_existing
         self._testing = testing
         self.storage_manager = RedisStorageManager(testing=testing)
 
@@ -183,10 +183,14 @@ class OpenaireProcessing(RaProcessor):
 
         if schema != "orcid":
             tmp_id_m = self.get_id_manager(schema, self.tmp_id_man_dict)
+            if tmp_id_m is None:
+                return None
             validity_value = tmp_id_m.validated_as_id(id)
 
             if validity_value is None:
                 id_m = self.get_id_manager(schema, self._id_man_dict)
+                if id_m is None:
+                    return None
                 validity_value = id_m.validated_as_id(id)
             return validity_value
 
@@ -209,8 +213,10 @@ class OpenaireProcessing(RaProcessor):
         id_man = id_man_dict.get(schema)
         return id_man
 
-    def normalise_any_id(self, id_with_prefix):
+    def normalise_any_id(self, id_with_prefix: str) -> str | None:
         id_man = self.get_id_manager(id_with_prefix, self._id_man_dict)
+        if id_man is None:
+            return None
         id_no_pref = ":".join(id_with_prefix.split(":")[1:])
         norm_id_w_pref = id_man.normalise(id_no_pref, include_prefix=True)
         return norm_id_w_pref
@@ -335,7 +341,7 @@ class OpenaireProcessing(RaProcessor):
             print(row)
             raise(TypeError)
 
-    def get_publisher_name(self, doi_list: list, item: dict) -> str:
+    def get_publisher_name(self, doi_list: list, item: dict | str) -> str:
         '''
         This function aims to return a publisher's name and id. If a mapping was provided,
         it is used to find the publisher's standardized name from its id or DOI prefix.
@@ -351,7 +357,8 @@ class OpenaireProcessing(RaProcessor):
         elif "name" not in item:
             return ""
 
-        publisher = item.get("name") if item.get("name") else ""
+        name_value = item["name"]
+        publisher: str = name_value if isinstance(name_value, str) else ""
 
         if publisher and doi_list:
             for doi in doi_list:
@@ -379,7 +386,7 @@ class OpenaireProcessing(RaProcessor):
             if schema == "doi":
                 id = ent.get("identifier")
                 splitted_pref = id.split('/')[0]
-                pref = re.findall("(10.\d{4,9})", splitted_pref)[0]
+                pref = re.findall(r"(10.\d{4,9})", splitted_pref)[0]
                 if pref == "10.48550":
                     if id.startswith("doi:"):
                         id = id[len("doi:"):]
@@ -413,7 +420,7 @@ class OpenaireProcessing(RaProcessor):
         if len(arxiv_or_figshare_dois) == 1:
             id_dict = arxiv_or_figshare_dois[0]
             is_arxiv = self._doi_prefixes_publishers_dict[id_dict.get("identifier").split("/")[0]].get("publisher") == "arxiv"
-            has_version = search("v\d+", id_dict.get("identifier"))
+            has_version = search(r"v\d+", id_dict.get("identifier"))
             if has_version: # It is necessarily a figshare doi (ARXIV have version only in arxiv id and not in arxiv dois)
                 #√
                 return arxiv_or_figshare_dois
@@ -430,7 +437,7 @@ class OpenaireProcessing(RaProcessor):
                     return self.manage_arxiv_single_id([id_dict])
 
         elif len(arxiv_or_figshare_dois) > 1:
-            versioned_arxiv_or_figshare_dois = [x for x in arxiv_or_figshare_dois if search("v\d+", x.get("identifier"))]
+            versioned_arxiv_or_figshare_dois = [x for x in arxiv_or_figshare_dois if search(r"v\d+", x.get("identifier"))]
             if versioned_arxiv_or_figshare_dois:
                 # √
                 return versioned_arxiv_or_figshare_dois
@@ -478,6 +485,8 @@ class OpenaireProcessing(RaProcessor):
                 for id_dict in id_dict_list:
                     if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
                         norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
+                        if norm_id is None:
+                            continue
                         #if self.BR_redis.get(norm_id):
                         if norm_id in self._redis_values_br:
                             result_id_dict_list.append(id_dict)
@@ -499,6 +508,8 @@ class OpenaireProcessing(RaProcessor):
                         for id_dict in id_dict_list:
                             if id_dict.get("identifier").split("/")[0] in prefixes_w_max_priority:
                                 norm_id = self.doi_m.normalise(id_dict["identifier"], include_prefix=True)
+                                if norm_id is None:
+                                    continue
                                 #if self.BR_redis.get(norm_id):
                                 if norm_id in self._redis_values_br:
                                     result_id_dict_list.append(id_dict)
@@ -554,7 +565,11 @@ class OpenaireProcessing(RaProcessor):
             for ent in to_be_processed_id_dict_list:
                 schema = ent.get("schema")
                 norm_id = ent.get("identifier")
+                if schema is None or norm_id is None:
+                    continue
                 tmp_id_man = self.get_id_manager(schema, self.tmp_id_man_dict)
+                if tmp_id_man is None:
+                    continue
                 if schema in {"pmid", "pmcid", "pmc", "arxiv", "doi"}:
                     #if self.BR_redis.get(norm_id):
                     if norm_id in self._redis_values_br:
@@ -580,8 +595,9 @@ class OpenaireProcessing(RaProcessor):
         '''
 
         agent_list = ag_list
-        if item.get("creator"):
-            for author in item.get("creator"):
+        creators = item.get("creator")
+        if creators:
+            for author in creators:
                 agent = {}
                 agent["role"] = "author"
                 agent["name"] = author.get("name") if author.get("name") else ""
@@ -606,6 +622,8 @@ class OpenaireProcessing(RaProcessor):
                     if schema.lower().strip() == "orcid":
                         if isinstance(identifier, str):
                             norm_orcid = self.orcid_m.normalise(identifier, include_prefix=True)
+                            if norm_orcid is None:
+                                continue
                             ## Check orcid presence in memory and storage before validating the id
                             validity_value_orcid = self.validated_as({"identifier":norm_orcid, "schema": schema})
                             if validity_value_orcid is True:

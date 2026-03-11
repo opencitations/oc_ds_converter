@@ -25,9 +25,8 @@ from oc_ds_converter.ra_processor import RaProcessor
 
 
 class MedraProcessing(RaProcessor):
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None):
-        self.doi_set = CSVManager.load_csv_column_as_set(doi_csv, 'id') if doi_csv else None
-        orcid_index = orcid_index if orcid_index else None
+    def __init__(self, orcid_index: str | None = None):
+        super().__init__(orcid_index)
         self.orcid_index = CSVManager(orcid_index)
         self._om = ORCIDManager()
     

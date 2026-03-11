@@ -28,7 +28,6 @@ import os.path
 import json
 import warnings
 from pathlib import Path
-from typing import Optional
 
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
@@ -40,10 +39,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class JalcProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_jalc: str | None = None, testing: bool = True, citing: bool = True):
-        """This class is responsible for producing CSV tables to be used as input for the META process
-        aimed at ingesting data from the sources."""
-        super(JalcProcessing, self).__init__(orcid_index, doi_csv)
+    def __init__(self, orcid_index: str | None = None, publishers_filepath_jalc: str | None = None, testing: bool = True, citing: bool = True, exclude_existing: bool = False):
+        super(JalcProcessing, self).__init__(orcid_index)
+        self.exclude_existing = exclude_existing
         self.citing = citing
         self._testing = testing
         self.storage_manager = RedisStorageManager(testing=testing)
@@ -138,7 +136,7 @@ class JalcProcessing(RaProcessor):
     def csv_creator(self, item: dict) -> dict:
         """This is the method that actually creates the csv table for Meta process given an entity dictionary"""
         doi = item["doi"]
-        if (doi and self.doi_set and doi in self.doi_set) or (doi and not self.doi_set):
+        if doi:
             norm_id = self.doi_m.normalise(doi, include_prefix=True)
             title_list = item.get('title_list')
             title = self.get_ja(title_list)[0]['title'] if title_list else ''

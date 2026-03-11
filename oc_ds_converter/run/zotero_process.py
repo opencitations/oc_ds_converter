@@ -35,21 +35,19 @@ from oc_ds_converter.zotero.zotero_processing import ZoteroProcessing
 
 
 
-def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False,
-               testing: bool = True, max_workers: int = 1) -> None:
+def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, cache: str | None = None, verbose: bool = False,
+               testing: bool = True, max_workers: int = 1, exclude_existing: bool = False) -> None:
 
     if cache is None:
         cache = os.path.join(csv_dir, 'cache_file.cache')
 
     if verbose:
-        if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
+        if publishers_filepath or orcid_doi_filepath:
             what = list()
             if publishers_filepath:
                 what.append('publishers mapping')
             if orcid_doi_filepath:
                 what.append('DOI-ORCID index')
-            if wanted_doi_filepath:
-                what.append('wanted DOIs CSV')
             log = '[INFO: zotero_process] Processing: ' + '; '.join(what)
             print(log)
 
@@ -69,8 +67,8 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
         #if filename.startswith("._"):
            # continue
         get_citations_and_metadata(filename, csv_dir, orcid_doi_filepath,
-                                   wanted_doi_filepath, publishers_filepath,
-                                   testing, cache, is_citing=True)
+                                   publishers_filepath,
+                                   testing, cache, is_citing=True, exclude_existing=exclude_existing)
 
     # DELETE CACHE AND .LOCK FILE
     if cache:
@@ -92,11 +90,10 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
 
 def get_citations_and_metadata(file_name, csv_dir: str,
                                orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath: str | None,
-                               testing: bool, cache: str | None, is_citing: bool):
+                               publishers_filepath: str | None,
+                               testing: bool, cache: str | None, is_citing: bool, exclude_existing: bool = False):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
-    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -129,9 +126,9 @@ def get_citations_and_metadata(file_name, csv_dir: str,
         if is_citing and filename in cache_dict["citing"]:
             return
 
-    zotero_csv = ZoteroProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
+    zotero_csv = ZoteroProcessing(orcid_index=orcid_index,
                                   publishers_filepath=publishers_filepath,
-                                  testing=testing, citing=True)
+                                  testing=testing, citing=True, exclude_existing=exclude_existing)
 
 
     data_citing = []
@@ -241,6 +238,9 @@ def get_citations_and_metadata(file_name, csv_dir: str,
             if norm_source_doi:
                 # if the id is not in the redis database, it means that it was not processed and that it is not in the csv output tables yet.
                 if not zotero_csv.doi_m.storage_manager.get_value(norm_source_doi):
+                    if zotero_csv.exclude_existing and zotero_csv.BR_redis.exists_as_set(norm_source_doi):
+                        zotero_csv.tmp_doi_m.storage_manager.set_value(norm_source_doi, True)
+                        continue
                     # add the id as valid to the temporary storage manager (whose values will be transferred to the redis storage manager at the
                     # time of the csv files creation process) and create a meta csv row for the entity in this case only
                     zotero_csv.tmp_doi_m.storage_manager.set_value(norm_source_doi, True)
@@ -288,8 +288,6 @@ if __name__ == '__main__':
                             help='CSV file path containing information about publishers (id, name, prefix)')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
-    arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
-                            help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                         help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
@@ -301,6 +299,8 @@ if __name__ == '__main__':
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int,
                             help='Workers number')
+    arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
+                            help='Exclude entities that already exist in Meta from the output CSV')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -315,16 +315,15 @@ if __name__ == '__main__':
     publishers_filepath = normalize_path(publishers_filepath) if publishers_filepath else None
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
-    wanted_doi_filepath = settings['wanted_doi_filepath'] if settings else args.wanted_doi_filepath
-    wanted_doi_filepath = normalize_path(wanted_doi_filepath) if wanted_doi_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
     testing = settings['testing'] if settings else args.testing
     max_workers = settings['max_workers'] if settings else args.max_workers
+    exclude_existing = settings.get('exclude_existing', False) if settings else args.exclude_existing
 
-    preprocess(zotero_json_dir=zotero_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, testing=testing,
-               max_workers=max_workers)
+    preprocess(zotero_json_dir=zotero_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, cache=cache, verbose=verbose, testing=testing,
+               max_workers=max_workers, exclude_existing=exclude_existing)
 
 # How to run the script and produce data
 # EXAMPLE: python oc_ds_converter/run/zotero_process.py -z /Users/ariannamorettj/Desktop/zotero_dati/input -out /Users/ariannamorettj/Desktop/zotero_dati/output

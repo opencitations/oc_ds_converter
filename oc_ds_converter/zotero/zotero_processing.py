@@ -24,7 +24,7 @@ import os.path
 import re
 import warnings
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from bs4 import BeautifulSoup
 
@@ -42,9 +42,10 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class ZoteroProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath: str | None = None,
-                 testing: bool = True, citing: bool = True):
-        super(ZoteroProcessing, self).__init__(orcid_index, doi_csv, publishers_filepath)
+    def __init__(self, orcid_index: str | None = None, publishers_filepath: str | None = None,
+                 testing: bool = True, citing: bool = True, exclude_existing: bool = False):
+        super(ZoteroProcessing, self).__init__(orcid_index, publishers_filepath)
+        self.exclude_existing = exclude_existing
         self.citing = citing
         self._testing = testing
 
@@ -251,7 +252,7 @@ class ZoteroProcessing(RaProcessor):
                 doi = doi_manager.normalise(str(item['DOI'][0]), include_prefix=False)
             else:
                 doi = doi_manager.normalise(str(item['DOI']), include_prefix=False)
-            if not ((doi and self.doi_set and doi in self.doi_set) or (doi and not self.doi_set)):
+            if not doi:
                 return row
         else:
             doi = ""

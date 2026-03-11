@@ -25,7 +25,7 @@ import csv
 import json
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from bs4 import BeautifulSoup
 
@@ -43,8 +43,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class DataciteProcessing(RaProcessor):
-    def __init__(self, orcid_index: str | None = None, doi_csv: str | None = None, publishers_filepath_dc: str | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True):
-        super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
+    def __init__(self, orcid_index: str | None = None, publishers_filepath_dc: str | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, exclude_existing: bool = False):
+        super(DataciteProcessing, self).__init__(orcid_index)
+        self.exclude_existing = exclude_existing
         self._testing = testing
         self.storage_manager = RedisStorageManager(testing=testing)
 
@@ -383,7 +384,7 @@ class DataciteProcessing(RaProcessor):
     def csv_creator(self, item: dict) -> dict:
         row = dict()
         doi = str(item['id'])
-        if (doi and self.doi_set and doi in self.doi_set) or (doi and not self.doi_set):
+        if doi:
             norm_id = self.doi_m.normalise(doi, include_prefix=True)
             keys = ['id', 'title', 'author', 'pub_date', 'venue', 'volume', 'issue', 'page', 'type',
                     'publisher', 'editor']

@@ -18,8 +18,8 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 
 
 def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
-        csv_dir: str, wanted_doi_filepath: str | None = None, cache: str | None = None, verbose: bool = False,
-        testing: bool = True, max_workers: int = 1, target: int = 50000, use_orcid_api: bool = True) -> None:
+        csv_dir: str, cache: str | None = None, verbose: bool = False,
+        testing: bool = True, max_workers: int = 1, target: int = 50000, use_orcid_api: bool = True, exclude_existing: bool = False) -> None:
 
     els_to_be_skipped = []
     if not testing and os.path.isdir(datacite_ndjson_dir):
@@ -43,14 +43,12 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
     bad_dir = os.path.join(csv_dir, "_bad")  # creato solo on-demand in read_ndjson_chunk
 
     if verbose:
-        if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
+        if publishers_filepath or orcid_doi_filepath:
             what = list()
             if publishers_filepath:
                 what.append('publishers mapping')
             if orcid_doi_filepath:
                 what.append('DOI-ORCID index')
-            if wanted_doi_filepath:
-                what.append('wanted DOIs CSV')
             log = '[INFO: datacite_process] Processing: ' + '; '.join(what)
             print(log)
 
@@ -105,14 +103,14 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
             for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
                 chunk_to_save = f'chunk_{idx}'
                 get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath,
-                                           testing, cache, is_citing=True, use_orcid_api=use_orcid_api)
+                                           publishers_filepath,
+                                           testing, cache, is_citing=True, use_orcid_api=use_orcid_api, exclude_existing=exclude_existing)
         for ndjson_file in all_input_ndjson:
             for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
                 chunk_to_save = f'chunk_{idx}'
                 get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath,
-                                           testing, cache, is_citing=False, use_orcid_api=use_orcid_api)
+                                           publishers_filepath,
+                                           testing, cache, is_citing=False, use_orcid_api=use_orcid_api, exclude_existing=exclude_existing)
 
     elif max_workers > 1:
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
@@ -121,8 +119,8 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
                     chunk_to_save = f'chunk_{idx}'
                     executor.submit(
                         get_citations_and_metadata,
-                        ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, testing, cache, True, use_orcid_api)
+                        ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
+                        publishers_filepath, testing, cache, True, use_orcid_api, exclude_existing)
 
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for ndjson_file in all_input_ndjson:
@@ -130,8 +128,8 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
                     chunk_to_save = f'chunk_{idx}'
                     executor.submit(
                         get_citations_and_metadata,
-                        ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, testing, cache, False, use_orcid_api)
+                        ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
+                        publishers_filepath, testing, cache, False, use_orcid_api, exclude_existing)
 
     if cache:
         if os.path.exists(cache):
@@ -155,10 +153,9 @@ def preprocess(datacite_ndjson_dir: str, publishers_filepath: str | None, orcid_
 
 def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citations_dir: str, csv_dir: str, chunk_to_save: str,
                                orcid_index: str | None,
-                               doi_csv: str | None, publishers_filepath: str | None,
-                               testing: bool, cache: str | None, is_citing: bool, use_orcid_api: bool):
+                               publishers_filepath: str | None,
+                               testing: bool, cache: str | None, is_citing: bool, use_orcid_api: bool, exclude_existing: bool = False):
 
-    storage_manager = RedisStorageManager(testing=testing)
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -195,9 +192,9 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
         if not is_citing and chunk_to_save in cache_dict["cited"]:
             return
 
-    dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
+    dc_csv = DataciteProcessing(orcid_index=orcid_index,
                                 publishers_filepath_dc=publishers_filepath,
-                                testing=testing, citing=is_citing, use_orcid_api=use_orcid_api)
+                                testing=testing, citing=is_citing, use_orcid_api=use_orcid_api, exclude_existing=exclude_existing)
 
     index_citations_to_csv = []
     data_subject = []
@@ -339,6 +336,9 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                             norm_subject_id = dc_csv.doi_m.normalise(subject_id, include_prefix=True)
 
                             if norm_subject_id and not dc_csv.doi_m.storage_manager.get_value(norm_subject_id):
+                                if dc_csv.exclude_existing and dc_csv.BR_redis.exists_as_set(norm_subject_id):
+                                    dc_csv.tmp_doi_m.storage_manager.set_value(norm_subject_id, True)
+                                    continue
                                 dc_csv.tmp_doi_m.storage_manager.set_value(norm_subject_id, True)
 
                                 source_tab_data = dc_csv.csv_creator(entity)
@@ -381,6 +381,14 @@ def get_citations_and_metadata(ndjson_file: str, chunk: list, preprocessed_citat
                                                 if stored_validity is None:
                                                     norm_id_dict = {"id": norm_object_id, "schema": "doi"}
                                                     if norm_object_id in dc_csv.to_validated_id_list(norm_id_dict):
+                                                        if dc_csv.exclude_existing and dc_csv.BR_redis.exists_as_set(norm_object_id):
+                                                            if relationType in ["cites", "references"]:
+                                                                rel_dict = {"rel_type": "cites", "object_id": norm_object_id}
+                                                                valid_target_ids.append(rel_dict)
+                                                            elif relationType in ["iscitedby", "isreferencedby"]:
+                                                                rel_dict = {"rel_type": "iscitedby", "object_id": norm_object_id}
+                                                                valid_target_ids.append(rel_dict)
+                                                            continue
                                                         target_tab_data = dc_csv.csv_creator({"id": norm_object_id, "type": "dois", "attributes": {"doi": norm_object_id}})
                                                         if target_tab_data:
                                                             processed_target_id = target_tab_data.get("id")
@@ -469,8 +477,6 @@ if __name__ == '__main__':
                             help='CSV file path containing information about publishers (id, name, prefix)')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
-    arg_parser.add_argument('-w', '--wanted', dest='wanted_doi_filepath', required=False,
-                            help='A CSV filepath containing what DOI to process, not mandatory')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                             help='The cache file path. This file will be deleted at the end of the process')
     arg_parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False,
@@ -484,6 +490,8 @@ if __name__ == '__main__':
                             help='Workers number')
     arg_parser.add_argument('--no-orcid-api', dest='no_orcid_api', action='store_true', required=False,
                             help='Disable ORCID API validation (use only DOI→ORCID index and caches)')
+    arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
+                            help='Exclude entities that already exist in Meta from the output CSV')
 
     args = arg_parser.parse_args()
     config = args.config
@@ -499,8 +507,6 @@ if __name__ == '__main__':
     publishers_filepath = normalize_path(publishers_filepath) if publishers_filepath else None
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
-    wanted_doi_filepath = settings['wanted_doi_filepath'] if settings else args.wanted_doi_filepath
-    wanted_doi_filepath = normalize_path(wanted_doi_filepath) if wanted_doi_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     verbose = settings['verbose'] if settings else args.verbose
@@ -508,6 +514,7 @@ if __name__ == '__main__':
     max_workers = settings['max_workers'] if settings else args.max_workers
     no_orcid_api = settings.get('disable_orcid_api', False) if settings else args.no_orcid_api
     use_orcid_api = not no_orcid_api
+    exclude_existing = settings.get('exclude_existing', False) if settings else args.exclude_existing
 
-    preprocess(datacite_ndjson_dir=datacite_ndjson_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, testing=testing,
-               max_workers=max_workers, use_orcid_api=use_orcid_api)
+    preprocess(datacite_ndjson_dir=datacite_ndjson_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, cache=cache, verbose=verbose, testing=testing,
+               max_workers=max_workers, use_orcid_api=use_orcid_api, exclude_existing=exclude_existing)
