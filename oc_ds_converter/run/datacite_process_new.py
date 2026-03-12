@@ -59,7 +59,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
     all_input_json = sorted(list(dict.fromkeys(all_input_json)))
 
     if not redis_storage_manager or max_workers == 1:
-        for json_file in all_input_json:
+        for json_file in tqdm(all_input_json):
             chunk = read_json(json_file, bad_dir)
             if chunk:
                 get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
@@ -70,7 +70,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
             else:
                 continue
 
-        for json_file in all_input_json:
+        for json_file in tqdm(all_input_json):
             chunk = read_json(json_file, bad_dir)
             if chunk:
                 get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
@@ -85,7 +85,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
         futures_pass1, futures_pass2 = [], []
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
             # Pass 1: last arg True
-            for json_file in all_input_json:
+            for json_file in tqdm(all_input_json):
                 chunk = read_json(json_file, bad_dir)
                 if chunk:
                     future = executor.schedule(
@@ -99,7 +99,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
                     continue
 
             # Pass 2: same files, last arg False
-            for json_file in all_input_json:
+            for json_file in tqdm(all_input_json):
                 chunk = read_json(json_file, bad_dir)
                 if chunk:
                     future = executor.schedule(
@@ -485,8 +485,8 @@ if __name__ == '__main__':
     arg_parser.add_argument('-c', '--config', dest='config', required=False,
                             help='Configuration file path')
     required = not any(arg in sys.argv for arg in {'--config', '-c'})
-    arg_parser.add_argument('-dc', '--datacite', dest='datacite_ndjson_dir', required=required,
-                            help='Datacite ndjson files directory')
+    arg_parser.add_argument('-dc', '--datacite', dest='datacite_json_dir', required=required,
+                            help='Datacite json files directory')
     arg_parser.add_argument('-out', '--output', dest='csv_dir', required=required,
                             help='Directory where CSV will be stored')
     arg_parser.add_argument('-p', '--publishers', dest='publishers_filepath', required=False,
@@ -532,7 +532,7 @@ if __name__ == '__main__':
     if config:
         with open(config, encoding='utf-8') as f:
             settings = yaml.full_load(f)
-    datacite_json_dir = settings['datacite_json_dir'] if settings else args.datacite_ndjson_dir
+    datacite_json_dir = settings['datacite_json_dir'] if settings else args.datacite_json_dir
     datacite_json_dir = normalize_path(datacite_json_dir)
     csv_dir = settings['output'] if settings else args.csv_dir
     csv_dir = normalize_path(csv_dir)

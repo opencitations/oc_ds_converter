@@ -8,6 +8,7 @@ import csv
 import json
 
 class DataciteProcessTest(unittest.TestCase):
+
     def setUp(self) -> None:
         self.test_dir = 'datacite_process'
         self.json_dir = os.path.join(self.test_dir, 'jsonFiles')
@@ -180,7 +181,7 @@ class DataciteProcessTest(unittest.TestCase):
 
         # Run the process with ORCID API disabled
         preprocess(
-            datacite_ndjson_dir=self.zst_input_folder,
+            datacite_json_dir=self.json_dir,
             publishers_filepath=self.publisher_mapping,
             orcid_doi_filepath=self.iod,
             csv_dir=self.output_dir,
@@ -205,15 +206,13 @@ class DataciteProcessTest(unittest.TestCase):
         self.assertGreater(subject_rows, 0)
         self.assertEqual(orcid_mentions, 0)
 
-        # Cleanup
-        shutil.rmtree(citations_output_path)
-        shutil.rmtree(self.output_dir)
+        # Post-clean
+        # CLEAN: output, _bad, decompressioni e db
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
         bad_dir = os.path.join(self.output_dir, '_bad')
         if os.path.exists(bad_dir):
             shutil.rmtree(bad_dir)
-        for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zst_dir"):
-                shutil.rmtree(os.path.join(self.zst_input_folder, el))
         if os.path.exists(self.db):
             os.remove(self.db)
         if os.path.exists(self.cache):
@@ -275,27 +274,27 @@ class DataciteProcessTest(unittest.TestCase):
     def test_cache(self):
         'Nothing should be produced in output, since the cache file reports that all the files in input were completed'
 
-        for el in os.listdir(self.zst_input_folder):
-            if el.endswith("decompr_zst_dir"):
-                shutil.rmtree(os.path.join(self.zst_input_folder, el))
-
+        # Pre-clean
         if os.path.exists(self.output_dir):
             shutil.rmtree(self.output_dir)
 
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
+
+        # assicura corretto funzionamento di _bad
         bad_dir = os.path.join(self.output_dir, '_bad')
         if os.path.exists(bad_dir):
             shutil.rmtree(bad_dir)
+
         if os.path.exists(self.db):
             os.remove(self.db)
-        if os.path.exists(self.cache_test):
-            os.remove(self.cache_test)
+        if os.path.exists(self.cache):
+            os.remove(self.cache)
 
         with open(self.cache_test, "w", encoding="utf-8") as write_cache:
-            processed_files_dict = {'first_iteration': ['chunk_1'],
-                                    'second_iteration': ['chunk_1']}
+            processed_files_dict = {'first_iteration': ['jSonFile_1', 'jSonFile_2'],
+                                    'second_iteration': ['jSonFile_1', 'jSonFile_2']}
             json.dump(processed_files_dict, write_cache)
 
         preprocess(datacite_json_dir=self.json_dir, publishers_filepath=self.publisher_mapping,
