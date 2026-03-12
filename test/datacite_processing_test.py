@@ -1,69 +1,63 @@
-import os
+
 import unittest
-from pprint import pprint
 import json
 from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.jsonmanager import *
-
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
+
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
-TEST_DIR = os.path.join("test", "datacite_processing")
+TEST_DIR = "datacite_processing"
 TMP_SUPPORT_MATERIAL = os.path.join(TEST_DIR, "tmp_support")
 IOD = os.path.join(TEST_DIR, 'iod')
 WANTED_DOIS = os.path.join(TEST_DIR, 'wanted_dois')
 PUBLISHERS_MAPPING = os.path.join(TEST_DIR, 'publishers.csv')
-DATA2 = os.path.join(TEST_DIR, 'jSonFile_1.json')
-DATA = os.path.join(TEST_DIR, 'sample_datacite.ndjson')
+DATA = os.path.join(TEST_DIR, 'jSonFile_1_new_dump.json')
 
 class TestDataciteProcessing(unittest.TestCase):
 
-    def read_ndjson_chunk(self, file_path, chunk_size):
-        with open(file_path, 'r', encoding='utf-8') as file:
-            while True:
-                chunk = []
-                for _ in range(chunk_size):
-                    line = file.readline()
-                    if not line:
-                        break
-                    try:
-                        data = json.loads(line)
-                        chunk.append(data)
-                    except json.JSONDecodeError as e:
-                        # Handle JSON decoding errors if necessary
-                        print(f"Error decoding JSON: {e}")
-                if not chunk:
-                    break
-                yield chunk
+    def setUp(self):
+        # Create dirs
+        for d in [TMP_SUPPORT_MATERIAL, IOD, WANTED_DOIS]:
+            makedirs(d, exist_ok=True)
+
+        # Load golden data
+        with open(DATA, 'r', encoding='utf-8') as f:
+            self.expected_entities = json.load(f)["data"]
+        self.expected_count = len(self.expected_entities)
 
     def test_get_all_ids_first_iteration(self):
         all_br = set()
         all_ra = set()
         dcp = DataciteProcessing()
-        for idx, chunk in enumerate(self.read_ndjson_chunk(DATA, 100), start=1):
-            for item in chunk:
-                allids = dcp.extract_all_ids(item, is_first_iteration=True)
-                all_br.update(set(allids[0]))
-                all_ra.update(set(allids[1]))
+        for entity in self.expected_entities:
+            allids = dcp.extract_all_ids(entity, is_first_iteration=True)
+            all_br.update(set(allids[0]))
+            all_ra.update(set(allids[1]))
+
         self.assertEqual(all_br, set())
-        self.assertTrue({"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"} == all_ra)
+        self.assertTrue({"orcid:0000-0002-8013-9947", "orcid:0000-0001-7392-1415",
+                         "orcid:0000-0003-2328-5769", "orcid:0000-0002-6715-3533", "orcid:0000-0002-0801-0890",
+                         "orcid:0000-0001-7543-3466", "orcid:0000-0002-6210-8370", "orcid:0000-0002-9747-4928",
+                         "ror:03ztgj037"} == all_ra)
 
     def test_get_all_ids_second_iteration(self):
         all_br = set()
         all_ra = set()
         dcp = DataciteProcessing()
-        for idx, chunk in enumerate(self.read_ndjson_chunk(DATA, 100), start=1):
-            for item in chunk:
-                allids = dcp.extract_all_ids(item, is_first_iteration=False)
-                all_br.update(set(allids[0]))
-                all_ra.update(set(allids[1]))
-        self.assertTrue({"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25", "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"} == all_br)
+        for entity in self.expected_entities:
+            allids = dcp.extract_all_ids(entity, is_first_iteration=False)
+
+            all_br.update(set(allids[0]))
+            all_ra.update(set(allids[1]))
+        self.assertTrue({"doi:10.5281/zenodo.8249952", "doi:10.5281/zenodo.8249970", "doi:10.1017/9781009157896",
+                         "doi:10.1017/9781009157896.005"} == all_br)
 
     def test_get_redis_validity_list_br(self):
         dcp = DataciteProcessing()
-        br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25", "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
+        br = {"doi:10.5281/zenodo.8249952", "doi:10.5281/zenodo.8249970", "doi:10.1017/9781009157896", "doi:10.1017/9781009157896.005"}
         br_valid_list = dcp.get_reids_validity_list(br, "br")
         exp_br_valid_list = []
         self.assertEqual(br_valid_list, exp_br_valid_list)
@@ -71,7 +65,10 @@ class TestDataciteProcessing(unittest.TestCase):
 
     def test_get_redis_validity_list_ra(self):
         dcp = DataciteProcessing()
-        ra = {"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"}
+        ra = {"orcid:0000-0002-8013-9947", "orcid:0000-0001-7392-1415",
+             "orcid:0000-0003-2328-5769", "orcid:0000-0002-6715-3533", "orcid:0000-0002-0801-0890",
+             "orcid:0000-0001-7543-3466", "orcid:0000-0002-6210-8370", "orcid:0000-0002-9747-4928",
+             "ror:03ztgj037"}
         ra_valid_list = dcp.get_reids_validity_list(ra, "ra")
         exp_ra_valid_list = []
         self.assertEqual(ra_valid_list, exp_ra_valid_list)
@@ -79,8 +76,7 @@ class TestDataciteProcessing(unittest.TestCase):
 
     def test_get_redis_validity_list_br_redis(self):
         dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
-        br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25",
-              "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
+        br = {"doi:10.5281/zenodo.8249952", "doi:10.5281/zenodo.8249970", "doi:10.1017/9781009157896", "doi:10.1017/9781009157896.005"}
         br_valid_list = dcp.get_reids_validity_list(br, "br")
         exp_br_valid_list = []
         self.assertEqual(br_valid_list, exp_br_valid_list)
@@ -88,45 +84,53 @@ class TestDataciteProcessing(unittest.TestCase):
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_sqlite(self):
         dcp = DataciteProcessing()
-        dcp.BR_redis.set("doi:10.15407/scin11.06.057", "omid:1")
-        dcp.RA_redis.set("orcid:0000-0001-8513-8700", "omid:2")
+        dcp.BR_redis.set("doi:10.5281/zenodo.8249952", "omid:1")
+        dcp.RA_redis.set("orcid:0000-0002-8013-9947", "omid:2")
+        dcp.RA_redis.set("ror:03ztgj039", "omid:3") #invalid ror
 
-        br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25",
-              "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
+        br = {"doi:10.5281/zenodo.8249952", "doi:10.5281/zenodo.8249970", "doi:10.1017/9781009157896", "doi:10.1017/9781009157896.005"}
 
-        ra = {"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"}
+        ra = {"orcid:0000-0002-8013-9947", "orcid:0000-0001-7392-1415",
+             "orcid:0000-0003-2328-5769", "orcid:0000-0002-6715-3533", "orcid:0000-0002-0801-0890",
+             "orcid:0000-0001-7543-3466", "orcid:0000-0002-6210-8370", "orcid:0000-0002-9747-4928", "ror:03ztgj039"}
+
         br_validity_dict = dcp.get_reids_validity_list(br, "br")
-        exp_br_valid_list = ["doi:10.15407/scin11.06.057"]
+        exp_br_valid_list = ["doi:10.5281/zenodo.8249952"]
         ra_validity_dict = dcp.get_reids_validity_list(ra, "ra")
-        exp_ra_valid_list = ["orcid:0000-0001-8513-8700"]
-        self.assertEqual(br_validity_dict, exp_br_valid_list)
-        self.assertEqual(ra_validity_dict, exp_ra_valid_list)
+        exp_ra_valid_list = ["orcid:0000-0002-8013-9947", "ror:03ztgj039"]
+        self.assertEqual(set(br_validity_dict), set(exp_br_valid_list))
+        self.assertEqual(set(ra_validity_dict), set(exp_ra_valid_list))
 
         dcp.storage_manager.delete_storage()
 
-        dcp.BR_redis.delete("doi:10.15407/scin11.06.057")
-        dcp.RA_redis.delete("orcid:0000-0001-8513-8700")
+        dcp.BR_redis.delete("doi:10.5281/zenodo.8249952")
+        dcp.RA_redis.delete("orcid:0000-0002-8013-9947")
+        dcp.RA_redis.delete("ror:03ztgj039")
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_redis(self):
         dcp = DataciteProcessing(storage_manager=RedisStorageManager())
-        dcp.BR_redis.set("doi:10.15407/scin11.06.057", "omid:1")
-        dcp.RA_redis.set("orcid:0000-0001-8513-8700", "omid:2")
+        dcp.BR_redis.set("doi:10.5281/zenodo.8249970", "omid:1")
+        dcp.RA_redis.set("orcid:0000-0002-6210-8370", "omid:2")
+        dcp.RA_redis.set("ror:03ztgj039", "omid:3")  # invalid ror
 
-        br = {"doi:10.1063/1.4973421", "doi:10.15407/scin11.06.057", "doi:10.1066/1741-4326/aa6b25",
-              "doi:10.1063/1.4973421", "doi:10.1021/acs.jpclett.7b01097"}
+        br = {"doi:10.5281/zenodo.8249952", "doi:10.5281/zenodo.8249970", "doi:10.1017/9781009157896", "doi:10.1017/9781009157896.005"}
 
-        ra = {"orcid:0000-0001-8513-8700", "orcid:0000-0002-9286-2630"}
+        ra = {"orcid:0000-0002-8013-9947", "orcid:0000-0001-7392-1415",
+              "orcid:0000-0003-2328-5769", "orcid:0000-0002-6715-3533", "orcid:0000-0002-0801-0890",
+              "orcid:0000-0001-7543-3466", "orcid:0000-0002-6210-8370", "orcid:0000-0002-9747-4928", "ror:03ztgj039"}
+
         br_validity_dict = dcp.get_reids_validity_list(br, "br")
-        exp_br_valid_list = ["doi:10.15407/scin11.06.057"]
+        exp_br_valid_list = ["doi:10.5281/zenodo.8249970"]
         ra_validity_dict = dcp.get_reids_validity_list(ra, "ra")
-        exp_ra_valid_list = ["orcid:0000-0001-8513-8700"]
-        self.assertEqual(br_validity_dict, exp_br_valid_list)
-        self.assertEqual(ra_validity_dict, exp_ra_valid_list)
+        exp_ra_valid_list = ["orcid:0000-0002-6210-8370", "ror:03ztgj039"]
+        self.assertEqual(set(br_validity_dict), set(exp_br_valid_list))
+        self.assertEqual(set(ra_validity_dict), set(exp_ra_valid_list))
 
         dcp.storage_manager.delete_storage()
 
-        dcp.BR_redis.delete("doi:10.15407/scin11.06.057")
-        dcp.RA_redis.delete("orcid:0000-0001-8513-8700")
+        dcp.BR_redis.delete("doi:10.5281/zenodo.8249970")
+        dcp.RA_redis.delete("orcid:0000-0002-6210-8370")
+        dcp.RA_redis.delete("ror:03ztgj039")
 
     def test_validated_as_default(self):
         """
@@ -140,10 +144,12 @@ class TestDataciteProcessing(unittest.TestCase):
         """
 
         dcp = DataciteProcessing()
-        validate_as_none_doi = dcp.validated_as({"schema":"doi", "identifier": "doi:10.11578/1480643"})
+        validate_as_none_doi = dcp.validated_as({"schema": "doi", "identifier": "doi:10.11578/1480643"})
         validated_as_none_orcid = dcp.validated_as({"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"})
+        validated_as_none_ror = dcp.validated_as({"schema": "ror", "identifier": "ror:03ztgj037"})
         self.assertEqual(validate_as_none_doi, None)
         self.assertEqual(validated_as_none_orcid, None)
+        self.assertEqual(validated_as_none_ror, None)
 
         dcp.storage_manager.delete_storage()
 
@@ -159,11 +165,12 @@ class TestDataciteProcessing(unittest.TestCase):
         """
 
         dcp = DataciteProcessing(storage_manager=RedisStorageManager(testing=True))
-        validate_as_none_doi = dcp.validated_as({"schema":"doi", "identifier": "doi:10.11578/1480643"})
+        validate_as_none_doi = dcp.validated_as({"schema": "doi", "identifier": "doi:10.11578/1480643"})
         validated_as_none_orcid = dcp.validated_as({"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"})
+        validated_as_none_ror = dcp.validated_as({"schema": "ror", "identifier": "ror:03ztgj037"})
         self.assertEqual(validate_as_none_doi, None)
         self.assertEqual(validated_as_none_orcid, None)
-
+        self.assertEqual(validated_as_none_ror, None)
         dcp.storage_manager.delete_storage()
 
     def test_validated_as_sqlite(self):
@@ -178,32 +185,102 @@ class TestDataciteProcessing(unittest.TestCase):
         """
         db_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.db")
         sqlite_man = SqliteStorageManager(db_path)
+
         valid_doi_not_in_db = {"identifier": "doi:10.11578/1480643", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.15407/scin11.06.057", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1066/1741-4326/aa6b", "schema": "doi"}
+
         valid_orcid_not_in_db = {"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"}
         valid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-2630"}
         invalid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-26XX"}
+
+        valid_ror_in_db = {"schema": "ror", "identifier": "ror:03ztgj037"}
+        valid_ror_not_in_db = {"schema": "ror", "identifier": "ror:01111rn36"}
+        invalid_ror_in_db = {"schema": "ror", "identifier": "ror:03ztgj039"}
+
+        valid_viaf_not_in_db = {"identifier": "viaf:102333412", "schema": "viaf"}
+        valid_viaf_in_db = {"identifier": "viaf:108389263", "schema": "viaf"}
+        invalid_viaf_in_db = {"identifier": "viaf:12345ABC", "schema": "viaf"}
+
+        valid_crossref_not_in_db = {"identifier": "crossref:10.13039/501100000288", "schema": "crossref"}
+        valid_crossref_in_db = {"identifier": "crossref:10.13039/100000001", "schema": "crossref"}
+        invalid_crossref_in_db = {"identifier": "crossref:10.13039/invalid-id", "schema": "crossref"}
+
+        valid_wikidata_not_in_db = {"identifier": "wikidata:Q2330656", "schema": "wikidata"}
+        valid_wikidata_in_db = {"identifier": "wikidata:Q42", "schema": "wikidata"}
+        invalid_wikidata_in_db = {"identifier": "wikidata:Q_invalid_123", "schema": "wikidata"}
+
+        # --- POPOLAMENTO DATABASE SQLITE ---
         sqlite_man.set_value(valid_doi_in_db["identifier"], True)
         sqlite_man.set_value(invalid_doi_in_db["identifier"], False)
+
         sqlite_man.set_value(valid_orcid_in_db["identifier"], True)
         sqlite_man.set_value(invalid_orcid_in_db["identifier"], False)
 
+        sqlite_man.set_value(valid_ror_in_db["identifier"], True)
+        sqlite_man.set_value(invalid_ror_in_db["identifier"], False)
+
+        sqlite_man.set_value(valid_viaf_in_db["identifier"], True)
+        sqlite_man.set_value(invalid_viaf_in_db["identifier"], False)
+
+        sqlite_man.set_value(valid_crossref_in_db["identifier"], True)
+        sqlite_man.set_value(invalid_crossref_in_db["identifier"], False)
+
+        sqlite_man.set_value(valid_wikidata_in_db["identifier"], True)
+        sqlite_man.set_value(invalid_wikidata_in_db["identifier"], False)
+
+        # --- ESECUZIONE DEI METODI ---
         # New class instance to check the correct task management with a sqlite db in input
         d_processing_sql = DataciteProcessing(storage_manager=sqlite_man)
+
         doi_validated_as_True = d_processing_sql.validated_as(valid_doi_in_db)
         doi_validated_as_False = d_processing_sql.validated_as(invalid_doi_in_db)
         doi_not_validated = d_processing_sql.validated_as(valid_doi_not_in_db)
+
         orcid_validated_as_True = d_processing_sql.validated_as(valid_orcid_in_db)
         orcid_validated_as_False = d_processing_sql.validated_as(invalid_orcid_in_db)
         orcid_not_validated = d_processing_sql.validated_as(valid_orcid_not_in_db)
 
+        ror_validated_as_True = d_processing_sql.validated_as(valid_ror_in_db)
+        ror_validated_as_False = d_processing_sql.validated_as(invalid_ror_in_db)
+        ror_not_validated = d_processing_sql.validated_as(valid_ror_not_in_db)
+
+        viaf_validated_as_True = d_processing_sql.validated_as(valid_viaf_in_db)
+        viaf_validated_as_False = d_processing_sql.validated_as(invalid_viaf_in_db)
+        viaf_not_validated = d_processing_sql.validated_as(valid_viaf_not_in_db)
+
+        crossref_validated_as_True = d_processing_sql.validated_as(valid_crossref_in_db)
+        crossref_validated_as_False = d_processing_sql.validated_as(invalid_crossref_in_db)
+        crossref_not_validated = d_processing_sql.validated_as(valid_crossref_not_in_db)
+
+        wikidata_validated_as_True = d_processing_sql.validated_as(valid_wikidata_in_db)
+        wikidata_validated_as_False = d_processing_sql.validated_as(invalid_wikidata_in_db)
+        wikidata_not_validated = d_processing_sql.validated_as(valid_wikidata_not_in_db)
+
+        # --- ASSERZIONI ---
         self.assertEqual(doi_validated_as_True, True)
         self.assertEqual(doi_validated_as_False, False)
         self.assertEqual(doi_not_validated, None)
+
         self.assertEqual(orcid_validated_as_True, True)
         self.assertEqual(orcid_validated_as_False, False)
         self.assertEqual(orcid_not_validated, None)
+
+        self.assertEqual(ror_validated_as_True, True)
+        self.assertEqual(ror_validated_as_False, False)
+        self.assertEqual(ror_not_validated, None)
+
+        self.assertEqual(viaf_validated_as_True, True)
+        self.assertEqual(viaf_validated_as_False, False)
+        self.assertEqual(viaf_not_validated, None)
+
+        self.assertEqual(crossref_validated_as_True, True)
+        self.assertEqual(crossref_validated_as_False, False)
+        self.assertEqual(crossref_not_validated, None)
+
+        self.assertEqual(wikidata_validated_as_True, True)
+        self.assertEqual(wikidata_validated_as_False, False)
+        self.assertEqual(wikidata_not_validated, None)
 
         d_processing_sql.storage_manager.delete_storage()
 
@@ -220,32 +297,101 @@ class TestDataciteProcessing(unittest.TestCase):
 
         db_json_path = os.path.join(TMP_SUPPORT_MATERIAL, "db_path.json")
         inmemory_man = InMemoryStorageManager(db_json_path)
+
         valid_doi_not_in_db = {"identifier": "doi:10.11578/1480643", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.15407/scin11.06.057", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1066/1741-4326/aa6b", "schema": "doi"}
+
         valid_orcid_not_in_db = {"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"}
         valid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-2630"}
         invalid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-26XX"}
+
+        valid_ror_in_db = {"schema": "ror", "identifier": "ror:03ztgj037"}
+        valid_ror_not_in_db = {"schema": "ror", "identifier": "ror:01111rn36"}
+        invalid_ror_in_db = {"schema": "ror", "identifier": "ror:03ztgj039"}
+
+        valid_viaf_not_in_db = {"identifier": "viaf:102333412", "schema": "viaf"}
+        valid_viaf_in_db = {"identifier": "viaf:108389263", "schema": "viaf"}
+        invalid_viaf_in_db = {"identifier": "viaf:12345ABC", "schema": "viaf"}
+
+        valid_crossref_not_in_db = {"identifier": "crossref:10.13039/501100000288", "schema": "crossref"}
+        valid_crossref_in_db = {"identifier": "crossref:10.13039/100000001", "schema": "crossref"}
+        invalid_crossref_in_db = {"identifier": "crossref:10.13039/invalid-id", "schema": "crossref"}
+
+        valid_wikidata_not_in_db = {"identifier": "wikidata:Q2330656", "schema": "wikidata"}
+        valid_wikidata_in_db = {"identifier": "wikidata:Q42", "schema": "wikidata"}
+        invalid_wikidata_in_db = {"identifier": "wikidata:Q_invalid_123", "schema": "wikidata"}
+
         inmemory_man.set_value(valid_doi_in_db["identifier"], True)
         inmemory_man.set_value(invalid_doi_in_db["identifier"], False)
+
         inmemory_man.set_value(valid_orcid_in_db["identifier"], True)
         inmemory_man.set_value(invalid_orcid_in_db["identifier"], False)
 
+        inmemory_man.set_value(valid_ror_in_db["identifier"], True)
+        inmemory_man.set_value(invalid_ror_in_db["identifier"], False)
+
+        inmemory_man.set_value(valid_viaf_in_db["identifier"], True)
+        inmemory_man.set_value(invalid_viaf_in_db["identifier"], False)
+
+        inmemory_man.set_value(valid_crossref_in_db["identifier"], True)
+        inmemory_man.set_value(invalid_crossref_in_db["identifier"], False)
+
+        inmemory_man.set_value(valid_wikidata_in_db["identifier"], True)
+        inmemory_man.set_value(invalid_wikidata_in_db["identifier"], False)
+
+
         # New class instance to check the correct task management with a sqlite db in input
         d_processing = DataciteProcessing(storage_manager=inmemory_man)
+
         doi_validated_as_True = d_processing.validated_as(valid_doi_in_db)
         doi_validated_as_False = d_processing.validated_as(invalid_doi_in_db)
         doi_not_validated = d_processing.validated_as(valid_doi_not_in_db)
+
         orcid_validated_as_True = d_processing.validated_as(valid_orcid_in_db)
         orcid_validated_as_False = d_processing.validated_as(invalid_orcid_in_db)
         orcid_not_validated = d_processing.validated_as(valid_orcid_not_in_db)
 
+        ror_validated_as_True = d_processing.validated_as(valid_ror_in_db)
+        ror_validated_as_False = d_processing.validated_as(invalid_ror_in_db)
+        ror_not_validated = d_processing.validated_as(valid_ror_not_in_db)
+
+        viaf_validated_as_True = d_processing.validated_as(valid_viaf_in_db)
+        viaf_validated_as_False = d_processing.validated_as(invalid_viaf_in_db)
+        viaf_not_validated = d_processing.validated_as(valid_viaf_not_in_db)
+
+        crossref_validated_as_True = d_processing.validated_as(valid_crossref_in_db)
+        crossref_validated_as_False = d_processing.validated_as(invalid_crossref_in_db)
+        crossref_not_validated = d_processing.validated_as(valid_crossref_not_in_db)
+
+        wikidata_validated_as_True = d_processing.validated_as(valid_wikidata_in_db)
+        wikidata_validated_as_False = d_processing.validated_as(invalid_wikidata_in_db)
+        wikidata_not_validated = d_processing.validated_as(valid_wikidata_not_in_db)
+
         self.assertEqual(doi_validated_as_True, True)
         self.assertEqual(doi_validated_as_False, False)
         self.assertEqual(doi_not_validated, None)
+
         self.assertEqual(orcid_validated_as_True, True)
         self.assertEqual(orcid_validated_as_False, False)
         self.assertEqual(orcid_not_validated, None)
+
+        self.assertEqual(ror_validated_as_True, True)
+        self.assertEqual(ror_validated_as_False, False)
+        self.assertEqual(ror_not_validated, None)
+
+        self.assertEqual(viaf_validated_as_True, True)
+        self.assertEqual(viaf_validated_as_False, False)
+        self.assertEqual(viaf_not_validated, None)
+
+        self.assertEqual(crossref_validated_as_True, True)
+        self.assertEqual(crossref_validated_as_False, False)
+        self.assertEqual(crossref_not_validated, None)
+
+        self.assertEqual(wikidata_validated_as_True, True)
+        self.assertEqual(wikidata_validated_as_False, False)
+        self.assertEqual(wikidata_not_validated, None)
+
 
         d_processing.storage_manager.delete_storage()
 
@@ -260,31 +406,98 @@ class TestDataciteProcessing(unittest.TestCase):
         - With REDIS storage manager and a pre-existent db associated
         """
         redis_man = RedisStorageManager(testing=True)
+
         valid_doi_not_in_db = {"identifier": "doi:10.11578/1480643", "schema": "doi"}
         valid_doi_in_db = {"identifier": "doi:10.15407/scin11.06.057", "schema": "doi"}
         invalid_doi_in_db = {"identifier": "doi:10.1066/1741-4326/aa6b", "schema": "doi"}
+
         valid_orcid_not_in_db = {"schema": "orcid", "identifier": "orcid:0000-0001-8513-8700"}
         valid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-2630"}
         invalid_orcid_in_db = {"schema": "orcid", "identifier": "orcid:0000-0002-9286-26XX"}
+
+        valid_ror_in_db = {"schema": "ror", "identifier": "ror:03ztgj037"}
+        valid_ror_not_in_db = {"schema": "ror", "identifier": "ror:01111rn36"}
+        invalid_ror_in_db = {"schema": "ror", "identifier": "ror:03ztgj039"}
+
+        valid_viaf_not_in_db = {"identifier": "viaf:102333412", "schema": "viaf"}
+        valid_viaf_in_db = {"identifier": "viaf:108389263", "schema": "viaf"}
+        invalid_viaf_in_db = {"identifier": "viaf:12345ABC", "schema": "viaf"}
+
+        valid_crossref_not_in_db = {"identifier": "crossref:10.13039/501100000288", "schema": "crossref"}
+        valid_crossref_in_db = {"identifier": "crossref:10.13039/100000001", "schema": "crossref"}
+        invalid_crossref_in_db = {"identifier": "crossref:10.13039/invalid-id", "schema": "crossref"}
+
+        valid_wikidata_not_in_db = {"identifier": "wikidata:Q2330656", "schema": "wikidata"}
+        valid_wikidata_in_db = {"identifier": "wikidata:Q42", "schema": "wikidata"}
+        invalid_wikidata_in_db = {"identifier": "wikidata:Q_invalid_123", "schema": "wikidata"}
+
         redis_man.set_value(valid_doi_in_db["identifier"], True)
         redis_man.set_value(invalid_doi_in_db["identifier"], False)
+
         redis_man.set_value(valid_orcid_in_db["identifier"], True)
         redis_man.set_value(invalid_orcid_in_db["identifier"], False)
 
+        redis_man.set_value(valid_ror_in_db["identifier"], True)
+        redis_man.set_value(invalid_ror_in_db["identifier"], False)
+
+        redis_man.set_value(valid_viaf_in_db["identifier"], True)
+        redis_man.set_value(invalid_viaf_in_db["identifier"], False)
+
+        redis_man.set_value(valid_crossref_in_db["identifier"], True)
+        redis_man.set_value(invalid_crossref_in_db["identifier"], False)
+
+        redis_man.set_value(valid_wikidata_in_db["identifier"], True)
+        redis_man.set_value(invalid_wikidata_in_db["identifier"], False)
+
         d_processing_redis = DataciteProcessing(storage_manager=redis_man)
+
         doi_validated_as_True = d_processing_redis.validated_as(valid_doi_in_db)
         doi_validated_as_False = d_processing_redis.validated_as(invalid_doi_in_db)
         doi_not_validated = d_processing_redis.validated_as(valid_doi_not_in_db)
+
         orcid_validated_as_True = d_processing_redis.validated_as(valid_orcid_in_db)
         orcid_validated_as_False = d_processing_redis.validated_as(invalid_orcid_in_db)
         orcid_not_validated = d_processing_redis.validated_as(valid_orcid_not_in_db)
 
+        ror_validated_as_True = d_processing_redis.validated_as(valid_ror_in_db)
+        ror_validated_as_False = d_processing_redis.validated_as(invalid_ror_in_db)
+        ror_not_validated = d_processing_redis.validated_as(valid_ror_not_in_db)
+
+        viaf_validated_as_True = d_processing_redis.validated_as(valid_viaf_in_db)
+        viaf_validated_as_False = d_processing_redis.validated_as(invalid_viaf_in_db)
+        viaf_not_validated = d_processing_redis.validated_as(valid_viaf_not_in_db)
+
+        crossref_validated_as_True = d_processing_redis.validated_as(valid_crossref_in_db)
+        crossref_validated_as_False = d_processing_redis.validated_as(invalid_crossref_in_db)
+        crossref_not_validated = d_processing_redis.validated_as(valid_crossref_not_in_db)
+
+        wikidata_validated_as_True = d_processing_redis.validated_as(valid_wikidata_in_db)
+        wikidata_validated_as_False = d_processing_redis.validated_as(invalid_wikidata_in_db)
+        wikidata_not_validated = d_processing_redis.validated_as(valid_wikidata_not_in_db)
+
         self.assertEqual(doi_validated_as_True, True)
         self.assertEqual(doi_validated_as_False, False)
         self.assertEqual(doi_not_validated, None)
+
         self.assertEqual(orcid_validated_as_True, True)
         self.assertEqual(orcid_validated_as_False, False)
         self.assertEqual(orcid_not_validated, None)
+
+        self.assertEqual(ror_validated_as_True, True)
+        self.assertEqual(ror_validated_as_False, False)
+        self.assertEqual(ror_not_validated, None)
+
+        self.assertEqual(viaf_validated_as_True, True)
+        self.assertEqual(viaf_validated_as_False, False)
+        self.assertEqual(viaf_not_validated, None)
+
+        self.assertEqual(crossref_validated_as_True, True)
+        self.assertEqual(crossref_validated_as_False, False)
+        self.assertEqual(crossref_not_validated, None)
+
+        self.assertEqual(wikidata_validated_as_True, True)
+        self.assertEqual(wikidata_validated_as_False, False)
+        self.assertEqual(wikidata_not_validated, None)
 
         d_processing_redis.storage_manager.delete_storage()
 
@@ -295,27 +508,259 @@ class TestDataciteProcessing(unittest.TestCase):
         in order to avoid conflicts while validating data"""
 
         d_processing = DataciteProcessing()
+
         id_man_dict = d_processing.venue_id_man_dict
+        ra_man_dict = d_processing.ra_man_dict
 
         issn_id = "issn:0003-987X"
         issn_string = "issn"
+
         isbn_id = "isbn:978-88-98719-08-2"
         isbn_string = "isbn"
+
+        orcid_id = "orcid:0000-0001-8513-8700"
+        orcid_string = "orcid"
+
+        ror_id = "ror:03ztgj037"
+        ror_string = "ror"
+
+        viaf_id = "viaf:102333412"
+        viaf_string = "viaf"
+
+        crossref_id = "crossref:297"
+        crossref_string = "crossref"
+
+        wikidata_id = "wikidata:Q42"
+        wikidata_string = "wikidata"
+
         issn_man_exp = d_processing.get_id_manager(issn_id, id_man_dict)
         issn_man_exp_2 = d_processing.get_id_manager(issn_string, id_man_dict)
+
         isbn_man_exp = d_processing.get_id_manager(isbn_id, id_man_dict)
         isbn_man_exp_2 = d_processing.get_id_manager(isbn_string, id_man_dict)
 
-        #check that the idmanager for the issn was returned and that it works as expected
+        orcid_man_exp = d_processing.get_id_manager(orcid_id, ra_man_dict)
+        orcid_man_exp_2 = d_processing.get_id_manager(orcid_string, ra_man_dict)
+
+        ror_man_exp = d_processing.get_id_manager(ror_id, ra_man_dict)
+        ror_man_exp_2 = d_processing.get_id_manager(ror_string, ra_man_dict)
+
+        viaf_man_exp = d_processing.get_id_manager(viaf_id, ra_man_dict)
+        viaf_man_exp_2 = d_processing.get_id_manager(viaf_string, ra_man_dict)
+
+        crossref_man_exp = d_processing.get_id_manager(crossref_id, ra_man_dict)
+        crossref_man_exp_2 = d_processing.get_id_manager(crossref_string, ra_man_dict)
+
+        wikidata_man_exp = d_processing.get_id_manager(wikidata_id, ra_man_dict)
+        wikidata_man_exp_2 = d_processing.get_id_manager(wikidata_string, ra_man_dict)
+
+        # check that the idmanager for the issn was returned and that it works as expected
         self.assertTrue(issn_man_exp.is_valid(issn_id))
         self.assertTrue(issn_man_exp_2.is_valid(issn_id))
+
         # check that the idmanager for the isbn was returned and that it works as expected
         self.assertTrue(isbn_man_exp.is_valid(isbn_id))
         self.assertTrue(isbn_man_exp_2.is_valid(isbn_id))
 
+        # check that the idmanager for the orcid was returned and that it works as expected
+        self.assertTrue(orcid_man_exp.is_valid(orcid_id))
+        self.assertTrue(orcid_man_exp_2.is_valid(orcid_id))
+
+        # check that the idmanager for the ror was returned and that it works as expected
+        self.assertTrue(ror_man_exp.is_valid(ror_id))
+        self.assertTrue(ror_man_exp_2.is_valid(ror_id))
+
+        # check that the idmanager for the viaf was returned and that it works as expected
+        self.assertTrue(viaf_man_exp.is_valid(viaf_id))
+        self.assertTrue(viaf_man_exp_2.is_valid(viaf_id))
+
+        # check that the idmanager for the crossref was returned and that it works as expected
+        self.assertTrue(crossref_man_exp.is_valid(crossref_id))
+        self.assertTrue(crossref_man_exp_2.is_valid(crossref_id))
+
+        # check that the idmanager for the wikidata was returned and that it works as expected
+        self.assertTrue(wikidata_man_exp.is_valid(wikidata_id))
+        self.assertTrue(wikidata_man_exp_2.is_valid(wikidata_id))
+
+        d_processing.storage_manager.delete_storage()
+
+    def test_csv_creator(self):
+        '''Add a test with all the data'''
+        datacite_processor = DataciteProcessing()
+        data = {
+             'id': '10.34780/7510-t906',
+             'type': 'dois',
+             'attributes': {
+                'container': {
+                    'identifier': '2701-5572',
+                    'firstPage': '2021',
+                    'identifierType': 'ISSN',
+                    'type': 'Series',
+                    'title': 'Journal of Global Archaeology'
+                },
+                'reason': None,
+                'prefix': '10.34780',
+                'citationsOverTime': [],
+                'registered': '2021-06-07T10:39:06Z',
+                'language': 'en',
+                'source': 'fabricaForm',
+                'suffix': '7510-t906',
+                 'relatedItems': [],
+                 'descriptions': [
+                    {'descriptionType': 'SeriesInformation', 'description': 'Journal of Global Archaeology, 2021'},
+                    {'descriptionType': 'SeriesInformation', 'description': 'Journal of Global Archaeology, 2021'},
+                    {'descriptionType': 'Abstract',
+                     'description': 'The kingdom of Eswatini provides a rich archaeological sequence covering all time periods from the Early Stone Age to the Iron Age. For over 27 years though, no or very little archaeological research was conducted in the country. In the scope of a new project funded by the German Research Foundation (DFG) we aim to re-excavate and re-date Lion Cavern, the potentially oldest ochre mine in the world. In addition, we conduct a largescale geological survey for outcrops of ochre and test their geochemical signatures for comparative studies with archaeological ochre pieces from MSA and LSA assemblages in Eswatini. Here we present a review of the research history of the kingdom and some preliminary results from our ongoing project.',
+                     'lang': 'en'}],
+                 'sizes': ['§ 1–12'],
+                 'versionOfCount': 0,
+                 'relatedIdentifiers': [
+                    {'relationType': 'IsPartOf', 'relatedIdentifier': '2701-5572', 'relatedIdentifierType': 'ISSN'},
+                    {'relationType': 'IsPartOf', 'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'HasMetadata', 'relatedIdentifier': 'https://zenon.dainst.org/Record/002035353',
+                     'relatedIdentifierType': 'URL'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.2307/3888317',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.1086/204793',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.1086/338292',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.1111/arcm.12202',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.1006/jasc.2000.0638',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.2307/3888015',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.3213/2191-5784-10199',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.1016/j.jhevol.2005.06.007',
+                     'relatedIdentifierType': 'DOI'},
+                    {'relationType': 'References', 'relatedIdentifier': '10.1017/s0003598x00113298',
+                     'relatedIdentifierType': 'DOI'}], 'created': '2021-05-11T13:11:58Z',
+                'dates': [{'date': '2021', 'dateType': 'Issued'}],
+                'published': '2021',
+                'geoLocations': [],
+                'partCount': 0,
+                'publicationYear': 2021,
+                'partOfCount': 0,
+                'updated': '2021-07-30T12:39:50Z',
+                'formats': [],
+                'fundingReferences': [],
+                'creators': [
+                    {
+                        'nameType': 'Personal',
+                        'affiliation': [
+                            {'affiliationIdentifier': 'https://ror.org/03a1kwz48',
+                             'name': 'University of Tübingen, Senckenberg Centre for Human Evolution and Palaeoenvironment',
+                             'affiliationIdentifierScheme': 'ROR'}],
+                        'givenName': 'Gregor D.',
+                        'familyName': 'Bader',
+                        'name': 'Bader, Gregor D.',
+                        'nameIdentifiers': [
+                        {'nameIdentifierScheme': 'ORCID', 'schemeUri': 'https://orcid.org',
+                         'nameIdentifier': 'https://orcid.org/0000-0003-0621-9209'}]
+                    },
+                    {
+                         'nameType': 'Personal',
+                         'affiliation': [
+                             {
+                                 'affiliationIdentifier': 'https://ror.org/02vrphe47',
+                                 'name': 'Swaziland National Trust Commission',
+                                 'affiliationIdentifierScheme': 'ROR'}
+                         ],
+                         'givenName': 'Bob',
+                         'familyName': 'Forrester',
+                         'name': 'Forrester, Bob'
+                    },
+                    {
+                        'nameType': 'Personal',
+                        'affiliation': [
+                            {
+                                'affiliationIdentifier': 'https://ror.org/041qv0h25',
+                                'name': 'Deutsches Archäologisches Institut, Kommission für Archäologie Außereuropäischer Kulturen',
+                                'affiliationIdentifierScheme': 'ROR'}
+                        ],
+                        'givenName': 'Lisa',
+                        'familyName': 'Ehlers',
+                        'name': 'Ehlers, Lisa'
+                    },
+                    {
+                        'nameType': 'Personal',
+                        'affiliation': [
+                            {
+                                'affiliationIdentifier': 'https://ror.org/03zga2b32',
+                                'name': 'University of Bergen, SFF Centre for Early Sapiens Behaviour',
+                                'affiliationIdentifierScheme': 'ROR'}
+                        ],
+                        'givenName': 'Elizabeth',
+                        'familyName': 'Velliky',
+                        'name': 'Velliky, Elizabeth',
+                        'nameIdentifiers': [
+                            {
+                                'nameIdentifierScheme': 'ORCID',
+                                'schemeUri': 'https://orcid.org',
+                                'nameIdentifier': 'https://orcid.org/0000-0002-3019-5377'}
+                        ]
+                    }],
+                'schemaVersion': 'http://datacite.org/schema/kernel-4', 'versionCount': 0, 'metadataVersion': 2,
+                'citationCount': 0,
+                'types': {'schemaOrg': 'ScholarlyArticle', 'resourceTypeGeneral': 'Text', 'citeproc': 'article-journal',
+                          'bibtex': 'article', 'ris': 'RPRT', 'resourceType': 'Article'}, 'isActive': True,
+                'viewsOverTime': [], 'identifiers': [],
+                'subjects': [{'subject': 'Eswatini'}, {'subject': 'Lion Cavern'}, {'subject': 'Ochre'},
+                             {'subject': 'Provenance tracing'}], 'titles': [
+                    {'lang': 'en', 'title': 'The Forgotten Kingdom. New investigations in the prehistory of Eswatini'}],
+                'url': 'https://publications.dainst.org/journals/index.php/joga/article/view/3559', 'downloadCount': 0,
+                'rightsList': [], 'contentUrl': None, 'contributors': [], 'referenceCount': 9, 'viewCount': 0,
+                'downloadsOverTime': [], 'doi': '10.34780/7510-t906',
+                'publisher': {
+                    'publisherIdentifierScheme': 'ROR',
+                    'schemeUri': 'https://ror.org',
+                    'name': 'Deutsches Archäologisches Institut',
+                    'publisherIdentifier': 'https://ror.org/041qv0h25'
+                },
+                'version': None,
+                'state': 'findable',
+                'alternateIdentifiers': []
+             },
+             'relationships': {'client': {'data': {'id': 'dai.avnrkz', 'type': 'clients'}},
+                               'provider': {'data': {'id': 'dai', 'type': 'providers'}}, 'media': {'data': []},
+                               'references': {'data': [{'id': '10.2307/3888317', 'type': 'dois'},
+                                                       {'id': '10.1086/204793', 'type': 'dois'},
+                                                       {'id': '10.1086/338292', 'type': 'dois'},
+                                                       {'id': '10.1111/arcm.12202', 'type': 'dois'},
+                                                       {'id': '10.1006/jasc.2000.0638', 'type': 'dois'},
+                                                       {'id': '10.2307/3888015', 'type': 'dois'},
+                                                       {'id': '10.3213/2191-5784-10199', 'type': 'dois'},
+                                                       {'id': '10.1016/j.jhevol.2005.06.007', 'type': 'dois'},
+                                                       {'id': '10.1017/s0003598x00113298', 'type': 'dois'}]},
+                               'citations': {'data': []}, 'parts': {'data': []}, 'partOf': {'data': []},
+                               'versions': {'data': []}, 'versionOf': {'data': []}}}
+        output = list()
+        tabular_data = datacite_processor.csv_creator(data)
+        if tabular_data:
+            output.append(tabular_data)
+
+        expected_output = [
+            {
+                'id': 'doi:10.34780/7510-t906',
+                'title': 'The Forgotten Kingdom. New investigations in the prehistory of Eswatini',
+                'author': 'Bader, Gregor D. [orcid:0000-0003-0621-9209]; Forrester, Bob; Ehlers, Lisa; Velliky, Elizabeth [orcid:0000-0002-3019-5377]',
+                'pub_date': '2021',
+                'venue': 'journal of global archaeology [issn:2701-5572]',
+                'volume': '',
+                'issue': '',
+                'page': '2021-2021',
+                'type': 'journal article',
+                'publisher': 'Deutsches Archäologisches Institut [ror:041qv0h25]',
+                'editor': ''
+            }
+        ]
+        self.assertEqual(output,expected_output)
+
     def test_csv_creator2(self):
-        datacite_processor = DataciteProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS, publishers_filepath_dc=None)
-        data = load_json(DATA2, None)
+        datacite_processor = DataciteProcessing()
+        data = load_json(DATA, None)
         output = list()
         for item in data['data']:
             tabular_data = datacite_processor.csv_creator(item)
@@ -323,217 +768,127 @@ class TestDataciteProcessing(unittest.TestCase):
                 output.append(tabular_data)
 
         expected_output = [
-            {'id': 'doi:10.1002/2014jc009965',
-             'title': 'On the physical and biogeochemical processes driving the high frequency variability of CO fugacity at 6°S, 10°W: Potential role of the internal waves',
-             'author': 'Parard, Gaëlle; Boutin, J.; Cuypers, Y.; Bouruet-Aubertot, P.; Caniaux, G.',
-             'pub_date': '2014-12',
-             'venue': 'journal of geophysical research: oceans [issn:2169-9275]',
-             'volume': '119',
-             'issue': '12',
-             'page': '8357-8374',
-             'type': 'journal article',
-             'publisher': '',
+            {'id': 'doi:10.5281/zenodo.8244010',
+             'title': 'FIGURE 1A, B in Meeting the southern brothers: a revision of the Neotropical spider genus Hexapopha Platnick, Berniker & Víquez, 2014 (Araneae, Oonopidae)',
+             'author': 'Feitosa, Níthomas M. [orcid:0000-0002-8013-9947]; Ott, Ricardo [orcid:0000-0001-7392-1415]; Bonaldo, Alexandre B. [orcid:0000-0002-8013-9947]',
+             'pub_date': '2023-08-11',
+             'venue': '',
+             'volume': '',
+             'issue': '',
+             'page': '',
+             'type': 'other',
+             'publisher': 'Zenodo',
              'editor': ''},
-            {'id': 'doi:10.1002/2014jd022411',
-             'title': "Assessing the magnitude of CO flux uncertainty in atmospheric CO records using products from NASA's Carbon Monitoring Flux Pilot Project",
-             'author': 'Ott, Lesley E.; Pawson, Steven; Collatz, George J.; Gregg, Watson W.; Menemenlis, Dimitris [orcid:0000-0001-9940-8409]; Brix, Holger; Rousseaux, Cecile S.; Bowman, Kevin W.; Liu, Junjie; Eldering, Annmarie; Gunson, Michael R.; Kawa, Stephan R.',
-             'pub_date': '2015-01-27',
-             'venue': 'journal of geophysical research: atmospheres [issn:2169-897X]',
-             'volume': '120',
-             'issue': '2',
-             'page': '734-765',
-             'type': 'journal article',
-             'publisher': '',
-             'editor': ''},
-            {'id': 'doi:10.1002/2015gb005314',
-             'title': 'Satellite estimates of net community production based on O /Ar observations and comparison to other estimates',
-             'author': 'Li, Zuchuan; Cassar, Nicolas',
-             'pub_date': '2016-05',
-             'venue': 'global biogeochemical cycles [issn:0886-6236]',
-             'volume': '30',
-             'issue': '5',
-             'page': '735-752',
-             'type': 'journal article',
-             'publisher': '',
-             'editor': ''},
-            {'id': 'doi:10.1002/2015gl065259',
-             'title': 'Observed eastward progression of the Fukushima Cs signal across the North Pacific',
-             'author': 'Yoshida, Sachiko; Macdonald, Alison M.; Jayne, Steven R.; Rypina, Irina I.; Buesseler, Ken O.',
-             'pub_date': '2015-09-16',
-             'venue': 'geophysical research letters [issn:0094-8276]',
-             'volume': '42',
-             'issue': '17',
-             'page': '7139-7147',
-             'type': 'journal article',
-             'publisher': '',
-             'editor': ''},
-            {'id': 'doi:10.1594/pangaea.231378',
-             'title': 'Phosphate, fluoride and cell abundance of bacteria Thiomargarita namibiensis in porewater of sediment profile M57/3_203 from Walvis Ridge',
-             'author': 'Schulz, Heide N [orcid:0000-0003-1445-0291]; Schulz, Horst D',
-             'pub_date': '2005',
+            {'id': 'doi:10.26050/wdcc/ar6.c6gmipicl',
+             'title': 'IPCC DDC: IPSL IPSL-CM6A-LR model output prepared for CMIP6 GMMIP',
+             'author': 'Boucher, Olivier [orcid:0000-0003-2328-5769]; Denvil, Sébastien [orcid:0000-0002-6715-3533]; Levavasseur, Guillaume [orcid:0000-0002-0801-0890]; Cozic, Anne [orcid:0000-0001-7543-3466]; Caubel, Arnaud [orcid:0000-0002-6210-8370]; Foujols, Marie-Alice [orcid:0000-0002-9747-4928]; Meurdesoif, Yann; Mellul, Lidia',
+             'pub_date': '2023',
              'venue': '',
              'volume': '',
              'issue': '',
              'page': '',
              'type': 'dataset',
-             'publisher': 'PANGAEA - Data Publisher for Earth & Environmental Science', 'editor': ''}
-
+             'publisher': 'World Data Center for Climate (WDCC) at DKRZ [ror:03ztgj037]',
+             'editor': 'Boucher, Olivier [orcid:0000-0003-2328-5769]; Denvil, Sébastien [orcid:0000-0002-6715-3533]; Levavasseur, Guillaume [orcid:0000-0002-0801-0890]; Cozic, Anne [orcid:0000-0001-7543-3466]; Caubel, Arnaud [orcid:0000-0002-6210-8370]; Foujols, Marie-Alice [orcid:0000-0002-9747-4928]; Meurdesoif, Yann; Mellul, Lidia'},
         ]
 
-        self.assertEqual(output, expected_output)
-    def test_csv_creator(self):
-        dcp = DataciteProcessing()
-        output = list()
-        for idx, chunk in enumerate(self.read_ndjson_chunk(DATA, 100), start=1):
-            for item in chunk:
-                tabular_data = dcp.csv_creator(item)
-                if tabular_data:
-                    output.append(tabular_data)
-        expected_output = [
-            {
-                'id': 'doi:10.11578/1480643',
-                'title': 'Dataset Title - Award',
-                'author': 'Last, First',
-                'pub_date': '2018',
-                'venue': '',
-                'volume': '',
-                'issue': '',
-                'page': '',
-                'type': 'other',
-                'publisher': 'Desert Research Institute (DRI), Nevada System of Higher Education, Reno,NV (United States)',
-                'editor': ''
-            },
-            {
-                'id': 'doi:10.11575/jet.v46i3.52198',
-                'title': 'Intercultural Research and Education on the Alberta Prairies: Findings from a Doctoral Study',
-                'author': 'Hamm, Lyle D.',
-                'pub_date': '2018-05-17',
-                'venue': 'journal of educational thought / revue de la pensée educative',
-                'volume': '',
-                'issue': '',
-                'page': '',
-                'type': 'report',
-                'publisher': 'Journal of Educational Thought / Revue de la Pensée Educative',
-                'editor': ''
-            },
-            {
-                'id': 'doi:10.11578/1367548',
-                'title': 'Stabilizing effect of resistivity towards ELM-free H-mode discharge in lithium-conditioned NSTX',
-                'author': 'Banerjee, D.; Zhu, P.; Maingi, R.',
-                'pub_date': '2017',
-                'venue': '',
-                'volume': '',
-                'issue': '',
-                'page': '',
-                'type': 'dataset',
-                'publisher': 'Princeton Plasma Physics Laboratory (PPPL), Princeton, NJ (United States)',
-                'editor': ''
-            },
-            {
-                'id': 'doi:10.11578/1372474',
-                'title': 'Influence of Molecular Shape on the Thermal Stability and Molecular Orientation of Vapor-Deposited Organic Semiconductors',
-                'author': 'Walters, Diane; Antony, Lucas; De Pablo, Juan; Ediger, Mark',
-                'pub_date': '2017',
-                'venue': '',
-                'volume': '',
-                'issue': '',
-                'page': '',
-                'type': 'dataset',
-                'publisher': 'University of Wisconsin-Madison\nUniversity of Chicago',
-                'editor': ''
-            },
-            {
-                'id': 'doi:10.11578/1367552',
-                'title': 'Application of IR imaging for free-surface velocity measurement in liquid-metal systems',
-                'author': 'Hvasta, M.G.; Kolemen, E.; Fisher, A.',
-                'pub_date': '2017',
-                'venue': '',
-                'volume': '',
-                'issue': '',
-                'page': '',
-                'type': 'dataset',
-                'publisher': 'Princeton Plasma Physics Laboratory (PPPL), Princeton, NJ (United States)',
-                'editor': ''
-            },
-            {
-                'id': 'doi:10.11578/dc.20191106.1',
-                'title': 'STJ_PV: Subtropical Jet Finding Framework',
-                'author': 'Kelleher, Michael [orcid:0000-0002-9286-2630]; Maher, Penelope [orcid:0000-0001-8513-8700]',
-                'pub_date': '2019',
-                'venue': '',
-                'volume': '',
-                'issue': '',
-                'page': '',
-                'type': 'computer program',
-                'publisher': '',
-                'editor': ''
-            }
-        ]
         self.assertEqual(output, expected_output)
 
     def test_csv_creator_object(self):
         dcp = DataciteProcessing()
         doi_obj = "doi:10.1021/acs.jpclett.7b01097"
         expected_output = {
-                            'id': 'doi:10.1021/acs.jpclett.7b01097',
-                            'title': '',
-                            'author': '',
-                            'pub_date': '',
-                            'venue': '',
-                            'volume': '',
-                            'issue': '',
-                            'page': '',
-                            'type': '',
-                            'publisher': '',
-                            'editor': ''}
+            'id': 'doi:10.1021/acs.jpclett.7b01097',
+            'title': '',
+            'author': '',
+            'pub_date': '',
+            'venue': '',
+            'volume': '',
+            'issue': '',
+            'page': '',
+            'type': '',
+            'publisher': '',
+            'editor': ''}
 
         out = dcp.csv_creator({"id": doi_obj, "type": "dois", "attributes": {"doi": doi_obj}})
         self.assertEqual(out, expected_output)
 
     def test_get_publisher_name_invalid_publishers(self):
         dcp = DataciteProcessing()
-        item1 = {"publisher": "(:unav)"}
-        item2 = {"publisher": ":unav"}
-        item3 = {"publisher": ":unkn"}
-        item4 = {"publisher": "(:unkn)"}
-        item5 = {"publisher": "Edo : [publisher not identified]mon han"}
-        item6 = {"publisher": "[place of publication not identified]: [pubisher not identified]"}
-        item7 = {"publisher": "unknown unknown"}
-        item8 = {"publisher": "[unknown] : [unknown]"}
-        item9 = {"publisher": "[unknown] : College of Pharmacists of British Columbia"}
-        item10 = {"publisher": "[Edinburgh]: [Unknown]"}
-        item11 = {"publisher": "Unknown, National University of Singapore"}
-        item12 = {"publisher": "Not provided."}
-        item13 = {"publisher": "Soleure, s.n."}
-        item14 = {"publisher": "[s.l. , s.n]"}
-        item15 = {"publisher": "[ s.l. : s.n.]"}
-        item16 = {"publisher": "s.n.]"}
-        item17 = {"publisher": "Information not available, contact SND for more information"}
-        item18 = {"publisher": "Publisher Not Specified"}
-        result1 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item1)
-        result2 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item2)
-        result3 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item3)
-        result4 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item4)
-        result5 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item5)
-        result6 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item6)
-        result7 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item7)
-        result8 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item8)
-        result9 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item9)
-        result10 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item10)
-        result11 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item11)
-        result12 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item12)
-        result13 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item13)
-        result14 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item14)
-        result15 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item15)
-        result16 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item16)
-        result17 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item17)
-        result18 = dcp.get_publisher_name('doi:10.11578/dc.20191106.1', item18)
+        item1 = {"publisher": {
+            "name":"(:unav)"}
+        }
+        item2 = {"publisher": {
+            "name":":unav"}
+        }
+        item3 = {"publisher": {
+            "name":":unkn"}}
+        item4 = {"publisher": {
+            "name":"(:unkn)"}}
+        item5 = {"publisher": {
+            "name":"Edo : [publisher not identified]mon han"}}
+        item6 = {"publisher": {
+            "name":"[place of publication not identified]: [pubisher not identified]"
+        }}
+        item7 = {"publisher": {
+            "name":"unknown unknown"
+        }}
+        item8 = {"publisher": {
+            "name":"[unknown] : [unknown]"
+        }}
+        item9 = {"publisher": {
+            "name":"[unknown] : College of Pharmacists of British Columbia"
+        }}
+        item10 = {"publisher": {
+            "name":"[Edinburgh]: [Unknown]"
+        }}
+        item11 = {"publisher": {
+            "name":"Unknown, National University of Singapore"
+        }}
+        item12 = {"publisher": {
+            "name":"Not provided."
+        }}
+        item13 = {"publisher": {
+            "name":"Soleure, s.n."
+        }}
+        item14 = {"publisher": {
+            "name":"[s.l. , s.n]"
+        }}
+        item15 = {"publisher": {
+            "name":"[ s.l. : s.n.]"
+        }}
+        item16 = {"publisher": {
+            "name":"s.n.]"
+        }}
+        item17 = {"publisher": {
+            "name":"Information not available, contact SND for more information"
+        }}
+        item18 = {"publisher": {
+            "name":"Publisher Not Specified"
+        }}
+        result1 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item1['publisher'])
+        result2 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item2['publisher'])
+        result3 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item3['publisher'])
+        result4 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item4['publisher'])
+        result5 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item5['publisher'])
+        result6 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item6['publisher'])
+        result7 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item7['publisher'])
+        result8 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item8['publisher'])
+        result9 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item9['publisher'])
+        result10 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item10['publisher'])
+        result11 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item11['publisher'])
+        result12 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item12['publisher'])
+        result13 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item13['publisher'])
+        result14 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item14['publisher'])
+        result15 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item15['publisher'])
+        result16 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item16['publisher'])
+        result17 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item17['publisher'])
+        result18 = dcp.get_publisher('doi:10.11578/dc.20191106.1', item18['publisher'])
         expected_res = ""
         expected_res9 = "[unknown] : College of Pharmacists of British Columbia"
         expected_res10 = "[Edinburgh]: [Unknown]"
         expected_res11 = "Unknown, National University of Singapore"
         expected_res13 = "Soleure, s.n."
-
 
         self.assertEqual(result1, expected_res)
         self.assertEqual(result2, expected_res)
@@ -558,11 +913,12 @@ class TestDataciteProcessing(unittest.TestCase):
 
         item = {
             "doi": "10.1594/pangaea.777220",
-            "publisher": "PANGAEA - Data Publisher for Earth & Environmental Science"
+            "publisher": {"name":"PANGAEA - Data Publisher for Earth & Environmental Science"}
         }
         doi = '10.1594/pangaea.777220'
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
-        publisher_name = datacite_processor.get_publisher_name(doi, item)
+        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
+        publisher_name = datacite_processor.get_publisher(doi, item)
         self.assertEqual(publisher_name, 'PANGAEA - Data Publisher for Earth & Environmental Science [datacite:2]')
 
     def test_get_publisher_name_from_prefix(self):
@@ -572,8 +928,9 @@ class TestDataciteProcessing(unittest.TestCase):
             'doi': '10.12753/sample_test_doi_with_known_prefix',
         }
         doi = '10.12753/sample_test_doi_with_known_prefix'
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
-        publisher_name = datacite_processor.get_publisher_name(doi, item)
+        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
+        publisher_name = datacite_processor.get_publisher(doi, item)
         self.assertEqual(publisher_name, 'ADLRO [datacite:3]')
 
     def test_to_validated_id_list(self):
@@ -709,51 +1066,61 @@ class TestDataciteProcessing(unittest.TestCase):
 
         dp.storage_manager.delete_storage()
 
-    def test_get_venue_name(self):
+    def test_get_venue_container(self):
+        item={'container': {'type': 'DataRepository', 'title': 'GEM Datasets'}, 'reason': None, 'prefix': '10.13117', 'citationsOverTime': [], 'registered': '2014-03-24T10:51:17Z', 'language': 'en', 'source': None, 'suffix': 'gem.dataset.ghea-v1.0', 'relatedItems': [], 'descriptions': [{'descriptionType': 'SeriesInformation', 'description': 'GEM Datasets'}, {'descriptionType': 'SeriesInformation', 'description': 'GEM Catalogues'}], 'sizes': ['1011 records'], 'versionOfCount': 0, 'relatedIdentifiers': [{'relationType': 'IsIdenticalTo', 'relatedIdentifier': 'http://emidius.eu/GEH/', 'relatedIdentifierType': 'URL'}, {'relationType': 'IsDocumentedBy', 'relatedIdentifier': '10.13117/gem.gegd.tr2013.01', 'relatedIdentifierType': 'DOI'}, {'relationType': 'Compiles', 'relatedIdentifier': '10.13117/gem.dataset.ghec-v1.0', 'relatedIdentifierType': 'DOI'}, {'relationType': 'References', 'relatedIdentifier': '10.6092/ingv.it-ahead', 'relatedIdentifierType': 'DOI'}], 'created': '2014-03-24T10:51:17Z', 'dates': [{'date': '1008-04-27/1903-12-28', 'dateType': 'Collected'}, {'date': '2013-06-01', 'dateType': 'Available'}, {'date': '2010-11-01/2013-03-31', 'dateType': 'Created'}, {'date': '2013', 'dateType': 'Issued'}], 'published': '2013', 'geoLocations': [], 'partCount': 0, 'publicationYear': 2013, 'partOfCount': 0, 'updated': '2020-07-26T16:07:36Z', 'formats': ['text/html', 'image/svg+xml', 'application/pdf'], 'fundingReferences': [], 'creators': [{'nameType': 'Personal', 'affiliation': [], 'givenName': 'Paola', 'familyName': 'Albini', 'name': 'Albini, Paola', 'nameIdentifiers': [{'nameIdentifierScheme': 'ORCID', 'schemeUri': 'https://orcid.org', 'nameIdentifier': 'https://orcid.org/0000-0003-4149-9760'}]}, {'nameType': 'Personal', 'affiliation': [], 'givenName': 'Roger M.W.', 'familyName': 'Musson', 'name': 'Musson, Roger M.W.', 'nameIdentifiers': [{'nameIdentifierScheme': 'ISNI', 'nameIdentifier': '0000 0000 5424 2727'}]}, {'nameType': 'Personal', 'affiliation': [], 'givenName': 'Antonio A.', 'familyName': 'Gomez Capera', 'name': 'Gomez Capera, Antonio A.', 'nameIdentifiers': []}, {'nameType': 'Personal', 'affiliation': [], 'givenName': 'Mario', 'familyName': 'Locati', 'name': 'Locati, Mario', 'nameIdentifiers': [{'nameIdentifierScheme': 'ORCID', 'schemeUri': 'https://orcid.org', 'nameIdentifier': 'https://orcid.org/0000-0003-2185-3267'}]}, {'nameType': 'Personal', 'affiliation': [], 'givenName': 'Andrea', 'familyName': 'Rovida', 'name': 'Rovida, Andrea', 'nameIdentifiers': [{'nameIdentifierScheme': 'ORCID', 'schemeUri': 'https://orcid.org', 'nameIdentifier': 'https://orcid.org/0000-0001-6147-9981'}]}, {'nameType': 'Personal', 'affiliation': [], 'givenName': 'Massimiliano', 'familyName': 'Stucchi', 'name': 'Stucchi, Massimiliano', 'nameIdentifiers': [{'nameIdentifierScheme': 'ORCID', 'schemeUri': 'https://orcid.org', 'nameIdentifier': 'https://orcid.org/0000-0002-5870-1542'}]}, {'nameType': 'Personal', 'affiliation': [], 'givenName': 'Daniele', 'familyName': 'Viganò', 'name': 'Viganò, Daniele', 'nameIdentifiers': [{'nameIdentifierScheme': 'ORCID', 'schemeUri': 'https://orcid.org', 'nameIdentifier': 'https://orcid.org/0000-0003-2713-8387'}]}], 'schemaVersion': 'http://datacite.org/schema/kernel-3', 'versionCount': 0, 'metadataVersion': 3, 'citationCount': 0, 'types': {'schemaOrg': 'Dataset', 'resourceTypeGeneral': 'Dataset', 'citeproc': 'dataset', 'bibtex': 'misc', 'ris': 'DATA', 'resourceType': 'Dataset/Earthquakes'}, 'isActive': True, 'viewsOverTime': [], 'identifiers': [], 'subjects': [{'subject': 'Earthquake history'}, {'subject': 'Historical seismology'}, {'subject': 'Catalogue'}, {'subject': 'Archive'}, {'subject': 'Macroseismic data'}, {'subject': 'GEM'}], 'titles': [{'title': 'GEM Global Historical Earthquake Archive'}], 'url': 'https://www.emidius.eu/GEH/', 'downloadCount': 0, 'rightsList': [{'rights': 'Copyright © 2013 GEM Foundation, Albini, P., R.M.W. Musson, A.A. Gomez Capera, M. Locati, A. Rovida, M. Stucchi, and D. Viganò'}, {'rightsUri': 'http://creativecommons.org/licenses/by-nc-sa/4.0', 'rights': 'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International'}], 'contentUrl': None, 'contributors': [{'affiliation': [], 'name': 'Istituto Nazionale Di Geofisica E Vulcanologia (INGV)', 'nameIdentifiers': [], 'contributorType': 'DataCollector'}, {'affiliation': [], 'name': 'British Geological Survey (BGS)', 'nameIdentifiers': [], 'contributorType': 'DataCollector'}], 'referenceCount': 1, 'viewCount': 0, 'downloadsOverTime': [], 'doi': '10.13117/gem.dataset.ghea-v1.0', 'publisher': {'name': 'GEM Foundation, Pavia, Italy'}, 'version': '1.0', 'state': 'findable', 'alternateIdentifiers': []}
+        row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
+               'type': 'dataset', 'publisher': '', 'editor': ''}
+        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
+        venue_name = datacite_processor.get_venue_name(item, row)
+        self.assertEqual(venue_name, 'gem datasets')
+
+    def test_get_venue_name_no_container(self):
         item = {
-            "container": {"type": "Series", "title": "Journal of Educational Thought / Revue de la Pensée Educative", "firstPage": "Vol 46 No 3 (2012)", "identifier": "10.11575/jet.v46i3", "identifierType": "DOI"}
+            "container": {},
+            "relatedIdentifiers": [
+                {
+                    "relationType": "IsSupplementTo",
+                    "resourceTypeGeneral": "Text",
+                    "relatedIdentifier": "10.4230/LIPIcs.ECOOP.2023.39",
+                    "relatedIdentifierType": "DOI"
+                },
+                {
+                    "relationType": "IsPartOf",
+                    "relatedIdentifier": "2509-8195",
+                    "relatedIdentifierType": "ISSN"
+                },
+            ]
         }
         row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
                'type': 'journal article', 'publisher': '', 'editor': ''}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
+        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
         venue_name = datacite_processor.get_venue_name(item, row)
-        self.assertEqual(venue_name, 'journal of educational thought / revue de la pensée educative')
+        self.assertEqual(venue_name, '[issn:2509-8195]')
 
     def test_get_venue_name_with_ISSN(self):
         item = {
-            "container": {"type": "Journal", "issue": "18", "title": "Geophysical Research Letters", "volume": "41",
-                          "lastPage": "6451", "firstPage": "6443", "identifier": "00948276", "identifierType": "ISSN"}
+            "container": {"type": "Series", "identifier": "2509-8195", "identifierType": "ISSN", "title": "DARTS",
+                          "volume": "Vol. 9", "firstPage": "pages 25:1", "lastPage": "25:2"}
         }
         row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
                'type': 'journal article', 'publisher': '', 'editor': ''}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None, publishers_filepath_dc=PUBLISHERS_MAPPING)
+        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
         venue_name = datacite_processor.get_venue_name(item, row)
         self.assertEqual(venue_name,
-                         "geophysical research letters [issn:0094-8276]")
+                         "darts [issn:2509-8195]")
         # ISSN with wrong number of digits
         item1 = {
             "container": {"type": "Journal", "issue": "18", "title": "Geophysical Research Letters", "volume": "41",
                           "lastPage": "6451", "firstPage": "6443", "identifier": "00948276", "identifierType": "ISSN"}
         }
-        row1= {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
-               'type': 'journal article', 'publisher': '', 'editor': ''}
+        row1 = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '', 'page': '',
+                'type': 'journal article', 'publisher': '', 'editor': ''}
         venue_name1 = datacite_processor.get_venue_name(item1, row1)
         self.assertEqual(venue_name1,
                          "geophysical research letters [issn:0094-8276]")
-
-
-    def test_get_venue_ISSN_from_rel_id(self):
-        item = {"relatedIdentifiers": [
-            {"relationType": "IsPartOf", "relatedIdentifier": "00948276", "resourceTypeGeneral": "Collection",
-             "relatedIdentifierType": "ISSN"}]
-                }
-        row = {'id': '', 'title': '', 'author': '', 'pub_date': '', 'venue': '', 'volume': '', 'issue': '',
-               'page': '',
-               'type': 'journal article', 'publisher': '', 'editor': ''}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
-                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
-        venue_name = datacite_processor.get_venue_name(item, row)
-        self.assertEqual(venue_name, "[issn:0094-8276]")
 
     def test_get_pages(self):
         item = {
@@ -830,6 +1197,17 @@ class TestDataciteProcessing(unittest.TestCase):
         pages = datacite_processor.get_datacite_pages(item)
         self.assertEqual(pages, '')
 
+    def test_get_pages_with_strings_no_venue_id(self):
+        item = {'container': {
+                        'firstPage': '13. Studi umanistici. Serie Antichistica',
+                        'type': 'Series',
+                        'title': 'Collana Studi e Ricerche'
+                }}
+        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
+                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
+        pages = datacite_processor.get_datacite_pages(item)
+        self.assertEqual(pages, '')
+
     def test_venue_id_cont_and_rel_id(self):
         items = {'data': [
             {
@@ -839,8 +1217,9 @@ class TestDataciteProcessing(unittest.TestCase):
                     "doi": "10.1002/2014jd022411",
                     "identifiers": [],
                     "titles": [{
-                                   "title": "\n              Assessing the magnitude of CO\n              \n              flux uncertainty in atmospheric CO\n              \n              records using products from NASA's Carbon Monitoring Flux Pilot Project\n            "}],
-                    "publisher": "(:unav)",
+                        "title": "\n              Assessing the magnitude of CO\n              \n              flux uncertainty in atmospheric CO\n              \n              records using products from NASA's Carbon Monitoring Flux Pilot Project\n            "}],
+                    "publisher": {
+                        "name":"(:unav)"},
                     "container": {"type": "Journal", "issue": "2",
                                   "title": "Journal of Geophysical Research: Atmospheres", "volume": "120",
                                   "lastPage": "765", "firstPage": "734", "identifier": "2169897X",
@@ -877,8 +1256,8 @@ class TestDataciteProcessing(unittest.TestCase):
                     "doi": "10.1002/2014jd022411",
                     "identifiers": [],
                     "titles": [{
-                                   "title": "\n              Assessing the magnitude of CO\n              \n              flux uncertainty in atmospheric CO\n              \n              records using products from NASA's Carbon Monitoring Flux Pilot Project\n            "}],
-                    "publisher": "(:unav)",
+                        "title": "\n              Assessing the magnitude of CO\n              \n              flux uncertainty in atmospheric CO\n              \n              records using products from NASA's Carbon Monitoring Flux Pilot Project\n            "}],
+                    "publisher": {"name":"(:unav)"},
                     "container": {"type": "Journal", "issue": "2",
                                   "title": "Journal of Geophysical Research: Atmospheres", "volume": "120",
                                   "lastPage": "765", "firstPage": "734", "identifier": "2169897X",
@@ -898,39 +1277,6 @@ class TestDataciteProcessing(unittest.TestCase):
                             'author': '', 'pub_date': '', 'venue': 'journal of geophysical research: atmospheres',
                             'volume': '120', 'issue': '2', 'page': '734-765', 'type': '',
                             'publisher': 'Wiley [datacite:1]', 'editor': ''}]
-        self.assertEqual(output, expected_output)
-
-    def test_venue_id_rel_id_only(self):
-        # the absence of publication types specified excludes the possibility
-        # to assert whether the container can have an ISSN or not
-        items = {'data': [
-            {
-                "id": "10.1002/2014jd022411",
-                "type": "dois",
-                "attributes": {
-                    "doi": "10.1002/2014jd022411",
-                    "identifiers": [],
-                    "titles": [{
-                                   "title": "\n              Assessing the magnitude of CO\n              \n              flux uncertainty in atmospheric CO\n              \n              records using products from NASA's Carbon Monitoring Flux Pilot Project\n            "}],
-                    "publisher": "(:unav)",
-                    "container": {},
-                    "types": {"ris": "JOUR", "bibtex": "article", "citeproc": "article-journal",
-                              "schemaOrg": "ScholarlyArticle", "resourceType": "JournalArticle",
-                              "resourceTypeGeneral": "Text"},
-                    "relatedIdentifiers": [{"relationType": "IsPartOf", "relatedIdentifier": "2169897X",
-                                            "resourceTypeGeneral": "Collection", "relatedIdentifierType": "ISSN"}]
-                }
-            }
-        ]}
-        datacite_processor = DataciteProcessing(orcid_index=None, doi_csv=None,
-                                                publishers_filepath_dc=PUBLISHERS_MAPPING)
-        output = list()
-        for item in items['data']:
-            output.append(datacite_processor.csv_creator(item))
-        expected_output = [{'id': 'doi:10.1002/2014jd022411',
-                            'title': "Assessing the magnitude of CO flux uncertainty in atmospheric CO records using products from NASA's Carbon Monitoring Flux Pilot Project",
-                            'author': '', 'pub_date': '', 'venue': '[issn:2169-897X]', 'volume': '', 'issue': '',
-                            'page': '', 'type': 'journal article', 'publisher': 'Wiley [datacite:1]', 'editor': ''}]
         self.assertEqual(output, expected_output)
 
     def test_get_agents_strings_list_overlapping_surnames(self):
@@ -977,15 +1323,41 @@ class TestDataciteProcessing(unittest.TestCase):
     def test_get_agents_strings_list(self):
         entity_attr_dict = {
             "doi": "10.1002/2014jd022411",
-            "creators": [{"name": "Ott, Lesley E.", "nameType": "Personal", "givenName": "Lesley E.", "familyName": "Ott", "affiliation": [], "nameIdentifiers": []}, {"name": "Pawson, Steven", "nameType": "Personal", "givenName": "Steven", "familyName": "Pawson", "affiliation": [], "nameIdentifiers": []}, {"name": "Collatz, George J.", "nameType": "Personal", "givenName": "George J.", "familyName": "Collatz", "affiliation": [], "nameIdentifiers": []}, {"name": "Gregg, Watson W.", "nameType": "Personal", "givenName": "Watson W.", "familyName": "Gregg", "affiliation": [], "nameIdentifiers": []}, {"name": "Menemenlis, Dimitris", "nameType": "Personal", "givenName": "Dimitris", "familyName": "Menemenlis", "affiliation": [], "nameIdentifiers": [{"schemeUri": "https://orcid.org", "nameIdentifier": "https://orcid.org/0000-0001-9940-8409", "nameIdentifierScheme": "ORCID"}]}, {"name": "Brix, Holger", "nameType": "Personal", "givenName": "Holger", "familyName": "Brix", "affiliation": [], "nameIdentifiers": []}, {"name": "Rousseaux, Cecile S.", "nameType": "Personal", "givenName": "Cecile S.", "familyName": "Rousseaux", "affiliation": [], "nameIdentifiers": []}, {"name": "Bowman, Kevin W.", "nameType": "Personal", "givenName": "Kevin W.", "familyName": "Bowman", "affiliation": [], "nameIdentifiers": []}, {"name": "Liu, Junjie", "nameType": "Personal", "givenName": "Junjie", "familyName": "Liu", "affiliation": [], "nameIdentifiers": []}, {"name": "Eldering, Annmarie", "nameType": "Personal", "givenName": "Annmarie", "familyName": "Eldering", "affiliation": [], "nameIdentifiers": []}, {"name": "Gunson, Michael R.", "nameType": "Personal", "givenName": "Michael R.", "familyName": "Gunson", "affiliation": [], "nameIdentifiers": []}, {"name": "Kawa, Stephan R.", "nameType": "Personal", "givenName": "Stephan R.", "familyName": "Kawa", "affiliation": [], "nameIdentifiers": []}],
+            "creators": [
+                {"name": "Ott, Lesley E.", "nameType": "Personal", "givenName": "Lesley E.", "familyName": "Ott",
+                 "affiliation": [], "nameIdentifiers": []},
+                {"name": "Pawson, Steven", "nameType": "Personal", "givenName": "Steven", "familyName": "Pawson",
+                 "affiliation": [], "nameIdentifiers": []},
+                {"name": "Collatz, George J.", "nameType": "Personal", "givenName": "George J.",
+                 "familyName": "Collatz", "affiliation": [], "nameIdentifiers": []},
+                {"name": "Gregg, Watson W.", "nameType": "Personal", "givenName": "Watson W.", "familyName": "Gregg",
+                 "affiliation": [], "nameIdentifiers": []},
+                {"name": "Menemenlis, Dimitris", "nameType": "Personal", "givenName": "Dimitris",
+                 "familyName": "Menemenlis", "affiliation": [], "nameIdentifiers": [
+                    {"schemeUri": "https://orcid.org", "nameIdentifier": "https://orcid.org/0000-0001-9940-8409",
+                     "nameIdentifierScheme": "ORCID"}]},
+                {"name": "Brix, Holger", "nameType": "Personal", "givenName": "Holger", "familyName": "Brix",
+                 "affiliation": [], "nameIdentifiers": []},
+                {"name": "Rousseaux, Cecile S.", "nameType": "Personal", "givenName": "Cecile S.",
+                 "familyName": "Rousseaux", "affiliation": [], "nameIdentifiers": []},
+                {"name": "Bowman, Kevin W.", "nameType": "Personal", "givenName": "Kevin W.", "familyName": "Bowman",
+                 "affiliation": [], "nameIdentifiers": []},
+                {"name": "Liu, Junjie", "nameType": "Personal", "givenName": "Junjie", "familyName": "Liu",
+                 "affiliation": [], "nameIdentifiers": []},
+                {"name": "Eldering, Annmarie", "nameType": "Personal", "givenName": "Annmarie",
+                 "familyName": "Eldering", "affiliation": [], "nameIdentifiers": []},
+                {"name": "Gunson, Michael R.", "nameType": "Personal", "givenName": "Michael R.",
+                 "familyName": "Gunson", "affiliation": [], "nameIdentifiers": []},
+                {"name": "Kawa, Stephan R.", "nameType": "Personal", "givenName": "Stephan R.", "familyName": "Kawa",
+                 "affiliation": [], "nameIdentifiers": []}],
             "contributors": [{
-                            'name': 'AKMB-News: Informationen Zu Kunst, Museum Und Bibliothek',
-                            'nameType': 'Personal',
-                            'givenName': 'Museum Und Bibliothek',
-                            'familyName': 'AKMB-News: Informationen Zu Kunst',
-                            'affiliation': [],
-                            'contributorType': 'Editor',
-                            'nameIdentifiers': []}]}
+                'name': 'AKMB-News: Informationen Zu Kunst, Museum Und Bibliothek',
+                'nameType': 'Personal',
+                'givenName': 'Museum Und Bibliothek',
+                'familyName': 'AKMB-News: Informationen Zu Kunst',
+                'affiliation': [],
+                'contributorType': 'Editor',
+                'nameIdentifiers': []}]}
 
         datacite_processor = DataciteProcessing(IOD, WANTED_DOIS)
         authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
@@ -995,12 +1367,14 @@ class TestDataciteProcessing(unittest.TestCase):
         agents_list = authors_list + editors_list
         authors_strings_list, editors_strings_list = datacite_processor.get_agents_strings_list('10.1002/2014jd022411',
                                                                                                 agents_list)
-        expected_authors_list = ['Ott, Lesley E.', 'Pawson, Steven', 'Collatz, George J.', 'Gregg, Watson W.', 'Menemenlis, Dimitris [orcid:0000-0001-9940-8409]', 'Brix, Holger', 'Rousseaux, Cecile S.', 'Bowman, Kevin W.', 'Liu, Junjie', 'Eldering, Annmarie', 'Gunson, Michael R.', 'Kawa, Stephan R.']
+        expected_authors_list = ['Ott, Lesley E.', 'Pawson, Steven', 'Collatz, George J.', 'Gregg, Watson W.',
+                                 'Menemenlis, Dimitris [orcid:0000-0001-9940-8409]', 'Brix, Holger',
+                                 'Rousseaux, Cecile S.', 'Bowman, Kevin W.', 'Liu, Junjie', 'Eldering, Annmarie',
+                                 'Gunson, Michael R.', 'Kawa, Stephan R.']
         expected_editors_list = ['AKMB-News: Informationen Zu Kunst, Museum Und Bibliothek']
 
         self.assertEqual(authors_strings_list, expected_authors_list)
         self.assertEqual(editors_strings_list, expected_editors_list)
-
 
     def test_get_agents_strings_list_same_family(self):
         # Two authors have the same family name and the same given name initials
@@ -1012,7 +1386,8 @@ class TestDataciteProcessing(unittest.TestCase):
                  "familyName": "Schulz",
                  "nameIdentifiers":
                      [
-                         {"schemeUri": "https://orcid.org", "nameIdentifier": "https://orcid.org/0000-0003-1445-0291", "nameIdentifierScheme": "ORCID"}
+                         {"schemeUri": "https://orcid.org", "nameIdentifier": "https://orcid.org/0000-0003-1445-0291",
+                          "nameIdentifierScheme": "ORCID"}
                      ],
                  "affiliation": []},
                 {"name": "Schulz, Horst D",
@@ -1038,7 +1413,7 @@ class TestDataciteProcessing(unittest.TestCase):
         entity_attr_dict = {
             "creators":
                 [
-                    {"name":  "Viorel, Cojocaru",
+                    {"name": "Viorel, Cojocaru",
                      "nameType": "Personal",
                      "givenName": "Cojocaru",
                      "familyName": "Viorel",
@@ -1070,13 +1445,12 @@ class TestDataciteProcessing(unittest.TestCase):
         expected_authors_list = ['Viorel, Cojocaru', 'Viorel, Cojocaru', 'Ciprian, Panait']
         self.assertEqual(authors_strings_list, expected_authors_list)
 
-
     def test_get_agents_strings_list_inverted_names(self):
         # One author with an ORCID has as a name the surname of another
         entity_attr_dict = {
             "creators":
                 [
-                    {"name":  "Viorel, Cojocaru",
+                    {"name": "Viorel, Cojocaru",
                      "nameType": "Personal",
                      "givenName": "Cojocaru",
                      "familyName": "Viorel",
@@ -1142,14 +1516,13 @@ class TestDataciteProcessing(unittest.TestCase):
 
         dp.storage_manager.delete_storage()
 
-
     def test_find_datacite_orcid_with_index(self):
         """Test ORCID validation using ORCID index before API validation"""
         # Setup
         test_doi = "10.1234/test123"
         test_orcid = "0000-0002-1234-5678"
         test_name = "Smith, John"
-        
+
         # Create DataciteProcessing instance with ORCID index
         dp = DataciteProcessing()
         dp.orcid_index.data = {test_doi: {f"{test_name} [orcid:{test_orcid}]"}}
@@ -1161,31 +1534,30 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(out_1, exp_1)
         # Verify it was added to temporary storage
         self.assertTrue(dp.tmp_orcid_m.storage_manager.get_value(f"orcid:{test_orcid}"))
-        
+
         # Test Case 2: ORCID not in index but valid via API
         inp_2 = ["0000-0003-4082-1500"]
         out_2 = dp.find_datacite_orcid(["0000-0003-4082-1500"], test_doi)
         exp_2 = "orcid:0000-0003-4082-1500"
         self.assertEqual(out_2, exp_2)
-        
+
         # Test Case 3: ORCID not in index and invalid
         inp_3 = ["0000-0000-0000-0000"]
         out_3 = dp.find_datacite_orcid(["0000-0000-0000-0000"], test_doi)
         exp_3 = ""
         self.assertEqual(out_3, exp_3)
-        
+
         # Test Case 4: Valid ORCID but no DOI provided (retrocompatibilità)
         inp_4 = [test_orcid]
         out_4 = dp.find_datacite_orcid(inp_4)  # No DOI
         exp_4 = f"orcid:{test_orcid}"  # Should still validate via API
         self.assertEqual(out_4, exp_4)
-        
+
         # Test Case 5: Multiple ORCIDs, first one valid
         inp_5 = [test_orcid, "0000-0000-0000-0000"]
         out_5 = dp.find_datacite_orcid([test_orcid, "0000-0000-0000-0000"], test_doi)
         exp_5 = f"orcid:{test_orcid}"
         self.assertEqual(out_5, exp_5)
-
 
         # Cleanup
         dp.storage_manager.delete_storage()
@@ -1242,6 +1614,265 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(out, f"orcid:{orcid}")
         self.assertTrue(dp.tmp_orcid_m.storage_manager.get_value(f"orcid:{orcid}"))
         dp.storage_manager.delete_storage()
+
+    #PUBLISHER IDENTIFIERS
+    def test_find_datacite_publisher_id_api_enabled_no_value_in_storage(self):
+        """API ON + id non salvato nello storage."""
+        dp = DataciteProcessing(use_ror_api=True, use_wikidata_api=True, use_viaf_api=True)
+        publisher1 = {
+            'publisherIdentifierScheme': 'ROR',
+            'schemeUri': 'https://ror.org',
+            'name': 'DataCite',
+            'publisherIdentifier': 'https://ror.org/04wxnsj81'
+        }
+        publisher2 = {
+            'publisherIdentifierScheme': 'VIAF',
+            'schemeUri': 'https://viaf.org/',
+            'name': 'Deutsches archäologisches Institut',
+            'publisherIdentifier': 'http://viaf.org/viaf/148463773'
+        }
+        publisher3 = {
+            'publisherIdentifierScheme': 'Wikidata',
+            'schemeUri': 'https://www.wikidata.org/wiki/',
+            'name': 'University of Tokyo',
+            'publisherIdentifier': 'https://wikidata.org/wiki/Q7842'
+        }
+
+        id1 = "ror:04wxnsj81"
+        id2 = "viaf:148463773"
+        id3 = "wikidata:Q7842"
+
+        out1 = dp.get_publisher_id(publisher1)
+        out2 = dp.get_publisher_id(publisher2)
+        out3 = dp.get_publisher_id(publisher3)
+
+        self.assertEqual(out1, id1)
+        self.assertEqual(out2, id2)
+        self.assertEqual(out3, id3)
+
+        dp.storage_manager.delete_storage()
+
+    def test_get_pubblisher_api_disabled_no_index(self):
+        """Con API OFF e indice vuoto, i publisher id presenti NON devono comparire in output."""
+
+        publisher1 = {
+            'publisherIdentifierScheme': 'ROR',
+            'schemeUri': 'https://ror.org',
+            'name': 'DataCite',
+            'publisherIdentifier': 'https://ror.org/04wxnsj81'
+        }
+        publisher2 = {
+            'publisherIdentifierScheme': 'VIAF',
+            'schemeUri': 'https://viaf.org/',
+            'name': 'Deutsches archäologisches Institut',
+            'publisherIdentifier': 'http://viaf.org/viaf/148463773'
+        }
+        publisher3 = {
+            'publisherIdentifierScheme': 'Wikidata',
+            'schemeUri': 'https://www.wikidata.org/wiki/',
+            'name': 'University of Tokyo',
+            'publisherIdentifier': 'https://wikidata.org/wiki/Q7842'
+        }
+
+
+        dp = DataciteProcessing(use_ror_api=False, use_viaf_api=False, use_wikidata_api=False)  # indice vuoto, nessuna API
+        publisher_row1 = dp.get_publisher('10.60804/bpmz-jb79', publisher1)
+        publisher_row2 = dp.get_publisher('10.60804/bpmz-jb79', publisher2)
+        publisher_row3 = dp.get_publisher('10.60804/bpmz-jb79', publisher3)
+
+        # L'id NON deve essere aggiunto tra [] perché non c'è indice e l'API è OFF
+        self.assertEqual(publisher_row1, "DataCite")
+        self.assertEqual(publisher_row2, "Deutsches archäologisches Institut")
+        self.assertEqual(publisher_row3, "University of Tokyo")
+
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_publisher_id_api_enabled_invalid_in_storage(self):
+        """API ON + id marcato come invalid in storage: rifiuta subito (niente indice/API)."""
+        dp = DataciteProcessing(use_ror_api=True, use_wikidata_api=True, use_viaf_api=True)
+        publisher1 = {
+            'publisherIdentifierScheme': 'ROR',
+            'schemeUri': 'https://ror.org',
+            'name': 'DataCite',
+            'publisherIdentifier': 'https://ror.org/04wxnsj81'
+        }
+        publisher2 = {
+            'publisherIdentifierScheme': 'VIAF',
+            'schemeUri': 'https://viaf.org/',
+            'name': 'Deutsches archäologisches Institut',
+            'publisherIdentifier': 'http://viaf.org/viaf/148463773'
+        }
+        publisher3 = {
+            'publisherIdentifierScheme': 'Wikidata',
+            'schemeUri': 'https://www.wikidata.org/wiki/',
+            'name': 'University of Tokyo',
+            'publisherIdentifier': 'https://wikidata.org/wiki/Q7842'
+        }
+
+        id1 = "ror:04wxnsj81"
+        id2 = "viaf:148463773"
+        id3 = "wikidata:Q7842"
+
+        dp.storage_manager.set_value(id1, False)
+        dp.storage_manager.set_value(id2, False)
+        dp.storage_manager.set_value(id3, False)
+
+        out1 = dp.get_publisher_id(publisher1)
+        out2 = dp.get_publisher_id(publisher2)
+        out3 = dp.get_publisher_id(publisher3)
+
+        self.assertEqual(out1, "")
+        self.assertEqual(out2, "")
+        self.assertEqual(out3, "")
+
+        # nessuna semina in tmp
+        self.assertIsNone(dp.tmp_viaf_m.storage_manager.get_value(id2))
+        self.assertIsNone(dp.tmp_ror_m.storage_manager.get_value(id1))
+        self.assertIsNone(dp.tmp_wikidata_m.storage_manager.get_value(id3))
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_publisher_id_api_enabled_from_redis_snapshot(self):
+        """API ON + storage/indice vuoti, ma id presente nello snapshot Redis RA: accetta senza rete."""
+        dp = DataciteProcessing(use_viaf_api=True, use_wikidata_api=True, use_ror_api=True)
+
+        id1 = "ror:04wxnsj81"
+        id2 = "viaf:148463773"
+        id3 = "wikidata:Q7842"
+
+        publisher1 = {
+            'publisherIdentifierScheme': 'ROR',
+            'schemeUri': 'https://ror.org',
+            'name': 'DataCite',
+            'publisherIdentifier': 'https://ror.org/04wxnsj81'
+        }
+        publisher2 = {
+            'publisherIdentifierScheme': 'VIAF',
+            'schemeUri': 'https://viaf.org/',
+            'name': 'Deutsches archäologisches Institut',
+            'publisherIdentifier': 'http://viaf.org/viaf/148463773'
+        }
+        publisher3 = {
+            'publisherIdentifierScheme': 'Wikidata',
+            'schemeUri': 'https://www.wikidata.org/wiki/',
+            'name': 'University of Tokyo',
+            'publisherIdentifier': 'https://wikidata.org/wiki/Q7842'
+        }
+
+        dp.update_redis_values(br=[], ra=[id1, id2, id3])  # simula snapshot
+        out1 = dp.get_publisher_id(publisher1)
+        out2 = dp.get_publisher_id(publisher2)
+        out3 = dp.get_publisher_id(publisher3)
+
+        self.assertEqual(out1, id1)
+        self.assertEqual(out2, id2)
+        self.assertEqual(out3, id3)
+
+        self.assertTrue(dp.tmp_ror_m.storage_manager.get_value(id1))
+        self.assertTrue(dp.tmp_viaf_m.storage_manager.get_value(id2))
+        self.assertTrue(dp.tmp_wikidata_m.storage_manager.get_value(id3))
+
+        dp.storage_manager.delete_storage()
+
+    def test_find_datacite_publisher_id_api_disabled_from_redis_snapshot(self):
+        """API OFF + storage/indice vuoti, ORCID nello snapshot Redis RA: accetta offline."""
+        dp = DataciteProcessing(use_ror_api=False, use_viaf_api=False, use_wikidata_api=False)
+
+        id1 = "ror:04wxnsj81"
+        id2 = "viaf:148463773"
+        id3 = "wikidata:Q7842"
+        id4 = "crossref:501100000739"
+
+        publisher1 = {
+            'publisherIdentifierScheme': 'ROR',
+            'schemeUri': 'https://ror.org',
+            'name': 'DataCite',
+            'publisherIdentifier': 'https://ror.org/04wxnsj81'
+        }
+        publisher2 = {
+            'publisherIdentifierScheme': 'VIAF',
+            'schemeUri': 'https://viaf.org/',
+            'name': 'Deutsches archäologisches Institut',
+            'publisherIdentifier': 'http://viaf.org/viaf/148463773'
+        }
+        publisher3 = {
+            'publisherIdentifierScheme': 'Wikidata',
+            'schemeUri': 'https://www.wikidata.org/wiki/',
+            'name': 'University of Tokyo',
+            'publisherIdentifier': 'https://wikidata.org/wiki/Q7842'
+        }
+
+        dp.update_redis_values(br=[], ra=[id1, id2, id3, id4])  # simula snapshot
+        out1 = dp.get_publisher_id(publisher1)
+        out2 = dp.get_publisher_id(publisher2)
+        out3 = dp.get_publisher_id(publisher3)
+
+        self.assertEqual(out1, id1)
+        self.assertEqual(out2, id2)
+        self.assertEqual(out3, id3)
+
+        self.assertTrue(dp.tmp_ror_m.storage_manager.get_value(id1))
+        self.assertTrue(dp.tmp_viaf_m.storage_manager.get_value(id2))
+        self.assertTrue(dp.tmp_wikidata_m.storage_manager.get_value(id3))
+
+        dp.storage_manager.delete_storage()
+
+
+    def test_find_datacite_publisher_id_api_disabled_in_storage(self):
+        """API OFF + publisher id già valido nello storage persistente: deve essere accettato."""
+        dp = DataciteProcessing(use_viaf_api=False, use_wikidata_api=False, use_ror_api=False)
+        id1 = "ror:04wxnsj89" #invalid
+        id2 = "viaf:148463773"
+        id3 = "wikidata:Q7842"
+
+        publisher1 = {
+            'publisherIdentifierScheme': 'ROR',
+            'schemeUri': 'https://ror.org',
+            'name': 'DataCite',
+            'publisherIdentifier': 'https://ror.org/04wxnsj89'
+        }
+        publisher2 = {
+            'publisherIdentifierScheme': 'VIAF',
+            'schemeUri': 'https://viaf.org/',
+            'name': 'Deutsches archäologisches Institut',
+            'publisherIdentifier': 'http://viaf.org/viaf/148463773'
+        }
+        publisher3 = {
+            'publisherIdentifierScheme': 'Wikidata',
+            'schemeUri': 'https://www.wikidata.org/wiki/',
+            'name': 'University of Tokyo',
+            'publisherIdentifier': 'https://wikidata.org/wiki/Q7842'
+        }
+
+
+        dp.storage_manager.set_value(id1, True)
+        dp.storage_manager.set_value(id2, True)
+        dp.storage_manager.set_value(id3, True)
+
+        out1 = dp.get_publisher_id(publisher1)
+        out2 = dp.get_publisher_id(publisher2)
+        out3 = dp.get_publisher_id(publisher3)
+
+        self.assertEqual(out1, id1)
+        self.assertEqual(out2, id2)
+        self.assertEqual(out3, id3)
+
+        dp.storage_manager.delete_storage()
+
+    def test_publisher_id_replaced_by_mapping(self):
+
+        publisher3 = {
+            'publisherIdentifierScheme': 'Wikidata',
+            'schemeUri': 'https://www.wikidata.org/wiki/',
+            'name': 'University of Tokyo',
+            'publisherIdentifier': 'https://wikidata.org/wiki/Q7842'
+        }
+
+        dp = DataciteProcessing(publishers_filepath_dc=PUBLISHERS_MAPPING)
+        doi = "10.12753/2066-026X-17-015"
+        publisher3 = dp.get_publisher(doi, publisher3)
+        publisher3_exp = "ADLRO [datacite:3]"
+        self.assertEqual(publisher3, publisher3_exp)
+
 
     def test_update_redis_values_normalization(self):
         """update_redis_values deve normalizzare gli ID (doi:/orcid:) così i confronti funzionano."""

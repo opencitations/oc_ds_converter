@@ -1,3 +1,4 @@
+from json import JSONDecodeError
 from pathlib import Path
 import yaml
 from oc_ds_converter.lib.file_manager import normalize_path
@@ -19,21 +20,10 @@ import sys
 import os
 
 
-def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filepath:str,
+def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_filepath:str|None,
         csv_dir:str, wanted_doi_filepath:str=None, cache:str=None, verbose:bool=False, storage_path:str = None,
-        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, target=50000, use_orcid_api: bool = True) -> None:
-
-    els_to_be_skipped = []
-    if not testing and os.path.isdir(datacite_ndjson_dir):
-        input_dir_cont = os.listdir(datacite_ndjson_dir)
-        for el in input_dir_cont:
-            if el.startswith("._"):
-                els_to_be_skipped.append(os.path.join(datacite_ndjson_dir, el))
-            else:
-                if el.endswith(".zst"):
-                    base_name = el.replace('.zst', '')
-                    if [x for x in os.listdir(datacite_ndjson_dir) if x.startswith(base_name) and x.endswith("decompr_zst_dir")]:
-                        els_to_be_skipped.append(os.path.join(datacite_ndjson_dir, el))
+        testing: bool = True, redis_storage_manager: bool = False, max_workers: int = 1, use_orcid_api: bool = True,
+        use_ror_api: bool = True, use_viaf_api: bool = True, use_wikidata_api: bool = True) -> None:
 
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
@@ -42,7 +32,7 @@ def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filep
     if not os.path.exists(preprocessed_citations_dir):
         os.makedirs(preprocessed_citations_dir)
 
-    bad_dir = os.path.join(csv_dir, "_bad")  # creato solo on-demand in read_ndjson_chunk
+    bad_dir = os.path.join(csv_dir, "_bad")  # creato solo on-demand in read_json
 
     if verbose:
         if publishers_filepath or orcid_doi_filepath or wanted_doi_filepath:
@@ -57,88 +47,77 @@ def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filep
             print(log)
 
     if verbose:
-        print(f'[INFO: datacite_process] Getting all files from {datacite_ndjson_dir}')
+        print(f'[INFO: datacite_process] Getting all files from {datacite_json_dir}')
 
-    req_type = ".ndjson"
-    all_input_ndjson = []
-
-    # Supporto a percorso file singolo .ndjson
-    if os.path.isfile(datacite_ndjson_dir) and datacite_ndjson_dir.endswith(".ndjson"):
-        all_input_ndjson = [datacite_ndjson_dir]
-    else:
-        # Directory: aggiungi eventuali .ndjson "piatti" nella cartella
-        if os.path.isdir(datacite_ndjson_dir):
-            for entry in os.listdir(datacite_ndjson_dir):
-                fp = os.path.join(datacite_ndjson_dir, entry)
-                if os.path.isfile(fp) and fp.endswith(".ndjson") and not entry.startswith("._"):
-                    all_input_ndjson.append(fp)
-
-        if not testing and os.path.isdir(datacite_ndjson_dir):
-            els_to_be_skipped_cont = [x for x in els_to_be_skipped if x.endswith(".zst")]
-
-            if els_to_be_skipped_cont:
-                for el_to_skip in els_to_be_skipped_cont:
-                    if el_to_skip.startswith("._"):
-                        continue
-                    base_name_el_to_skip = el_to_skip.replace('.zst', '')
-                    for el in os.listdir(datacite_ndjson_dir):
-                        if el == base_name_el_to_skip + "decompr_zst_dir":
-                            all_input_ndjson.extend(
-                                os.path.join(datacite_ndjson_dir, el, file)
-                                for file in os.listdir(os.path.join(datacite_ndjson_dir, el))
-                                if not file.endswith(".json") and not file.startswith("._")
-                            )
-
-            if len(all_input_ndjson) == 0:
-                for lev_zst in os.listdir(datacite_ndjson_dir):
-                    got, targz_fd = get_all_files_by_type(os.path.join(datacite_ndjson_dir, lev_zst), req_type, cache)
-                    all_input_ndjson.extend(got)
-
-        elif testing and os.path.isdir(datacite_ndjson_dir):
-            for lev_zst in os.listdir(datacite_ndjson_dir):
-                got, targz_fd = get_all_files_by_type(os.path.join(datacite_ndjson_dir, lev_zst), req_type, cache)
-                all_input_ndjson.extend(got)
+    all_input_json = []
+    for entry in os.listdir(datacite_json_dir):
+        fp = os.path.join(datacite_json_dir, entry)
+        if os.path.isfile(fp) and fp.endswith(".json") and os.path.basename(fp).startswith("jSonFile_") and not entry.startswith("._"):
+            all_input_json.append(fp)
 
     # dedup e ordine stabile
-    all_input_ndjson = sorted(list(dict.fromkeys(all_input_ndjson)))
+    all_input_json = sorted(list(dict.fromkeys(all_input_json)))
 
     if not redis_storage_manager or max_workers == 1:
-        for ndjson_file in all_input_ndjson:
-            for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
-                chunk_to_save = f'chunk_{idx}'
-                get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
+        for json_file in tqdm(all_input_json):
+            chunk = read_json(json_file, bad_dir)
+            if chunk:
+                get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+                                       wanted_doi_filepath, publishers_filepath, storage_path,
+                                       redis_storage_manager,
+                                       testing, cache, is_first_iteration=True, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
+                                        use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
+            else:
+                continue
+
+        for json_file in tqdm(all_input_json):
+            chunk = read_json(json_file, bad_dir)
+            if chunk:
+                get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                            wanted_doi_filepath, publishers_filepath, storage_path,
                                            redis_storage_manager,
-                                           testing, cache, is_first_iteration=True, use_orcid_api=use_orcid_api)
-        for ndjson_file in all_input_ndjson:
-            for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
-                chunk_to_save = f'chunk_{idx}'
-                get_citations_and_metadata(ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath, storage_path,
-                                           redis_storage_manager,
-                                           testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api)
+                                           testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
+                                           use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
+            else:
+                continue
 
     elif redis_storage_manager or max_workers > 1:
-
+        futures_pass1, futures_pass2 = [], []
         with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
-            for ndjson_file in all_input_ndjson:
-                for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
-                    chunk_to_save = f'chunk_{idx}'
-                    future: ProcessFuture = executor.schedule(
-                        function=get_citations_and_metadata,
-                        args=(
-                        ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, True, use_orcid_api))
+            # Pass 1: last arg True
+            for json_file in tqdm(all_input_json):
+                chunk = read_json(json_file, bad_dir)
+                if chunk:
+                    future = executor.schedule(
+                        get_citations_and_metadata,
+                        args=(json_file, chunk, preprocessed_citations_dir, csv_dir,
+                              orcid_doi_filepath, wanted_doi_filepath,
+                              publishers_filepath, storage_path, redis_storage_manager,
+                              testing, cache, True, use_orcid_api, use_ror_api, use_viaf_api, use_wikidata_api))
+                    futures_pass1.append(future)
+                else:
+                    continue
 
-        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
-            for ndjson_file in all_input_ndjson:
-                for idx, chunk in enumerate(read_ndjson_chunk(ndjson_file, target, bad_dir=bad_dir), start=1):
-                    chunk_to_save = f'chunk_{idx}'
-                    future: ProcessFuture = executor.schedule(
-                        function=get_citations_and_metadata,
-                        args=(
-                        ndjson_file, chunk, preprocessed_citations_dir, csv_dir, chunk_to_save, orcid_doi_filepath, wanted_doi_filepath,
-                        publishers_filepath, storage_path, redis_storage_manager, testing, cache, False, use_orcid_api))
+            # Pass 2: same files, last arg False
+            for json_file in tqdm(all_input_json):
+                chunk = read_json(json_file, bad_dir)
+                if chunk:
+                    future = executor.schedule(
+                        get_citations_and_metadata,
+                        args=(json_file, chunk, preprocessed_citations_dir, csv_dir,
+                              orcid_doi_filepath, wanted_doi_filepath,
+                              publishers_filepath, storage_path, redis_storage_manager,
+                              testing, cache, False, use_orcid_api, use_ror_api, use_viaf_api, use_wikidata_api))
+                    futures_pass1.append(future)
+                else:
+                    continue
+
+        # Wait for all (parallel across passes)
+        for future in futures_pass1 + futures_pass2:
+            try:
+                future.result()  # Blocks until done; raises if error/timeout
+            except Exception as e:
+                print(f"Task failed: {e}")  # Log errors
 
     if cache:
         if os.path.exists(cache):
@@ -160,11 +139,12 @@ def preprocess(datacite_ndjson_dir:str, publishers_filepath:str, orcid_doi_filep
         storage_manager.delete_storage()
 
 
-def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citations_dir: str, csv_dir: str, chunk_to_save:str,
+def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str,
                                doi_csv: str, publishers_filepath: str, storage_path: str,
                                redis_storage_manager: bool,
-                               testing: bool, cache: str, is_first_iteration:bool, use_orcid_api: bool):
+                               testing: bool, cache: str, is_first_iteration:bool, use_orcid_api: bool, use_ror_api: bool,
+                               use_viaf_api: bool, use_wikidata_api: bool):
 
     storage_manager = get_storage_manager(storage_path, redis_storage_manager, testing=testing)
     if cache:
@@ -195,28 +175,32 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
             with open(cache, "w", encoding="utf-8") as c:
                 json.dump(cache_dict, c)
 
+    json_to_save = os.path.basename(json_file).replace(".json", "")
+
     if cache_dict.get("first_iteration"):
-        if is_first_iteration and chunk_to_save in cache_dict["first_iteration"]:
+        if is_first_iteration and json_to_save in cache_dict["first_iteration"]:
             return
 
     if cache_dict.get("second_iteration"):
-        if not is_first_iteration and chunk_to_save in cache_dict["second_iteration"]:
+        if not is_first_iteration and json_to_save in cache_dict["second_iteration"]:
             return
 
     if is_first_iteration:
         dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                       publishers_filepath_dc=publishers_filepath,
-                                      storage_manager=storage_manager, testing=testing, citing=True, use_orcid_api=use_orcid_api)
+                                      storage_manager=storage_manager, testing=testing, use_orcid_api=use_orcid_api,
+                                    use_ror_api=use_ror_api, use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
     elif not is_first_iteration:
         dc_csv = DataciteProcessing(orcid_index=orcid_index, doi_csv=doi_csv,
                                   publishers_filepath_dc=publishers_filepath,
-                                  storage_manager=storage_manager, testing=testing, citing=False, use_orcid_api=use_orcid_api)
+                                  storage_manager=storage_manager, testing=testing, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
+                                  use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
 
     index_citations_to_csv = []
     data_subject = []
     data_object = []
 
-    filename_without_ext = ndjson_file.replace('.ndjson', '')+'_'+chunk_to_save
+    filename_without_ext = json_file.replace('.json', '')
     filepath_ne = os.path.join(csv_dir, f'{os.path.basename(filename_without_ext)}')
     filepath_citations_ne = os.path.join(preprocessed_citations_dir, f'{os.path.basename(filename_without_ext)}')
 
@@ -226,6 +210,9 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
     pathoo(filepath_citations)
 
     def get_all_redis_ids_and_save_updates(sli_da, is_first_iteration_par: bool):
+        """Questo metodo prende i valori degli identificativi validi per BR e RA che provengono da Redis e
+        li usa per aggiornare le variabili locali in memoria self._redis_values_br e self._redis_values_ra di dc_csv
+        (istanza della classe DataciteProcessing)"""
         all_br = []
         all_ra = []
         for entity in sli_da:
@@ -241,6 +228,8 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
                             if relatedIdentifierType == "doi":
                                 if relationType in dc_csv.filter:
                                     at_least_one_valid_object_id = True
+                                    break
+                    
                     if at_least_one_valid_object_id:
                         if is_first_iteration_par:
                             ent_all_br, ent_all_ra = dc_csv.extract_all_ids(entity, True)
@@ -248,6 +237,7 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
                             ent_all_br, ent_all_ra = dc_csv.extract_all_ids(entity, False)
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
+
         redis_validity_values_br = dc_csv.get_reids_validity_list(all_br, "br")
         redis_validity_values_ra = dc_csv.get_reids_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
@@ -285,7 +275,6 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
 
 
     def task_done(is_first_iteration_par: bool) -> None:
-
         try:
             if is_first_iteration_par and "first_iteration" not in cache_dict.keys():
                 cache_dict["first_iteration"] = set()
@@ -297,10 +286,10 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
                 cache_dict[k] = set(v)
 
             if is_first_iteration_par:
-                cache_dict["first_iteration"].add(chunk_to_save)
+                cache_dict["first_iteration"].add(json_to_save)
 
             if not is_first_iteration_par:
-                cache_dict["second_iteration"].add(chunk_to_save)
+                cache_dict["second_iteration"].add(json_to_save)
 
             with lock:
                 with open(cache, 'r', encoding='utf-8') as aux_file:
@@ -338,28 +327,24 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
                 if entity:
                     attributes = entity.get("attributes")
                     subject_id = attributes.get("doi")
-                    rel_ids = attributes.get("relatedIdentifiers")
-                    if subject_id and rel_ids:
-                        at_least_one_valid_object_id = False
-                        for ref in rel_ids:
-                            if all(elem in ref for elem in dc_csv.needed_info):
-                                relatedIdentifierType = (str(ref["relatedIdentifierType"])).lower()
-                                relationType = (str(ref["relationType"])).lower()
-                                if relatedIdentifierType == "doi":
-                                    if relationType in dc_csv.filter:
-                                        at_least_one_valid_object_id = True
-                        if at_least_one_valid_object_id:
-                            norm_subject_id = dc_csv.doi_m.normalise(subject_id, include_prefix=True)
 
-                            if not dc_csv.doi_m.storage_manager.get_value(norm_subject_id):
-                                dc_csv.tmp_doi_m.storage_manager.set_value(norm_subject_id, True)
+                    #identificativo della bibliographic resource primaria
+                    #normalizzo l'ID ricevuto in input e verifico se è già stato elaborato in precedenza consultando lo storage principale.
+                    #Se l'ID risulta nuovo (non presente), viene aggiunto a uno storage temporaneo per una successiva validazione o elaborazione batch.
 
-                                if norm_subject_id:
-                                    source_tab_data = dc_csv.csv_creator(entity)
-                                    if source_tab_data:
-                                        processed_source_id = source_tab_data["id"]
-                                        if processed_source_id:
-                                            data_subject.append(source_tab_data)
+                    norm_subject_id = dc_csv.doi_m.normalise(subject_id, include_prefix=True)
+
+                    if not dc_csv.doi_m.storage_manager.get_value(norm_subject_id):
+                        dc_csv.tmp_doi_m.storage_manager.set_value(norm_subject_id, True)
+
+                        if norm_subject_id:
+                            #creo la riga per meta
+                            source_tab_data = dc_csv.csv_creator(entity)
+                            if source_tab_data:
+                                processed_source_id = source_tab_data["id"]
+                                if processed_source_id:
+                                    data_subject.append(source_tab_data)
+
             except Exception as e:
                 print("[PROCESS ERROR] during subject processing. Entity preview:")
                 try:
@@ -388,18 +373,23 @@ def get_citations_and_metadata(ndjson_file:str, chunk: list, preprocessed_citati
                                     if relatedIdentifierType == "doi":
                                         if relationType in dc_csv.filter:
                                             norm_object_id = dc_csv.doi_m.normalise(ref["relatedIdentifier"], include_prefix=True)
-                                            if norm_object_id:
+                                            #controllo che l'identificativo dell'entità primaria sia diverso da quello related (non creo la citazione per self-citations)
+                                            if norm_object_id and norm_object_id != norm_subject_id:
                                                 norm_id_dict_to_val = {"schema": "doi"}
                                                 norm_id_dict_to_val["identifier"] = norm_object_id
+
                                                 stored_validity = dc_csv.validated_as(norm_id_dict_to_val)
+                                                #se non ho informazioni di validità su questo identificativo
                                                 if stored_validity is None:
                                                     norm_id_dict = {"id": norm_object_id, "schema": "doi"}
+                                                    # valido l'identificativo
                                                     if norm_object_id in dc_csv.to_validated_id_list(norm_id_dict):
                                                         target_tab_data = dc_csv.csv_creator({"id": norm_object_id, "type": "dois", "attributes": {"doi": norm_object_id}})
                                                         if target_tab_data:
                                                             processed_target_id = target_tab_data.get("id")
                                                             if processed_target_id:
                                                                 data_object.append(target_tab_data)
+
                                                                 if relationType in ["cites", "references"]:
                                                                     rel_dict = {"rel_type": "cites", "object_id": norm_object_id}
                                                                 elif relationType in ["iscitedby", "isreferencedby"]:
@@ -460,45 +450,43 @@ def pathoo(path:str) -> None:
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
 
-def read_ndjson_chunk(file_path, chunk_size, bad_dir=None, echo_bad_preview=300):
-    bad_fp = None
+def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
+    try:
+        with open(json_path, 'r') as json_object:
+            chunk = json.load(json_object)
+            data = chunk.get('data')
+            return data
+    except JSONDecodeError as e:
+        # File-level preview
+        try:
+            preview = Path(json_path).read_text(encoding='utf-8', errors='ignore')[:preview_chars]
+            preview = preview.rstrip().replace('\n', '\\n')
+            preview += '...' if len(preview) == preview_chars else ''
+        except Exception:
+            preview = 'Unable to preview'
 
-    with open(file_path, 'r', encoding='utf-8') as file:
-        line_no = 0
-        while True:
-            chunk = []
-            for _ in range(chunk_size):
-                line = file.readline()
-                if not line:
-                    break
-                line_no += 1
-                try:
-                    data = json.loads(line)
-                    chunk.append(data)
-                except json.JSONDecodeError as e:
-                    preview = line[:echo_bad_preview].rstrip().replace('\n', '\\n')
-                    print(
-                        f"[JSON ERROR] file={file_path} line={line_no}: {e}\n"
-                        f"  preview: {preview}{'...' if len(line) > echo_bad_preview else ''}"
-                    )
-                    if bad_dir:
-                        if bad_fp is None:
-                            os.makedirs(bad_dir, exist_ok=True)
-                            bad_fp = os.path.join(bad_dir, Path(file_path).name + ".bad.ndjson")
-                        with open(bad_fp, 'a', encoding='utf-8') as bf:
-                            bf.write(line)
-                    continue
-            if not chunk:
-                break
-            yield chunk
+        print(f"[JSON ERROR] file={json_path}: {e}\n  preview: {preview}")
+
+        # Dump full bad file
+        if bad_dir:
+            os.makedirs(bad_dir, exist_ok=True)
+            bad_fp = os.path.join(bad_dir, Path(json_path).name + '.bad.json')
+            try:
+                Path(json_path).replace(bad_fp)  # Atomic move if possible
+            except Exception:
+                with open(bad_fp, 'wb') as bf:
+                    bf.write(Path(json_path).read_bytes())
+
+        return None
+
 
 if __name__ == '__main__':
     arg_parser = ArgumentParser('datacite_process.py', description='This script creates CSV files from Datacite original dump, enriching data through of a DOI-ORCID index')
     arg_parser.add_argument('-c', '--config', dest='config', required=False,
                             help='Configuration file path')
     required = not any(arg in sys.argv for arg in {'--config', '-c'})
-    arg_parser.add_argument('-dc', '--datacite', dest='datacite_ndjson_dir', required=required,
-                            help='Datacite ndjson files directory')
+    arg_parser.add_argument('-dc', '--datacite', dest='datacite_json_dir', required=required,
+                            help='Datacite json files directory')
     arg_parser.add_argument('-out', '--output', dest='csv_dir', required=required,
                             help='Directory where CSV will be stored')
     arg_parser.add_argument('-p', '--publishers', dest='publishers_filepath', required=False,
@@ -529,6 +517,14 @@ if __name__ == '__main__':
                             help='Workers number')
     arg_parser.add_argument('--no-orcid-api', dest='no_orcid_api', action='store_true', required=False,
                             help='Disable ORCID API validation (use only DOI→ORCID index and caches)')
+    arg_parser.add_argument('--no-ror-api', dest='no_ror_api', action='store_true', required=False,
+                            help='Disable ROR API validation for publisher ids')
+    arg_parser.add_argument('--no-viaf-api', dest='no_viaf_api', action='store_true', required=False,
+                            help='Disable VIAF API validation for publisher ids')
+    arg_parser.add_argument('--no-wikidata-api', dest='no_wikidata_api', action='store_true', required=False,
+                            help='Disable Wikidata API validation for publisher ids')
+    arg_parser.add_argument('--no-crossref-api', dest='no_crossref_api', action='store_true', required=False,
+                            help='Disable Crossref API validation for publisher ids')
 
     args = arg_parser.parse_args()
     config = args.config
@@ -536,8 +532,8 @@ if __name__ == '__main__':
     if config:
         with open(config, encoding='utf-8') as f:
             settings = yaml.full_load(f)
-    datacite_ndjson_dir = settings['datacite_ndjson_dir'] if settings else args.datacite_ndjson_dir
-    datacite_ndjson_dir = normalize_path(datacite_ndjson_dir)
+    datacite_json_dir = settings['datacite_json_dir'] if settings else args.datacite_json_dir
+    datacite_json_dir = normalize_path(datacite_json_dir)
     csv_dir = settings['output'] if settings else args.csv_dir
     csv_dir = normalize_path(csv_dir)
     publishers_filepath = settings['publishers_filepath'] if settings else args.publishers_filepath
@@ -555,7 +551,13 @@ if __name__ == '__main__':
     redis_storage_manager = settings['redis_storage_manager'] if settings else args.redis_storage_manager
     max_workers = settings['max_workers'] if settings else args.max_workers
     no_orcid_api = settings.get('disable_orcid_api', False) if settings else args.no_orcid_api
+    no_ror_api = settings.get('disable_ror_api', False) if settings else args.no_ror_api
+    no_viaf_api = settings.get('disable_viaf_api', False) if settings else args.no_viaf_api
+    no_wikidata_api = settings.get('disable_wikidata_api', False) if settings else args.no_wikidata_api
     use_orcid_api = not no_orcid_api
+    use_ror_api = not no_ror_api
+    use_viaf_api =  not no_viaf_api
+    use_wikidata_api = not no_wikidata_api
 
-    preprocess(datacite_ndjson_dir=datacite_ndjson_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
-               redis_storage_manager=redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api)
+    preprocess(datacite_json_dir=datacite_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
+               redis_storage_manager=redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api, use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)

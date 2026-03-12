@@ -11,7 +11,7 @@ from os.path import exists, join
 
 import pandas as pd
 
-from oc_ds_converter.preprocessing.datacite_new import DatacitePreProcessing
+from oc_ds_converter.preprocessing.datacite import DatacitePreProcessing
 from oc_ds_converter.preprocessing.nih import NIHPreProcessing
 
 BASE_DIR = "preprocess"
