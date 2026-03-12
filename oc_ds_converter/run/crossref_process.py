@@ -20,7 +20,6 @@ import json
 import os
 import sys
 import tarfile
-import time
 from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
@@ -217,67 +216,34 @@ def _process_citing_entities(
 ) -> list[dict]:
     citing_entity_rows: list[dict] = []
 
-    t_normalise = 0.0
-    t_storage_check = 0.0
-    t_csv_creator = 0.0
-    t_meta_check = 0.0
-    n_normalise = 0
-    n_storage_check = 0
-    n_csv_creator = 0
-    n_meta_check = 0
-    n_skipped_existing = 0
-
     for entity in source_dict:
         if entity:
             # For citing entities, validation is not needed; if normalizable, proceed directly to Meta table creation
-            t0 = time.perf_counter()
             norm_source_id = processor.tmp_doi_m.normalise(entity['DOI'], include_prefix=True)
-            t_normalise += time.perf_counter() - t0
-            n_normalise += 1
 
             if norm_source_id is None:
                 continue
 
             # If the id is not in the storage, it means it was not processed and is not in the csv output tables yet
-            t0 = time.perf_counter()
             in_storage = processor.doi_m.storage_manager.get_value(norm_source_id)
-            t_storage_check += time.perf_counter() - t0
-            n_storage_check += 1
 
             if not in_storage:
                 # If exclude_existing is enabled, skip entities that already exist in Meta
                 if processor.exclude_existing:
-                    t0 = time.perf_counter()
                     exists_in_meta = processor.BR_redis.exists_as_set(norm_source_id)
-                    t_meta_check += time.perf_counter() - t0
-                    n_meta_check += 1
                     if exists_in_meta:
-                        n_skipped_existing += 1
                         processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
                         continue
 
                 # Add the id as valid to the temporary storage manager and create a meta csv row
                 processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
-                t0 = time.perf_counter()
                 source_tab_data = processor.csv_creator(entity)
-                t_csv_creator += time.perf_counter() - t0
-                n_csv_creator += 1
 
                 if source_tab_data:
                     processed_source_id = source_tab_data["id"]
                     if processed_source_id:
                         citing_entity_rows.append(source_tab_data)
 
-    stats_line = (
-        f"  [dim][citing] normalise={t_normalise:.2f}s({n_normalise}) "
-        f"storage_check={t_storage_check:.2f}s({n_storage_check}) "
-        f"csv_creator={t_csv_creator:.2f}s({n_csv_creator})"
-    )
-    if processor.exclude_existing:
-        stats_line += f" meta_check={t_meta_check:.2f}s({n_meta_check}) skipped={n_skipped_existing}"
-    stats_line += "[/dim]"
-    console.print(stats_line)
-    processor.log_csv_creator_stats()
     return citing_entity_rows
 
 
@@ -288,68 +254,37 @@ def _process_cited_entities(
     cited_entity_rows: list[dict] = []
     citation_rows: list[dict] = []
 
-    t_normalise = 0.0
-    t_validated_as = 0.0
-    t_to_validated = 0.0
-    t_csv_creator = 0.0
-    t_meta_check = 0.0
-    n_normalise = 0
-    n_validated_as = 0
-    n_to_validated = 0
-    n_csv_creator = 0
-    n_meta_check = 0
-    n_skipped_existing = 0
-
     for entity in source_dict:
         if entity and "reference" in entity:
             has_doi_references = [x for x in entity["reference"] if x.get("DOI")]
             if has_doi_references:
-                t0 = time.perf_counter()
                 norm_source_id = processor.doi_m.normalise(entity['DOI'], include_prefix=True)
-                t_normalise += time.perf_counter() - t0
-                n_normalise += 1
 
                 cit_list_entities = [x.get("DOI") for x in has_doi_references]
                 cit_list_entities_dois = [x for x in cit_list_entities if x]
                 if cit_list_entities_dois:
                     valid_target_ids: list[str] = []
                     for cited_entity in cit_list_entities_dois:
-                        t0 = time.perf_counter()
                         norm_id = processor.doi_m.normalise(cited_entity, include_prefix=True)
-                        t_normalise += time.perf_counter() - t0
-                        n_normalise += 1
 
                         if norm_id:
                             norm_id_dict_to_val = {"schema": "doi", "identifier": norm_id}
-                            t0 = time.perf_counter()
                             stored_validity = processor.validated_as(norm_id_dict_to_val)
-                            t_validated_as += time.perf_counter() - t0
-                            n_validated_as += 1
 
                             if stored_validity is None:
                                 norm_id_dict = {"id": norm_id, "schema": "doi"}
-                                t0 = time.perf_counter()
                                 validated_list = processor.to_validated_id_list(norm_id_dict)
-                                t_to_validated += time.perf_counter() - t0
-                                n_to_validated += 1
 
                                 if norm_id in validated_list:
                                     valid_target_ids.append(norm_id)
                                     # If exclude_existing is enabled, skip metadata creation for entities already in Meta
                                     if processor.exclude_existing:
-                                        t0 = time.perf_counter()
                                         exists_in_meta = processor.BR_redis.exists_as_set(norm_id)
-                                        t_meta_check += time.perf_counter() - t0
-                                        n_meta_check += 1
                                         if exists_in_meta:
-                                            n_skipped_existing += 1
                                             continue
 
                                     cited_entity_dict = {"DOI": norm_id}
-                                    t0 = time.perf_counter()
                                     target_tab_data = processor.csv_creator(cited_entity_dict)
-                                    t_csv_creator += time.perf_counter() - t0
-                                    n_csv_creator += 1
 
                                     if target_tab_data:
                                         processed_target_id = target_tab_data.get("id")
@@ -361,18 +296,6 @@ def _process_cited_entities(
                     for target_id in valid_target_ids:
                         citation_rows.append({"citing": norm_source_id, "cited": target_id})
 
-    stats_line = (
-        f"  [dim][cited] normalise={t_normalise:.2f}s({n_normalise}) "
-        f"validated_as={t_validated_as:.2f}s({n_validated_as}) "
-        f"to_validated={t_to_validated:.2f}s({n_to_validated}) "
-        f"csv_creator={t_csv_creator:.2f}s({n_csv_creator})"
-    )
-    if processor.exclude_existing:
-        stats_line += f" meta_check={t_meta_check:.2f}s({n_meta_check}) skipped={n_skipped_existing}"
-    stats_line += "[/dim]"
-    console.print(stats_line)
-    processor.log_validation_stats()
-    processor.log_csv_creator_stats()
     return cited_entity_rows, citation_rows
 
 
@@ -500,9 +423,6 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         if not processing_citing and file_basename in cache_dict["cited"]:
             return False
 
-    t_start = time.perf_counter()
-
-    t0 = time.perf_counter()
     storage_manager = get_storage_manager(storage_path, testing)
     crossref_csv = CrossrefProcessing(
         orcid_index=orcid_index, publishers_filepath=publishers_filepath,
@@ -511,14 +431,11 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         use_redis_orcid_index=True, use_redis_publishers=use_redis_publishers,
         exclude_existing=exclude_existing
     )
-    t_init = time.perf_counter() - t0
 
-    t0 = time.perf_counter()
     source_data = load_json(file_name, targz_fd)
     if source_data is None:
         return False
     source_dict = source_data['items']
-    t_load_json = time.perf_counter() - t0
 
     filename_without_ext = file_basename.replace('.json', '').replace('.tar', '').replace('.gz', '')
     filepath = os.path.join(csv_dir, f'{filename_without_ext}.csv')
@@ -530,41 +447,21 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
     filepath_citations = os.path.join(preprocessed_citations_dir, f'{filename_without_ext}.csv')
     pathoo(filepath_citations)
 
-    t0 = time.perf_counter()
     _extract_redis_ids_and_update(crossref_csv, source_dict, processing_citing)
-    t_redis_extract = time.perf_counter() - t0
 
     if processing_citing:
-        t0 = time.perf_counter()
         citing_entity_rows = _process_citing_entities(crossref_csv, source_dict)
-        t_process = time.perf_counter() - t0
-
-        t0 = time.perf_counter()
         _save_output_files(
             citing_entity_rows, [], metadata_output_base, citation_links_output_base,
             crossref_csv, True, cache, lock, file_basename
         )
-        t_save = time.perf_counter() - t0
     else:
-        t0 = time.perf_counter()
         cited_entity_rows, citation_rows = _process_cited_entities(crossref_csv, source_dict)
-        t_process = time.perf_counter() - t0
-
-        t0 = time.perf_counter()
         _save_output_files(
             cited_entity_rows, citation_rows, metadata_output_base, citation_links_output_base,
             crossref_csv, False, cache, lock, file_basename
         )
-        t_save = time.perf_counter() - t0
 
-    t_total = time.perf_counter() - t_start
-    iteration = "citing" if processing_citing else "cited"
-    color = "cyan" if processing_citing else "yellow"
-    console.print(
-        f"[{color}][{iteration}][/{color}] {file_basename}: [bold]{t_total:.2f}s[/bold] | "
-        f"init={t_init:.2f}s json={t_load_json:.2f}s redis={t_redis_extract:.2f}s "
-        f"[bold]process={t_process:.2f}s[/bold] save={t_save:.2f}s | items={len(source_dict)}"
-    )
     return True
 
 

@@ -19,7 +19,6 @@
 
 import html
 import re
-import time
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -32,7 +31,6 @@ from bs4 import BeautifulSoup
 from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis, PublishersRedis
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.lib.cleaner import Cleaner
-from oc_ds_converter.lib.console import console
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
 from oc_ds_converter.oc_idmanager import DOIManager
 from oc_ds_converter.oc_idmanager import ORCIDManager
@@ -93,21 +91,6 @@ class CrossrefProcessing(RaProcessor):
         self._redis_values_ra = []
         self._doi_orcid_cache: dict[str, set[str]] = {}
 
-        self._stats_redis_hit = 0
-        self._stats_api_calls = 0
-        self._stats_api_time = 0.0
-        self._stats_agents_time = 0.0
-        self._stats_agents_calls = 0
-        self._stats_venue_time = 0.0
-        self._stats_publisher_time = 0.0
-
-        self._t_orcid_finder = 0.0
-        self._t_candidates = 0.0
-        self._t_cleaner = 0.0
-        self._t_loop = 0.0
-        self._t_find_orcid = 0.0
-        self._t_match_orcid = 0.0
-
     def update_redis_values(self, br, ra):
         # normalizza e filtra valori validi CON prefisso
         self._redis_values_br = [
@@ -153,14 +136,8 @@ class CrossrefProcessing(RaProcessor):
             if norm_id in self._redis_values_br:
                 self.tmp_doi_m.storage_manager.set_value(norm_id, True)
                 valid_id_list.append(norm_id)
-                self._stats_redis_hit += 1
-            else:
-                t0 = time.perf_counter()
-                if self.tmp_doi_m.is_valid(norm_id):
-                    valid_id_list.append(norm_id)
-                elapsed = time.perf_counter() - t0
-                self._stats_api_calls += 1
-                self._stats_api_time += elapsed
+            elif self.tmp_doi_m.is_valid(norm_id):
+                valid_id_list.append(norm_id)
 
         elif schema == "orcid":
             if norm_id in self._redis_values_ra:
@@ -173,42 +150,6 @@ class CrossrefProcessing(RaProcessor):
                 valid_id_list.append(norm_id)
 
         return valid_id_list
-
-    def log_validation_stats(self) -> tuple[int, int, float]:
-        stats = (self._stats_redis_hit, self._stats_api_calls, self._stats_api_time)
-        if self._stats_api_calls > 0 or self._stats_redis_hit > 0:
-            console.print(
-                f"  [dim][validation] redis_hit={self._stats_redis_hit} "
-                f"api_calls={self._stats_api_calls} api_time={self._stats_api_time:.2f}s[/dim]"
-            )
-        self._stats_redis_hit = 0
-        self._stats_api_calls = 0
-        self._stats_api_time = 0.0
-        return stats
-
-    def log_csv_creator_stats(self) -> None:
-        if self._stats_agents_calls > 0:
-            console.print(
-                f"  [dim][csv_creator] agents={self._stats_agents_time:.2f}s({self._stats_agents_calls}) "
-                f"venue={self._stats_venue_time:.2f}s publisher={self._stats_publisher_time:.2f}s[/dim]"
-            )
-            console.print(
-                f"  [dim][agents detail] orcid_finder={self._t_orcid_finder:.2f}s candidates={self._t_candidates:.2f}s "
-                f"cleaner={self._t_cleaner:.2f}s loop={self._t_loop:.2f}s[/dim]"
-            )
-            console.print(
-                f"  [dim][loop detail] find_orcid={self._t_find_orcid:.2f}s match_orcid={self._t_match_orcid:.2f}s[/dim]"
-            )
-        self._stats_agents_time = 0.0
-        self._stats_agents_calls = 0
-        self._stats_venue_time = 0.0
-        self._stats_publisher_time = 0.0
-        self._t_orcid_finder = 0.0
-        self._t_candidates = 0.0
-        self._t_cleaner = 0.0
-        self._t_loop = 0.0
-        self._t_find_orcid = 0.0
-        self._t_match_orcid = 0.0
 
     def memory_to_storage(self):
         kv_in_memory = self.temporary_manager.get_validity_list_of_tuples()
@@ -306,17 +247,12 @@ class CrossrefProcessing(RaProcessor):
             agents_list = []
             if 'author' in item:
                 for author in item['author']:
-                    author['role'] = 'author'
-                agents_list.extend(item['author'])
+                    agents_list.append({**author, 'role': 'author'})
             if 'editor' in item:
                 for editor in item['editor']:
-                    editor['role'] = 'editor'
-                agents_list.extend(item['editor'])
+                    agents_list.append({**editor, 'role': 'editor'})
 
-            t0 = time.perf_counter()
             authors_strings_list, editors_string_list = self.get_agents_strings_list(doi, agents_list)
-            self._stats_agents_time += time.perf_counter() - t0
-            self._stats_agents_calls += 1
 
             # row['author']
             if 'author' in item:
@@ -324,15 +260,14 @@ class CrossrefProcessing(RaProcessor):
 
             # row['pub_date']
             if 'issued' in item:
-                if item['issued']['date-parts'][0][0]:
-                    row['pub_date'] = '-'.join([str(y) for y in item['issued']['date-parts'][0]])
+                date_parts = item['issued'].get('date-parts', [[]])
+                if date_parts and date_parts[0] and date_parts[0][0]:
+                    row['pub_date'] = '-'.join([str(y) for y in date_parts[0]])
                 else:
                     row['pub_date'] = ''
 
             # row['venue']
-            t0 = time.perf_counter()
             row['venue'] = self.get_venue_name(item, row)
-            self._stats_venue_time += time.perf_counter() - t0
 
             if 'volume' in item:
                 row['volume'] = item['volume']
@@ -341,9 +276,7 @@ class CrossrefProcessing(RaProcessor):
             if 'page' in item:
                 row['page'] = self.get_crossref_pages(item)
 
-            t0 = time.perf_counter()
             row['publisher'] = self.get_publisher_name(doi, item)
-            self._stats_publisher_time += time.perf_counter() - t0
 
             if 'editor' in item:
                 row['editor'] = '; '.join(editors_string_list)
@@ -488,9 +421,7 @@ class CrossrefProcessing(RaProcessor):
         editors_string_list = []
 
         # --- 1) DOI → lookup indice ---
-        t0 = time.perf_counter()
         raw_index = self.orcid_finder(doi) if doi else None
-        self._t_orcid_finder += time.perf_counter() - t0
 
         # --- 2) Parser indice → lista candidati (family, given, orcid normalizzato) ---
         def _split_name(text: str) -> Tuple[str, Optional[str]]:
@@ -503,7 +434,6 @@ class CrossrefProcessing(RaProcessor):
                 return toks[-1], ' '.join(toks[:-1])
             return base, None
 
-        t0 = time.perf_counter()
         candidates: List[Tuple[str, Optional[str], str]] = []
         if raw_index:
             for k, v in raw_index.items():
@@ -513,10 +443,8 @@ class CrossrefProcessing(RaProcessor):
                     continue
                 fam, giv = _split_name(v)
                 candidates.append((fam.lower(), (giv or "").lower() or None, oc_norm))
-        self._t_candidates += time.perf_counter() - t0
 
         # --- 3) Pulizia agenti ---
-        t0 = time.perf_counter()
         agents_list = [
             {
                 k: Cleaner(v).remove_unwanted_characters()
@@ -525,7 +453,6 @@ class CrossrefProcessing(RaProcessor):
             }
             for agent_dict in agents_list
         ]
-        self._t_cleaner += time.perf_counter() - t0
 
         def _format_person(a: dict) -> Tuple[Optional[str], Optional[str], Optional[str]]:
             family = a.get("family")
@@ -629,10 +556,6 @@ class CrossrefProcessing(RaProcessor):
             return None
 
         # --- 4) Costruzione liste ---
-        t0 = time.perf_counter()
-        t_find_orcid = 0.0
-        t_match_orcid = 0.0
-
         for agent in agents_list:
             role = agent.get("role", "")
             fam, giv, display = _format_person(agent)
@@ -644,16 +567,12 @@ class CrossrefProcessing(RaProcessor):
             for key in ("orcid", "ORCID"):
                 if key in agent and agent[key]:
                     raw = agent[key][0] if isinstance(agent[key], list) else agent[key]
-                    t1 = time.perf_counter()
                     oc = self.find_crossref_orcid(raw, doi)
-                    t_find_orcid += time.perf_counter() - t1
                     break
 
             # 2) Indice DOI→ORCID
             if not oc and candidates:
-                t1 = time.perf_counter()
                 oc = _match_orcid(fam, giv, role)
-                t_match_orcid += time.perf_counter() - t1
 
             if oc:
                 if not oc.startswith("orcid:"):
@@ -665,10 +584,6 @@ class CrossrefProcessing(RaProcessor):
                 authors_strings_list.append(display)
             elif role == "editor":
                 editors_string_list.append(display)
-
-        self._t_loop += time.perf_counter() - t0
-        self._t_find_orcid += t_find_orcid
-        self._t_match_orcid += t_match_orcid
 
         return authors_strings_list, editors_string_list
 

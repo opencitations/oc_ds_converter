@@ -992,6 +992,313 @@ def test_validated_as_with_storage_manager(storage_manager):
     assert c_processing.validated_as(valid_doi_not_in_db) is None
 
 
+class TestCrossrefProcessingWithMockedAPI(unittest.TestCase):
+    """Integration tests using mocked Crossref API responses from conftest.py."""
+
+    def test_csv_creator_nature_article(self):
+        """Test with Nature article from mocked API (doi:10.1038/nature12373)."""
+        item = {
+            "DOI": "10.1038/nature12373",
+            "type": "journal-article",
+            "title": ["Nanometre-scale thermometry in a living cell"],
+            "author": [
+                {"given": "G.", "family": "Kucsko", "sequence": "first"},
+                {"given": "P. C.", "family": "Maurer", "sequence": "additional"},
+                {"given": "M. D.", "family": "Lukin", "sequence": "additional"}
+            ],
+            "container-title": ["Nature"],
+            "volume": "500",
+            "issue": "7460",
+            "page": "54-58",
+            "issued": {"date-parts": [[2013, 7, 31]]},
+            "ISSN": ["0028-0836", "1476-4687"],
+            "publisher": "Springer Science and Business Media LLC",
+            "member": "297",
+            "prefix": "10.1038"
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1038/nature12373',
+            'title': 'Nanometre-scale thermometry in a living cell',
+            'author': 'Kucsko, G.; Maurer, P. C.; Lukin, M. D.',
+            'pub_date': '2013-7-31',
+            'venue': 'Nature [issn:0028-0836 issn:1476-4687]',
+            'volume': '500',
+            'issue': '7460',
+            'page': '54-58',
+            'type': 'journal article',
+            'publisher': 'Springer Science and Business Media LLC [crossref:297]',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_plos_with_orcid_url(self):
+        """Test PLOS article with ORCID in URL format from mocked API."""
+        item = {
+            "DOI": "10.1371/journal.pone.0284601",
+            "type": "journal-article",
+            "title": ["Biochemical evaluation of vaccination in rats"],
+            "author": [
+                {"given": "Mahsa", "family": "Teymoorzadeh", "sequence": "first"},
+                {"given": "Razieh", "family": "Yazdanparast", "sequence": "additional",
+                 "ORCID": "https://orcid.org/0000-0003-0530-4305", "authenticated-orcid": True}
+            ],
+            "container-title": ["PLOS ONE"],
+            "volume": "18",
+            "issue": "5",
+            "page": "e0284601",
+            "issued": {"date-parts": [[2023, 5, 4]]},
+            "ISSN": ["1932-6203"],
+            "publisher": "Public Library of Science (PLoS)"
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1371/journal.pone.0284601',
+            'title': 'Biochemical evaluation of vaccination in rats',
+            'author': 'Teymoorzadeh, Mahsa; Yazdanparast, Razieh [orcid:0000-0003-0530-4305]',
+            'pub_date': '2023-5-4',
+            'venue': 'PLOS ONE [issn:1932-6203]',
+            'volume': '18',
+            'issue': '5',
+            'page': 'e0284601-e0284601',
+            'type': 'journal article',
+            'publisher': 'Public Library of Science (PLoS)',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_book_chapter_multiple_containers(self):
+        """Test book chapter with multiple container-titles from mocked API."""
+        item = {
+            "DOI": "10.1007/978-3-030-00668-6_8",
+            "type": "book-chapter",
+            "title": ["The SPAR Ontologies"],
+            "author": [
+                {"given": "Silvio", "family": "Peroni", "sequence": "first"},
+                {"given": "David", "family": "Shotton", "sequence": "additional"}
+            ],
+            "container-title": ["Lecture Notes in Computer Science", "The Semantic Web – ISWC 2018"],
+            "page": "119-136",
+            "issued": {"date-parts": [[2018]]},
+            "ISBN": ["9783030006679", "9783030006686"],
+            "publisher": "Springer International Publishing"
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1007/978-3-030-00668-6_8',
+            'title': 'The SPAR Ontologies',
+            'author': 'Peroni, Silvio; Shotton, David',
+            'pub_date': '2018',
+            'venue': 'Lecture Notes in Computer Science [isbn:9783030006679 isbn:9783030006686]',
+            'volume': '',
+            'issue': '',
+            'page': '119-136',
+            'type': 'book chapter',
+            'publisher': 'Springer International Publishing',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_date_parts_null(self):
+        """Test handling of date-parts with null value: [[null]] from mocked API."""
+        item = {
+            "DOI": "10.1234/null-date",
+            "type": "journal-article",
+            "title": ["Article with null date"],
+            "issued": {"date-parts": [[None]]}
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1234/null-date',
+            'title': 'Article with null date',
+            'author': '',
+            'pub_date': '',
+            'venue': '',
+            'volume': '',
+            'issue': '',
+            'page': '',
+            'type': 'journal article',
+            'publisher': '',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_date_parts_empty(self):
+        """Test handling of date-parts as empty list: [[]] from mocked API."""
+        item = {
+            "DOI": "10.1234/empty-date",
+            "type": "journal-article",
+            "title": ["Article with empty date-parts"],
+            "issued": {"date-parts": [[]]}
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1234/empty-date',
+            'title': 'Article with empty date-parts',
+            'author': '',
+            'pub_date': '',
+            'venue': '',
+            'volume': '',
+            'issue': '',
+            'page': '',
+            'type': 'journal article',
+            'publisher': '',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_date_parts_missing(self):
+        """Test handling of issued without date-parts key from mocked API."""
+        item = {
+            "DOI": "10.1234/no-dateparts",
+            "type": "journal-article",
+            "title": ["Article without date-parts key"],
+            "issued": {}
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1234/no-dateparts',
+            'title': 'Article without date-parts key',
+            'author': '',
+            'pub_date': '',
+            'venue': '',
+            'volume': '',
+            'issue': '',
+            'page': '',
+            'type': 'journal article',
+            'publisher': '',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_html_in_title(self):
+        """Test HTML markup in title is cleaned (from mocked API structure)."""
+        item = {
+            "DOI": "10.1234/html-title",
+            "type": "journal-article",
+            "title": ["A study of <i>Escherichia coli</i> in <b>biofilms</b>"],
+            "issued": {"date-parts": [[2024, 1, 15]]}
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1234/html-title',
+            'title': 'A study of Escherichia coli in biofilms',
+            'author': '',
+            'pub_date': '2024-1-15',
+            'venue': '',
+            'volume': '',
+            'issue': '',
+            'page': '',
+            'type': 'journal article',
+            'publisher': '',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_with_editor(self):
+        """Test article with both author and editor from mocked API structure."""
+        item = {
+            "DOI": "10.1234/with-editor",
+            "type": "edited-book",
+            "title": ["Edited volume test"],
+            "author": [{"given": "John", "family": "Doe", "sequence": "first"}],
+            "editor": [{"given": "Jane", "family": "Smith", "sequence": "first"}],
+            "issued": {"date-parts": [[2024, 6, 20]]}
+        }
+        processor = CrossrefProcessing(testing=True)
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1234/with-editor',
+            'title': 'Edited volume test',
+            'author': 'Doe, John',
+            'pub_date': '2024-6-20',
+            'venue': '',
+            'volume': '',
+            'issue': '',
+            'page': '',
+            'type': 'edited book',
+            'publisher': '',
+            'editor': 'Smith, Jane'
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_no_inplace_modification(self):
+        """Test that csv_creator does not modify the input item dict."""
+        item = {
+            "DOI": "10.1234/with-editor",
+            "type": "edited-book",
+            "title": ["Edited volume test"],
+            "author": [{"given": "John", "family": "Doe", "sequence": "first"}],
+            "editor": [{"given": "Jane", "family": "Smith", "sequence": "first"}],
+            "issued": {"date-parts": [[2024, 6, 20]]}
+        }
+        original_author = {"given": "John", "family": "Doe", "sequence": "first"}
+        original_editor = {"given": "Jane", "family": "Smith", "sequence": "first"}
+
+        processor = CrossrefProcessing(testing=True)
+        processor.csv_creator(item)
+
+        self.assertEqual(item['author'][0], original_author)
+        self.assertEqual(item['editor'][0], original_editor)
+        processor.storage_manager.delete_storage()
+
+    def test_csv_creator_member_as_string(self):
+        """Test that member field as string (API format) is handled."""
+        item = {
+            "DOI": "10.1001/test.12345",
+            "type": "journal-article",
+            "title": ["Test"],
+            "publisher": "American Medical Association (AMA)",
+            "member": "10",
+            "prefix": "10.1001",
+            "issued": {"date-parts": [[2024]]}
+        }
+        processor = CrossrefProcessing(
+            publishers_filepath=PUBLISHERS_MAPPING,
+            testing=True
+        )
+        row = processor.csv_creator(item)
+
+        expected = {
+            'id': 'doi:10.1001/test.12345',
+            'title': 'Test',
+            'author': '',
+            'pub_date': '2024',
+            'venue': '',
+            'volume': '',
+            'issue': '',
+            'page': '',
+            'type': 'journal article',
+            'publisher': 'American Medical Association (AMA) [crossref:10]',
+            'editor': ''
+        }
+        self.assertEqual(row, expected)
+        processor.storage_manager.delete_storage()
+
+
 
 
 

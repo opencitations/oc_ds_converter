@@ -45,7 +45,6 @@ def mock_http_requests(request):
 
 def _register_doi_ra_mocks(rsps: responses.RequestsMock) -> None:
     def doi_ra_callback(request):
-        prefix = request.url.split("/")[-1]
         return (200, {}, json_module.dumps([{"RA": "Crossref"}]))
 
     rsps.add_callback(
@@ -196,6 +195,14 @@ def _register_doi_mocks(rsps: responses.RequestsMock) -> None:
         "10.15407/scin11.06.057",
         "10.1021/acs.jpclett.7b01097",
         "10.1063/1.4973421",
+        "10.1371/journal.pone.0284601",
+        "10.1007/978-3-030-00668-6_8",
+        "10.1234/null-date",
+        "10.1234/empty-date",
+        "10.1234/no-dateparts",
+        "10.1234/html-title",
+        "10.1234/with-editor",
+        "10.1001/test.12345",
     }
 
     def doi_callback(request):
@@ -238,14 +245,96 @@ def _register_crossref_mocks(rsps: responses.RequestsMock) -> None:
         content_type="application/json",
     )
 
+    crossref_works_responses = {
+        "10.1038/nature12373": {
+            "DOI": "10.1038/nature12373",
+            "type": "journal-article",
+            "title": ["Nanometre-scale thermometry in a living cell"],
+            "author": [
+                {"given": "G.", "family": "Kucsko", "sequence": "first"},
+                {"given": "P. C.", "family": "Maurer", "sequence": "additional"},
+                {"given": "M. D.", "family": "Lukin", "sequence": "additional"}
+            ],
+            "container-title": ["Nature"],
+            "volume": "500",
+            "issue": "7460",
+            "page": "54-58",
+            "issued": {"date-parts": [[2013, 7, 31]]},
+            "ISSN": ["0028-0836", "1476-4687"],
+            "publisher": "Springer Science and Business Media LLC",
+            "member": "297",
+            "prefix": "10.1038"
+        },
+        "10.1371/journal.pone.0284601": {
+            "DOI": "10.1371/journal.pone.0284601",
+            "type": "journal-article",
+            "title": ["Biochemical evaluation of vaccination in rats"],
+            "author": [
+                {"given": "Mahsa", "family": "Teymoorzadeh", "sequence": "first"},
+                {"given": "Razieh", "family": "Yazdanparast", "sequence": "additional",
+                 "ORCID": "https://orcid.org/0000-0003-0530-4305", "authenticated-orcid": True}
+            ],
+            "container-title": ["PLOS ONE"],
+            "volume": "18",
+            "issue": "5",
+            "page": "e0284601",
+            "issued": {"date-parts": [[2023, 5, 4]]},
+            "ISSN": ["1932-6203"],
+            "publisher": "Public Library of Science (PLoS)"
+        },
+        "10.1007/978-3-030-00668-6_8": {
+            "DOI": "10.1007/978-3-030-00668-6_8",
+            "type": "book-chapter",
+            "title": ["The SPAR Ontologies"],
+            "author": [
+                {"given": "Silvio", "family": "Peroni", "sequence": "first"},
+                {"given": "David", "family": "Shotton", "sequence": "additional"}
+            ],
+            "container-title": ["Lecture Notes in Computer Science", "The Semantic Web – ISWC 2018"],
+            "page": "119-136",
+            "issued": {"date-parts": [[2018]]},
+            "ISBN": ["9783030006679", "9783030006686"],
+            "publisher": "Springer International Publishing"
+        },
+        "10.1234/null-date": {
+            "DOI": "10.1234/null-date",
+            "type": "journal-article",
+            "title": ["Article with null date"],
+            "issued": {"date-parts": [[None]]}
+        },
+        "10.1234/empty-date": {
+            "DOI": "10.1234/empty-date",
+            "type": "journal-article",
+            "title": ["Article with empty date-parts"],
+            "issued": {"date-parts": [[]]}
+        },
+        "10.1234/no-dateparts": {
+            "DOI": "10.1234/no-dateparts",
+            "type": "journal-article",
+            "title": ["Article without date-parts key"],
+            "issued": {}
+        },
+        "10.1234/html-title": {
+            "DOI": "10.1234/html-title",
+            "type": "journal-article",
+            "title": ["A study of <i>Escherichia coli</i> in <b>biofilms</b>"],
+            "issued": {"date-parts": [[2024, 1, 15]]}
+        },
+        "10.1234/with-editor": {
+            "DOI": "10.1234/with-editor",
+            "type": "edited-book",
+            "title": ["Edited volume test"],
+            "author": [{"given": "John", "family": "Doe", "sequence": "first"}],
+            "editor": [{"given": "Jane", "family": "Smith", "sequence": "first"}],
+            "issued": {"date-parts": [[2024, 6, 20]]}
+        },
+    }
+
     def crossref_works_callback(request):
-        return (
-            200,
-            {},
-            json_module.dumps(
-                {"status": "ok", "message": {"DOI": "10.1007/s11192-022-04367-w"}}
-            ),
-        )
+        doi = unquote(request.url.split("/works/")[-1]).lower()
+        if doi in crossref_works_responses:
+            return (200, {}, json_module.dumps({"status": "ok", "message": crossref_works_responses[doi]}))
+        return (200, {}, json_module.dumps({"status": "ok", "message": {"DOI": doi}}))
 
     rsps.add_callback(
         responses.GET,
