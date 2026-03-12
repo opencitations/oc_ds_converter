@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 
-class BatchManager:
+
+class BatchManager(StorageManager):
     """A simple in-memory dict wrapper for batching validation results before writing to Redis."""
 
-    def __init__(self) -> None:
+    def __init__(self, **params: object) -> None:
+        super().__init__(**params)
         self._data: dict[str, dict[str, bool]] = {}
 
     def set_value(self, id: str, value: bool) -> None:

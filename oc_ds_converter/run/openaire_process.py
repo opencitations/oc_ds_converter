@@ -17,14 +17,31 @@ from tqdm import tqdm
 
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
+
+
+def get_storage_manager(storage_path: str | None, testing: bool) -> StorageManager:
+    if storage_path:
+        if not os.path.exists(storage_path):
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        if storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+        raise ValueError(f"Storage path must end with .db or .json, got: {storage_path}")
+    return RedisStorageManager(testing=testing)
 
 
 def preprocess(
         openaire_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
         csv_dir: str, cache: str | None = None, verbose: bool = False,
-        testing: bool = True, max_workers: int = 1, target: int = 50000, exclude_existing: bool = False) -> None:
+        testing: bool = True, max_workers: int = 1, target: int = 50000, exclude_existing: bool = False,
+        storage_path: str | None = None) -> None:
 
     if not testing: # NON CANCELLARE FILES MA PRENDI SOLO IN CONSIDERAZIONE
         input_dir_cont = os.listdir(openaire_json_dir)
@@ -75,7 +92,7 @@ def preprocess(
         all_files, targz_fd = get_all_files_by_type(os.path.join(openaire_json_dir, tar), req_type)
         if max_workers == 1:
             for filename in all_files:
-                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, publishers_filepath, testing, cache, target, exclude_existing)
+                get_citations_and_metadata(tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, publishers_filepath, testing, cache, target, exclude_existing, storage_path)
 
 
         elif max_workers > 1:
@@ -83,7 +100,7 @@ def preprocess(
                 for filename in all_files:
                     executor.submit(
                         get_citations_and_metadata,
-                        tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, publishers_filepath, testing, cache, target, exclude_existing
+                        tar, preprocessed_citations_dir, csv_dir, filename, orcid_doi_filepath, publishers_filepath, testing, cache, target, exclude_existing, storage_path
                     )
 
 
@@ -100,7 +117,7 @@ def preprocess(
         storage_manager.delete_storage()
 
 
-def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str | None, publishers_filepath_openaire: str | None, testing: bool, cache: str | None, target: int = 50000, exclude_existing: bool = False):
+def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_dir: str, filename: str, orcid_index: str | None, publishers_filepath_openaire: str | None, testing: bool, cache: str | None, target: int = 50000, exclude_existing: bool = False, storage_path: str | None = None):
 
     if cache:
         if not cache.endswith(".json"):
@@ -151,7 +168,8 @@ def get_citations_and_metadata(tar: str, preprocessed_citations_dir: str, csv_di
                     else:
                         last_part_processed = cache_dict[tar][filename]
 
-    openaire_csv = OpenaireProcessing(orcid_index=orcid_index, publishers_filepath_openaire=publishers_filepath_openaire, testing=testing, exclude_existing=exclude_existing)
+    storage_manager = get_storage_manager(storage_path, testing)
+    openaire_csv = OpenaireProcessing(orcid_index=orcid_index, publishers_filepath_openaire=publishers_filepath_openaire, storage_manager=storage_manager, testing=testing, exclude_existing=exclude_existing)
 
     index_citations_to_csv = []
     data = []
@@ -423,6 +441,10 @@ if __name__ == '__main__':
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int, help='Workers number')
     arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
                             help='Exclude entities that already exist in Meta from the output CSV')
+    arg_parser.add_argument('-s', '--storage_path', dest='storage_path', required=False,
+                            help='Path for ID validation storage. Use .db extension for SQLite or .json for '
+                                 'in-memory JSON storage. If not specified, uses Redis (default). '
+                                 'Note: SQLite and JSON storage are single-threaded (--max_workers is ignored).')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -443,7 +465,14 @@ if __name__ == '__main__':
     testing = settings['testing'] if settings else args.testing
     max_workers = settings['max_workers'] if settings else args.max_workers
     exclude_existing = settings.get('exclude_existing', False) if settings else args.exclude_existing
+    storage_path = settings.get('storage_path', args.storage_path) if settings else args.storage_path
+    storage_path = normalize_path(storage_path) if storage_path else None
+
+    if storage_path and max_workers > 1:
+        print('[Warning] SQLite/JSON storage requires single-threaded mode. Setting max_workers=1')
+        max_workers = 1
 
     preprocess(openaire_json_dir=openaire_json_dir, publishers_filepath=publishers_filepath,
                orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir,
-               cache=cache, verbose=verbose, testing=testing, max_workers=max_workers, exclude_existing=exclude_existing)
+               cache=cache, verbose=verbose, testing=testing, max_workers=max_workers, exclude_existing=exclude_existing,
+               storage_path=storage_path)

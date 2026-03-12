@@ -1,8 +1,8 @@
-from oc_ds_converter.lib.jsonmanager import *
 import os
-from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
-
 import unittest
+
+from oc_ds_converter.lib.jsonmanager import *
+from oc_ds_converter.openaire.openaire_processing import OpenaireProcessing
 #
 
 BASE = os.path.join('test', 'openaire_processing')
@@ -1587,6 +1587,19 @@ class TestOpenaireProcessing(unittest.TestCase):
         # Cleanup
         op.storage_manager.delete_storage()
 
+
+def test_validated_as_with_storage_manager(storage_manager):
+    valid_doi_not_in_db = {"identifier": "doi:10.1001/2012.jama.10158", "schema": "doi"}
+    valid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.10368", "schema": "doi"}
+    invalid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.1036", "schema": "doi"}
+
+    op_processing = OpenaireProcessing(storage_manager=storage_manager, testing=True)
+    op_processing.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+    op_processing.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
+
+    assert op_processing.validated_as(valid_doi_in_db) is True
+    assert op_processing.validated_as(invalid_doi_in_db) is False
+    assert op_processing.validated_as(valid_doi_not_in_db) is None
 
 
 if __name__ == '__main__':

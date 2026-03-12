@@ -17,12 +17,29 @@ from tqdm import tqdm
 from oc_ds_converter.jalc.jalc_processing import JalcProcessing
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+
+
+def get_storage_manager(storage_path: str | None, testing: bool) -> StorageManager:
+    if storage_path:
+        if not os.path.exists(storage_path):
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        if storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+        raise ValueError(f"Storage path must end with .db or .json, got: {storage_path}")
+    return RedisStorageManager(testing=testing)
 
 
 def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None,
                csv_dir: str, cache: str | None = None, verbose: bool = False,
-               testing: bool = True, max_workers: int = 1, exclude_existing: bool = False) -> None:
+               testing: bool = True, max_workers: int = 1, exclude_existing: bool = False,
+               storage_path: str | None = None) -> None:
 
     els_to_be_skipped=[]
     #check if in the input folder the zipped folder has already been decompressed
@@ -91,11 +108,13 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        publishers_filepath,
-                                       testing, cache, is_citing=True, exclude_existing=exclude_existing)
+                                       testing, cache, is_citing=True, exclude_existing=exclude_existing,
+                                       storage_path=storage_path)
         for zip_file in all_input_zip:
             get_citations_and_metadata(zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        publishers_filepath,
-                                       testing, cache, is_citing=False, exclude_existing=exclude_existing)
+                                       testing, cache, is_citing=False, exclude_existing=exclude_existing,
+                                       storage_path=storage_path)
 
 
     elif max_workers > 1:
@@ -104,14 +123,14 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
                 executor.submit(
                     get_citations_and_metadata,
                     zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                    publishers_filepath, testing, cache, True, exclude_existing)
+                    publishers_filepath, testing, cache, True, exclude_existing, storage_path)
 
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
             for zip_file in all_input_zip:
                 executor.submit(
                     get_citations_and_metadata,
                     zip_file, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                    publishers_filepath, testing, cache, False, exclude_existing)
+                    publishers_filepath, testing, cache, False, exclude_existing, storage_path)
 
     if cache:
         if os.path.exists(cache):
@@ -128,7 +147,8 @@ def preprocess(jalc_json_dir: str, publishers_filepath: str | None, orcid_doi_fi
 def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, csv_dir: str,
                                orcid_index: str | None,
                                publishers_filepath_jalc: str | None,
-                               testing: bool, cache: str | None, is_citing: bool, exclude_existing: bool = False):
+                               testing: bool, cache: str | None, is_citing: bool,
+                               exclude_existing: bool = False, storage_path: str | None = None):
     if cache:
         if not cache.endswith(".json"):
             cache = os.path.join(os.getcwd(), "cache.json")
@@ -164,8 +184,10 @@ def get_citations_and_metadata(zip_file: str, preprocessed_citations_dir: str, c
         if not is_citing and filename in cache_dict["cited"]:
             return
 
+    storage_manager = get_storage_manager(storage_path, testing)
     jalc_csv = JalcProcessing(orcid_index=orcid_index,
                               publishers_filepath_jalc=publishers_filepath_jalc,
+                              storage_manager=storage_manager,
                               testing=testing, citing=is_citing, exclude_existing=exclude_existing)
     index_citations_to_csv = []
     data_citing = []
@@ -389,6 +411,10 @@ if __name__ == '__main__':
                             help='Workers number')
     arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
                             help='Exclude entities that already exist in Meta from the output CSV')
+    arg_parser.add_argument('-s', '--storage_path', dest='storage_path', required=False,
+                            help='Path for ID validation storage. Use .db extension for SQLite or .json for '
+                                 'in-memory JSON storage. If not specified, uses Redis (default). '
+                                 'Note: SQLite and JSON storage are single-threaded (--max_workers is ignored).')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -409,7 +435,13 @@ if __name__ == '__main__':
     testing = settings['testing'] if settings else args.testing
     max_workers = settings['max_workers'] if settings else args.max_workers
     exclude_existing = settings.get('exclude_existing', False) if settings else args.exclude_existing
+    storage_path = settings.get('storage_path', args.storage_path) if settings else args.storage_path
+    storage_path = normalize_path(storage_path) if storage_path else None
+
+    if storage_path and max_workers > 1:
+        print('[Warning] SQLite/JSON storage requires single-threaded mode. Setting max_workers=1')
+        max_workers = 1
 
     preprocess(jalc_json_dir=jalc_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, cache=cache, verbose=verbose, testing=testing,
-               max_workers=max_workers, exclude_existing=exclude_existing)
+               max_workers=max_workers, exclude_existing=exclude_existing, storage_path=storage_path)
 

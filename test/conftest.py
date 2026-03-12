@@ -5,6 +5,22 @@ from urllib.parse import unquote
 import pytest
 import responses
 
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
+
+@pytest.fixture(params=["redis", "sqlite", "inmemory"])
+def storage_manager(request: pytest.FixtureRequest, tmp_path):
+    if request.param == "redis":
+        sm = RedisStorageManager(testing=True)
+    elif request.param == "sqlite":
+        sm = SqliteStorageManager(str(tmp_path / "test.db"))
+    else:
+        sm = InMemoryStorageManager(str(tmp_path / "test.json"))
+    yield sm
+    sm.delete_storage()
+
 
 @pytest.fixture(autouse=True)
 def mock_http_requests(request):

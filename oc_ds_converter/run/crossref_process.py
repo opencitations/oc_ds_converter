@@ -42,7 +42,23 @@ from oc_ds_converter.datasource.orcid_index import (
 from oc_ds_converter.lib.console import advance_progress, console, create_progress
 from oc_ds_converter.lib.file_manager import normalize_path, pathoo
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+
+
+def get_storage_manager(storage_path: str | None, testing: bool) -> StorageManager:
+    if storage_path:
+        if not os.path.exists(storage_path):
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        if storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+        raise ValueError(f"Storage path must end with .db or .json, got: {storage_path}")
+    return RedisStorageManager(testing=testing)
 
 
 
@@ -60,6 +76,7 @@ def _run_iteration(
     max_workers: int = 1,
     use_redis_publishers: bool = False,
     exclude_existing: bool = False,
+    storage_path: str | None = None,
 ) -> None:
     iteration_label = "citing entities" if processing_citing else "cited entities"
     iteration_num = "First" if processing_citing else "Second"
@@ -73,7 +90,8 @@ def _run_iteration(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                     publishers_filepath,
                     testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api,
-                    use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing
+                    use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing,
+                    storage_path=storage_path
                 )
                 advance_progress(progress, task, processed=was_processed)
         else:
@@ -88,7 +106,7 @@ def _run_iteration(
                         filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                         publishers_filepath,
                         testing, cache, processing_citing, use_orcid_api, use_redis_publishers,
-                        exclude_existing
+                        exclude_existing, storage_path
                     )
                     futures.append(future)
                 for future in futures:
@@ -369,6 +387,7 @@ def preprocess(
     update_publishers: bool = False,
     publishers_max_age: int = 30,
     exclude_existing: bool = False,
+    storage_path: str | None = None,
 ) -> None:
 
     # create output dir if does not exist
@@ -425,8 +444,8 @@ def preprocess(
         publishers_filepath, testing, cache
     )
 
-    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing)
-    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing)
+    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing, storage_path=storage_path)
+    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing, storage_path=storage_path)
 
     # DELETE CACHE AND .LOCK FILE
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
@@ -442,7 +461,8 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                                orcid_index: str | None,
                                publishers_filepath: str | None,
                                testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool,
-                               use_redis_publishers: bool = False, exclude_existing: bool = False) -> bool:
+                               use_redis_publishers: bool = False, exclude_existing: bool = False,
+                               storage_path: str | None = None) -> bool:
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
     if cache:
@@ -483,8 +503,10 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
     t_start = time.perf_counter()
 
     t0 = time.perf_counter()
+    storage_manager = get_storage_manager(storage_path, testing)
     crossref_csv = CrossrefProcessing(
         orcid_index=orcid_index, publishers_filepath=publishers_filepath,
+        storage_manager=storage_manager,
         testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api,
         use_redis_orcid_index=True, use_redis_publishers=use_redis_publishers,
         exclude_existing=exclude_existing
@@ -576,6 +598,10 @@ if __name__ == '__main__':  # pragma: no cover
     arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
                             help='Exclude entities that already exist in Meta from the output CSV (metadata only, '
                                  'not citations). When enabled, checks DB-META-BR before creating metadata rows.')
+    arg_parser.add_argument('-s', '--storage_path', dest='storage_path', required=False,
+                            help='Path for ID validation storage. Use .db extension for SQLite or .json for '
+                                 'in-memory JSON storage. If not specified, uses Redis (default). '
+                                 'Note: SQLite and JSON storage are single-threaded (--max_workers is ignored).')
 
     args = arg_parser.parse_args()
     config = args.config
@@ -598,6 +624,13 @@ if __name__ == '__main__':  # pragma: no cover
     update_publishers = settings.get('update_publishers', args.update_publishers) if settings else args.update_publishers
     publishers_max_age = settings.get('publishers_max_age', args.publishers_max_age) if settings else args.publishers_max_age
     exclude_existing = settings.get('exclude_existing', args.exclude_existing) if settings else args.exclude_existing
+    storage_path = settings.get('storage_path', args.storage_path) if settings else args.storage_path
+    storage_path = normalize_path(storage_path) if storage_path else None
+
+    # SQLite and InMemory don't support concurrent access
+    if storage_path and max_workers > 1:
+        console.print('[yellow]Warning: SQLite/JSON storage requires single-threaded mode. Setting max_workers=1[/yellow]')
+        max_workers = 1
 
     if max_workers > 1 and crossref_json_dir.endswith('.tar.gz'):
         arg_parser.error(
@@ -616,4 +649,5 @@ if __name__ == '__main__':  # pragma: no cover
         update_publishers=update_publishers,
         publishers_max_age=publishers_max_age,
         exclude_existing=exclude_existing,
+        storage_path=storage_path,
     )

@@ -35,6 +35,7 @@ from oc_ds_converter.oc_idmanager.doi import DOIManager
 from oc_ds_converter.oc_idmanager.isbn import ISBNManager
 from oc_ds_converter.oc_idmanager.issn import ISSNManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.batch_manager import BatchManager
 from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.ra_processor import RaProcessor
@@ -43,11 +44,14 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class DataciteProcessing(RaProcessor):
-    def __init__(self, orcid_index: str | None = None, publishers_filepath_dc: str | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, exclude_existing: bool = False):
+    def __init__(self, orcid_index: str | None = None, publishers_filepath_dc: str | None = None, storage_manager: StorageManager | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, exclude_existing: bool = False):
         super(DataciteProcessing, self).__init__(orcid_index)
         self.exclude_existing = exclude_existing
         self._testing = testing
-        self.storage_manager = RedisStorageManager(testing=testing)
+        if storage_manager is None:
+            self.storage_manager = RedisStorageManager(testing=testing)
+        else:
+            self.storage_manager = storage_manager
 
         self.temporary_manager = BatchManager()
 
@@ -166,16 +170,16 @@ class DataciteProcessing(RaProcessor):
     # def input_preprocessing(self):
     # self.preprocessor.split_input()
 
-        self.doi_m = DOIManager(testing=testing)
-        self.orcid_m = ORCIDManager(use_api_service=use_orcid_api, testing=testing)
+        self.doi_m = DOIManager(storage_manager=self.storage_manager, testing=testing)
+        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager, use_api_service=use_orcid_api, testing=testing)
         self.issn_m = ISSNManager()
         self.isbn_m = ISBNManager()
         self.use_orcid_api = use_orcid_api
         self.venue_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
         # Temporary storage managers : all data must be stored in tmp storage manager and passed all together to the
         # main storage_manager  only once the full file is processed.
-        self.tmp_doi_m = DOIManager(testing=testing)
-        self.tmp_orcid_m = ORCIDManager(use_api_service=use_orcid_api, testing=testing)
+        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager, use_api_service=use_orcid_api, testing=testing)
         self.venue_tmp_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
 
         if testing:

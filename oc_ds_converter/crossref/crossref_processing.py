@@ -39,6 +39,7 @@ from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager import ISSNManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.batch_manager import BatchManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.ra_processor import RaProcessor
 
 
@@ -51,7 +52,7 @@ def _clean_markup(text: str) -> str:
 
 class CrossrefProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, publishers_filepath: str | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False, use_redis_publishers: bool = False, exclude_existing: bool = False):
+    def __init__(self, orcid_index: str | None = None, publishers_filepath: str | None = None, storage_manager: StorageManager | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, use_redis_orcid_index: bool = False, use_redis_publishers: bool = False, exclude_existing: bool = False):
         orcid_index_obj = OrcidIndexRedis(testing=testing) if use_redis_orcid_index and orcid_index is None else orcid_index
         super(CrossrefProcessing, self).__init__(orcid_index_obj, publishers_filepath)
         self.citing = citing
@@ -63,18 +64,21 @@ class CrossrefProcessing(RaProcessor):
             self._publishers_redis = PublishersRedis(testing=testing)
         self._testing = testing
 
-        self.storage_manager = RedisStorageManager(testing=testing)
+        if storage_manager is None:
+            self.storage_manager = RedisStorageManager(testing=testing)
+        else:
+            self.storage_manager = storage_manager
 
         self.temporary_manager = BatchManager()
 
-        self.doi_m = DOIManager(testing=testing)
-        self.orcid_m = ORCIDManager(testing=testing, use_api_service=use_orcid_api)
+        self.doi_m = DOIManager(storage_manager=self.storage_manager, testing=testing)
+        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager, testing=testing, use_api_service=use_orcid_api)
         self.issn_m = ISSNManager()
 
         self.venue_id_man_dict = {"issn": self.issn_m}
         # Temporary storage managers
-        self.tmp_doi_m = DOIManager(testing=testing)
-        self.tmp_orcid_m = ORCIDManager(testing=testing, use_api_service=use_orcid_api)
+        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager, testing=testing, use_api_service=use_orcid_api)
 
         self.venue_tmp_id_man_dict = {"issn": self.issn_m}
 

@@ -1,10 +1,10 @@
+import json
 import os
 import unittest
-import json
-from oc_ds_converter.lib.csvmanager import CSVManager
-from oc_ds_converter.lib.jsonmanager import load_json
 
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
+from oc_ds_converter.lib.csvmanager import CSVManager
+from oc_ds_converter.lib.jsonmanager import load_json
 
 
 TEST_DIR = os.path.join("test", "datacite_processing")
@@ -1071,8 +1071,18 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(authors_strings_list, expected_authors_list)
 
 
+def test_validated_as_with_storage_manager(storage_manager):
+    valid_doi_not_in_db = {"identifier": "doi:10.1001/2012.jama.10158", "schema": "doi"}
+    valid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.10368", "schema": "doi"}
+    invalid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.1036", "schema": "doi"}
 
+    dc_processing = DataciteProcessing(storage_manager=storage_manager, testing=True)
+    dc_processing.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+    dc_processing.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
 
+    assert dc_processing.validated_as(valid_doi_in_db) is True
+    assert dc_processing.validated_as(invalid_doi_in_db) is False
+    assert dc_processing.validated_as(valid_doi_not_in_db) is None
 
 
 

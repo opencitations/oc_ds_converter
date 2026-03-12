@@ -30,13 +30,29 @@ from tqdm import tqdm
 
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.zotero.zotero_processing import ZoteroProcessing
+
+
+def get_storage_manager(storage_path: str | None, testing: bool) -> StorageManager:
+    if storage_path:
+        if not os.path.exists(storage_path):
+            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
+                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
+        if storage_path.endswith(".db"):
+            return SqliteStorageManager(storage_path)
+        if storage_path.endswith(".json"):
+            return InMemoryStorageManager(storage_path)
+        raise ValueError(f"Storage path must end with .db or .json, got: {storage_path}")
+    return RedisStorageManager(testing=testing)
 
 
 
 def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_filepath: str | None, csv_dir: str, cache: str | None = None, verbose: bool = False,
-               testing: bool = True, max_workers: int = 1, exclude_existing: bool = False) -> None:
+               testing: bool = True, max_workers: int = 1, exclude_existing: bool = False, storage_path: str | None = None) -> None:
 
     if cache is None:
         cache = os.path.join(csv_dir, 'cache_file.cache')
@@ -68,7 +84,8 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
            # continue
         get_citations_and_metadata(filename, csv_dir, orcid_doi_filepath,
                                    publishers_filepath,
-                                   testing, cache, is_citing=True, exclude_existing=exclude_existing)
+                                   testing, cache, is_citing=True, exclude_existing=exclude_existing,
+                                   storage_path=storage_path)
 
     # DELETE CACHE AND .LOCK FILE
     if cache:
@@ -91,7 +108,8 @@ def preprocess(zotero_json_dir: str, publishers_filepath: str | None, orcid_doi_
 def get_citations_and_metadata(file_name, csv_dir: str,
                                orcid_index: str | None,
                                publishers_filepath: str | None,
-                               testing: bool, cache: str | None, is_citing: bool, exclude_existing: bool = False):
+                               testing: bool, cache: str | None, is_citing: bool,
+                               exclude_existing: bool = False, storage_path: str | None = None):
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
     if cache:
@@ -126,8 +144,10 @@ def get_citations_and_metadata(file_name, csv_dir: str,
         if is_citing and filename in cache_dict["citing"]:
             return
 
+    storage_manager = get_storage_manager(storage_path, testing)
     zotero_csv = ZoteroProcessing(orcid_index=orcid_index,
                                   publishers_filepath=publishers_filepath,
+                                  storage_manager=storage_manager,
                                   testing=testing, citing=True, exclude_existing=exclude_existing)
 
 
@@ -301,6 +321,9 @@ if __name__ == '__main__':
                             help='Workers number')
     arg_parser.add_argument('--exclude-existing', dest='exclude_existing', action='store_true', required=False,
                             help='Exclude entities that already exist in Meta from the output CSV')
+    arg_parser.add_argument('-s', '--storage_path', dest='storage_path', required=False,
+                            help='Path for ID validation storage. Use .db extension for SQLite or .json for '
+                                 'in-memory JSON storage. If not specified, uses Redis (default).')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -321,9 +344,11 @@ if __name__ == '__main__':
     testing = settings['testing'] if settings else args.testing
     max_workers = settings['max_workers'] if settings else args.max_workers
     exclude_existing = settings.get('exclude_existing', False) if settings else args.exclude_existing
+    storage_path = settings.get('storage_path', args.storage_path) if settings else args.storage_path
+    storage_path = normalize_path(storage_path) if storage_path else None
 
     preprocess(zotero_json_dir=zotero_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, cache=cache, verbose=verbose, testing=testing,
-               max_workers=max_workers, exclude_existing=exclude_existing)
+               max_workers=max_workers, exclude_existing=exclude_existing, storage_path=storage_path)
 
 # How to run the script and produce data
 # EXAMPLE: python oc_ds_converter/run/zotero_process.py -z /Users/ariannamorettj/Desktop/zotero_dati/input -out /Users/ariannamorettj/Desktop/zotero_dati/output

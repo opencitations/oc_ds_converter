@@ -25,16 +25,20 @@ from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 
 
 class ArXivManager(IdentifierManager):
     """This class implements an identifier manager for arxiv identifier"""
 
-    def __init__(self, use_api_service: bool = True, testing: bool = True) -> None:
+    def __init__(self, use_api_service: bool = True, storage_manager: StorageManager | None = None, testing: bool = True) -> None:
         """arxiv manager constructor."""
         super(ArXivManager,self).__init__()
         self._use_api_service = use_api_service
-        self.storage_manager = RedisStorageManager(testing=testing)
+        if storage_manager is None:
+            self.storage_manager = RedisStorageManager(testing=testing)
+        else:
+            self.storage_manager = storage_manager
 
         self._p = "arxiv:"
         self._api = 'https://export.arxiv.org/api/query?search_query=all:'

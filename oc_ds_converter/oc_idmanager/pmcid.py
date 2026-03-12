@@ -24,17 +24,21 @@ from oc_ds_converter.oc_idmanager.base import IdentifierManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 
 
 
 class PMCIDManager(IdentifierManager):
     """This class implements an identifier manager for PMCID identifier"""
 
-    def __init__(self, use_api_service: bool = True, testing: bool = True) -> None:
+    def __init__(self, use_api_service: bool = True, storage_manager: StorageManager | None = None, testing: bool = True) -> None:
         """PMCID manager constructor."""
         super(PMCIDManager, self).__init__()
         self._use_api_service = use_api_service
-        self.storage_manager = RedisStorageManager(testing=testing)
+        if storage_manager is None:
+            self.storage_manager = RedisStorageManager(testing=testing)
+        else:
+            self.storage_manager = storage_manager
         self._api = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
         self._use_api_service = use_api_service
         self._p = "pmcid:"

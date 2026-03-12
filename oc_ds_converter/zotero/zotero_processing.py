@@ -34,6 +34,7 @@ from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
 from oc_ds_converter.oc_idmanager import DOIManager, ISBNManager, ISSNManager, ORCIDManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.batch_manager import BatchManager
 from oc_ds_converter.ra_processor import RaProcessor
 
@@ -43,7 +44,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 class ZoteroProcessing(RaProcessor):
 
     def __init__(self, orcid_index: str | None = None, publishers_filepath: str | None = None,
-                 testing: bool = True, citing: bool = True, exclude_existing: bool = False):
+                 storage_manager: StorageManager | None = None, testing: bool = True, citing: bool = True, exclude_existing: bool = False):
         super(ZoteroProcessing, self).__init__(orcid_index, publishers_filepath)
         self.exclude_existing = exclude_existing
         self.citing = citing
@@ -90,14 +91,17 @@ class ZoteroProcessing(RaProcessor):
             ]
         }
 
-        self.storage_manager = RedisStorageManager(testing=testing)
+        if storage_manager is None:
+            self.storage_manager = RedisStorageManager(testing=testing)
+        else:
+            self.storage_manager = storage_manager
 
         self.temporary_manager = BatchManager()
 
-        self.doi_m = DOIManager(testing=testing)
+        self.doi_m = DOIManager(storage_manager=self.storage_manager, testing=testing)
         self.issn_m = ISSNManager()
         self.isbn_m = ISBNManager()
-        self.orcid_m = ORCIDManager(testing=testing)
+        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager, testing=testing)
 
 
         self.venue_id_man_dict = {"issn": self.issn_m}
@@ -108,10 +112,10 @@ class ZoteroProcessing(RaProcessor):
         # a storage_manager db would be considered to have been processed and thus would be ignored by the process
         # and lost.
 
-        self.tmp_doi_m = DOIManager(testing=testing)
+        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager, testing=testing)
         self.tmp_issn_m = ISSNManager()
         self.tmp_isbn_m = ISBNManager()
-        self.tmp_orcid_m = ORCIDManager(testing=testing)
+        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager, testing=testing)
 
         self.venue_tmp_id_man_dict = {"issn": self.issn_m}
 

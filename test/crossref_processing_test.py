@@ -1,10 +1,12 @@
-from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
-import unittest
-import os
 import json
-from oc_ds_converter.lib.csvmanager import CSVManager
+import os
+import unittest
+
+from oc_ds_converter.crossref.crossref_processing import CrossrefProcessing
 from oc_ds_converter.datasource.orcid_index import PublishersRedis
+from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.jsonmanager import load_json
+
 TEST_DIR = os.path.join("test", "crossref_processing")
 JSON_FILE = os.path.join(TEST_DIR, "0.json")
 TMP_SUPPORT_MATERIAL = os.path.join(TEST_DIR, "tmp_support")
@@ -976,6 +978,18 @@ class TestCrossrefProcessing(unittest.TestCase):
         cp.storage_manager.delete_storage()
 
 
+def test_validated_as_with_storage_manager(storage_manager):
+    valid_doi_not_in_db = {"identifier": "doi:10.1001/2012.jama.10158", "schema": "doi"}
+    valid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.10368", "schema": "doi"}
+    invalid_doi_in_db = {"identifier": "doi:10.1001/2012.jama.1036", "schema": "doi"}
+
+    c_processing = CrossrefProcessing(storage_manager=storage_manager, testing=True)
+    c_processing.doi_m.storage_manager.set_value(valid_doi_in_db["identifier"], True)
+    c_processing.doi_m.storage_manager.set_value(invalid_doi_in_db["identifier"], False)
+
+    assert c_processing.validated_as(valid_doi_in_db) is True
+    assert c_processing.validated_as(invalid_doi_in_db) is False
+    assert c_processing.validated_as(valid_doi_not_in_db) is None
 
 
 

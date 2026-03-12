@@ -32,6 +32,7 @@ from pathlib import Path
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.ra_processor import RaProcessor
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.batch_manager import BatchManager
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
@@ -39,18 +40,21 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class JalcProcessing(RaProcessor):
 
-    def __init__(self, orcid_index: str | None = None, publishers_filepath_jalc: str | None = None, testing: bool = True, citing: bool = True, exclude_existing: bool = False):
+    def __init__(self, orcid_index: str | None = None, publishers_filepath_jalc: str | None = None, storage_manager: StorageManager | None = None, testing: bool = True, citing: bool = True, exclude_existing: bool = False):
         super(JalcProcessing, self).__init__(orcid_index)
         self.exclude_existing = exclude_existing
         self.citing = citing
         self._testing = testing
-        self.storage_manager = RedisStorageManager(testing=testing)
+        if storage_manager is None:
+            self.storage_manager = RedisStorageManager(testing=testing)
+        else:
+            self.storage_manager = storage_manager
 
         self.temporary_manager = BatchManager()
 
-        self.doi_m = DOIManager(testing=testing)
+        self.doi_m = DOIManager(storage_manager=self.storage_manager, testing=testing)
         self.issn_m = ISSNManager()
-        self.jid_m = JIDManager(testing=testing)
+        self.jid_m = JIDManager(storage_manager=self.storage_manager, testing=testing)
 
         self.venue_id_man_dict = {"issn":self.issn_m, "jid":self.jid_m}
 
@@ -61,8 +65,8 @@ class JalcProcessing(RaProcessor):
         a storage_manager db would be considered to have been processed and thus would be ignored by the process
         and lost.'''
 
-        self.tmp_doi_m = DOIManager(testing=testing)
-        self.tmp_jid_m = JIDManager(testing=testing)
+        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_jid_m = JIDManager(storage_manager=self.temporary_manager, testing=testing)
 
         self.venue_tmp_id_man_dict = {"issn":self.issn_m, "jid":self.tmp_jid_m}
 
