@@ -1,0 +1,866 @@
+{
+  "data": [
+    {
+      "id": "10.5281/zenodo.8244010",
+      "type": "dois",
+      "attributes": {
+        "container": {
+          "identifier": "10.11646/zootaxa.5329.1.1",
+          "identifierType": "DOI",
+          "type": "Series"
+        },
+        "reason": null,
+        "prefix": "10.5281",
+        "citationsOverTime": [
+          {
+            "total": 3,
+            "year": "2023"
+          }
+        ],
+        "registered": "2023-08-13T16:52:20Z",
+        "language": null,
+        "source": "mds",
+        "suffix": "zenodo.8244010",
+        "relatedItems": [],
+        "descriptions": [
+          {
+            "descriptionType": "Abstract",
+            "description": "FIGURE 1A, B. Hexapopha numerosa sp. nov., live type specimens (MPEG 37089; PBI_OON 44911) from northern Brazil. A male. B female. Photo: Cesar Favacho."
+          },
+          {
+            "descriptionType": "Other",
+            "description": "Published as part of <i>Feitosa, Níthomas M., Ott, Ricardo &amp; Bonaldo, Alexandre B., 2023, Meeting the southern brothers: a revision of the Neotropical spider genus Hexapopha Platnick, Berniker &amp; Víquez, 2014 (Araneae, Oonopidae), pp. 1-150 in Zootaxa 5329 (1)</i> on page 6, DOI: 10.11646/zootaxa.5329.1.1, http://zenodo.org/record/8244009"
+          }
+        ],
+        "sizes": [],
+        "versionOfCount": 0,
+        "relatedIdentifiers": [
+          {
+            "relationType": "IsPartOf",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.11646/zootaxa.5329.1.1",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsPartOf",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "urn:lsid:plazi.org:pub:2F7DFFE3FFF05E36FF843F2DFFC0FFF4",
+            "relatedIdentifierType": "LSID"
+          },
+          {
+            "relationType": "IsPartOf",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "http://publication.plazi.org/id/2F7DFFE3FFF05E36FF843F2DFFC0FFF4",
+            "relatedIdentifierType": "URL"
+          },
+          {
+            "relationType": "IsPartOf",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "https://zenodo.org/record/8244009",
+            "relatedIdentifierType": "URL"
+          },
+          {
+            "relationType": "IsCitedBy",
+            "resourceTypeGeneral": "Text",
+            "relatedIdentifier": "10.5281/zenodo.8249952",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsCitedBy",
+            "resourceTypeGeneral": "Text",
+            "relatedIdentifier": "http://treatment.plazi.org/id/D344879BFFF55E3BFF133FF2FA5CFCBB",
+            "relatedIdentifierType": "URL"
+          },
+          {
+            "relationType": "IsCitedBy",
+            "resourceTypeGeneral": "Text",
+            "relatedIdentifier": "10.5281/zenodo.8249970",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsCitedBy",
+            "resourceTypeGeneral": "Text",
+            "relatedIdentifier": "http://treatment.plazi.org/id/D344879BFFA65E6AFF133977FCADF829",
+            "relatedIdentifierType": "URL"
+          },
+          {
+            "relationType": "HasVersion",
+            "relatedIdentifier": "10.5281/zenodo.8244011",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsPartOf",
+            "relatedIdentifier": "https://zenodo.org/communities/biosyslit",
+            "relatedIdentifierType": "URL"
+          }
+        ],
+        "created": "2023-08-13T16:52:20Z",
+        "dates": [
+          {
+            "date": "2023-08-11",
+            "dateType": "Issued"
+          }
+        ],
+        "published": "2023-08-11",
+        "geoLocations": [],
+        "partCount": 0,
+        "publicationYear": 2023,
+        "partOfCount": 1,
+        "updated": "2023-08-15T18:11:20Z",
+        "formats": [],
+        "fundingReferences": [],
+        "creators": [
+          {
+            "givenName": "Níthomas M.",
+            "familyName": "Feitosa",
+            "name": "Feitosa, Níthomas M.",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-8013-9947"
+              }
+            ]
+          },
+          {
+            "givenName": "Ricardo",
+            "familyName": "Ott",
+            "name": "Ott, Ricardo",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0001-7392-1415"
+              }
+            ]
+          },
+          {
+            "givenName": "Alexandre B.",
+            "familyName": "Bonaldo",
+            "name": "Bonaldo, Alexandre B.",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-8013-9947"
+              }
+            ]
+          }
+        ],
+        "schemaVersion": "http://datacite.org/schema/kernel-4",
+        "versionCount": 1,
+        "metadataVersion": 1,
+        "citationCount": 2,
+        "types": {
+          "schemaOrg": "ImageObject",
+          "resourceTypeGeneral": "Image",
+          "citeproc": "graphic",
+          "bibtex": "misc",
+          "ris": "FIGURE",
+          "resourceType": "Figure"
+        },
+        "isActive": true,
+        "viewsOverTime": [],
+        "identifiers": [
+          {
+            "identifier": "https://zenodo.org/record/8244011",
+            "identifierType": "URL"
+          }
+        ],
+        "subjects": [
+          {
+            "subject": "Biodiversity"
+          },
+          {
+            "subject": "Taxonomy"
+          },
+          {
+            "subject": "Animalia"
+          },
+          {
+            "subject": "Arthropoda"
+          },
+          {
+            "subject": "Arachnida"
+          },
+          {
+            "subject": "Araneae"
+          },
+          {
+            "subject": "Oonopidae"
+          },
+          {
+            "subject": "Hexapopha"
+          }
+        ],
+        "titles": [
+          {
+            "title": "FIGURE 1A, B in Meeting the southern brothers: a revision of the Neotropical spider genus Hexapopha Platnick, Berniker &amp; Víquez, 2014 (Araneae, Oonopidae)"
+          }
+        ],
+        "url": "https://zenodo.org/record/8244010",
+        "downloadCount": 0,
+        "rightsList": [
+          {
+            "rightsUri": "info:eu-repo/semantics/openAccess",
+            "rights": "Open Access"
+          }
+        ],
+        "contentUrl": null,
+        "contributors": [],
+        "referenceCount": 0,
+        "viewCount": 0,
+        "downloadsOverTime": [],
+        "doi": "10.5281/zenodo.8244010",
+        "publisher": {
+          "name": "Zenodo"
+        },
+        "version": null,
+        "state": "findable",
+        "alternateIdentifiers": [
+          {
+            "alternateIdentifierType": "URL",
+            "alternateIdentifier": "https://zenodo.org/record/8244011"
+          }
+        ]
+      },
+      "relationships": {
+        "client": {
+          "data": {
+            "id": "cern.zenodo",
+            "type": "clients"
+          }
+        },
+        "provider": {
+          "data": {
+            "id": "cern",
+            "type": "providers"
+          }
+        },
+        "media": {
+          "data": []
+        },
+        "references": {
+          "data": []
+        },
+        "citations": {
+          "data": [
+            {
+              "id": "10.5281/zenodo.8249952",
+              "type": "dois"
+            },
+            {
+              "id": "10.5281/zenodo.8249970",
+              "type": "dois"
+            }
+          ]
+        },
+        "parts": {
+          "data": []
+        },
+        "partOf": {
+          "data": [
+            {
+              "id": "10.11646/zootaxa.5329.1.1",
+              "type": "dois"
+            }
+          ]
+        },
+        "versions": {
+          "data": [
+            {
+              "id": "10.5281/zenodo.8244011",
+              "type": "dois"
+            }
+          ]
+        },
+        "versionOf": {
+          "data": []
+        }
+      }
+    },
+  {
+      "id": "10.26050/wdcc/ar6.c6gmipicl",
+      "type": "dois",
+      "attributes": {
+        "container": {
+          "identifier": "10.22033/ESGF/CMIP6.1525",
+          "identifierType": "DOI",
+          "type": "DataRepository"
+        },
+        "reason": null,
+        "prefix": "10.26050",
+        "citationsOverTime": [],
+        "registered": "2023-08-17T07:54:26Z",
+        "language": "en",
+        "source": "mds",
+        "suffix": "wdcc/ar6.c6gmipicl",
+        "relatedItems": [],
+        "descriptions": [
+          {
+            "descriptionType": "Abstract",
+            "description": "Project: Coupled Model Intercomparison Project Phase 6 (CMIP6) datasets - These data have been generated as part of the internationally-coordinated Coupled Model Intercomparison Project Phase 6 (CMIP6; see also GMD Special Issue: http://www.geosci-model-dev.net/special_issue590.html). The simulation data provides a basis for climate research designed to answer fundamental science questions and serves as resource for authors of the Sixth Assessment Report of the Intergovernmental Panel on Climate Change (IPCC-AR6). CMIP6 is a project coordinated by the Working Group on Coupled Modelling (WGCM) as part of the World Climate Research Programme (WCRP). Phase 6 builds on previous phases executed under the leadership of the Program for Climate Model Diagnosis and Intercomparison (PCMDI) and relies on the Earth System Grid Federation (ESGF) and the Centre for Environmental Data Analysis (CEDA) along with numerous related activities for implementation. The original data is hosted and partially replicated on a federated collection of data nodes, and most of the data relied on by the IPCC is being archived for long-term preservation at the IPCC Data Distribution Centre (IPCC DDC) hosted by the German Climate Computing Center (DKRZ). The project includes simulations from about 120 global climate models and around 45 institutions and organizations worldwide. Summary: These data include the subset used by IPCC AR6 WGI authors of the datasets originally published in ESGF for 'CMIP6.GMMIP.IPSL.IPSL-CM6A-LR' with the full Data Reference Syntax following the template 'mip_era.activity_id.institution_id.source_id.experiment_id.member_id.table_id.variable_id.grid_label.version'. The IPSL-CM6A-LR climate model, released in 2017, includes the following components: atmos: LMDZ (NPv6, N96; 144 x 143 longitude/latitude; 79 levels; top level 80000 m), land: ORCHIDEE (v2.0, Water/Carbon/Energy mode), ocean: NEMO-OPA (eORCA1.3, tripolar primarily 1deg; 362 x 332 longitude/latitude; 75 levels; top grid cell 0-2 m), ocnBgchem: NEMO-PISCES, seaIce: NEMO-LIM3. The model was run by the Institut Pierre Simon Laplace, Paris 75252, France (IPSL) in native nominal resolutions: atmos: 250 km, land: 250 km, ocean: 100 km, ocnBgchem: 100 km, seaIce: 100 km."
+          }
+        ],
+        "sizes": [
+          "18810195387 Bytes"
+        ],
+        "versionOfCount": 0,
+        "relatedIdentifiers": [
+          {
+            "relationType": "Cites",
+            "relatedIdentifier": "10.1017/9781009157896",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "Cites",
+            "relatedIdentifier": "10.1017/9781009157896.005",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsPartOf",
+            "relatedIdentifier": "10.22033/esgf/cmip6.1525",
+            "relatedIdentifierType": "DOI"
+          }
+        ],
+        "created": "2023-08-17T07:54:25Z",
+        "dates": [
+          {
+            "date": "2018-08-05",
+            "dateType": "Created"
+          },
+          {
+            "date": "2023",
+            "dateType": "Issued"
+          }
+        ],
+        "published": "2023",
+        "geoLocations": [
+          {
+            "geoLocationBox": {
+              "northBoundLatitude": "90",
+              "southBoundLatitude": "-90",
+              "eastBoundLongitude": "180.0",
+              "westBoundLongitude": "-180.0"
+            },
+            "geoLocationPlace": "global"
+          }
+        ],
+        "partCount": 0,
+        "publicationYear": 2023,
+        "partOfCount": 0,
+        "updated": "2023-08-17T07:54:26Z",
+        "formats": [
+          "application/x-netcdf"
+        ],
+        "fundingReferences": [],
+        "creators": [
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Olivier",
+            "familyName": "Boucher",
+            "name": "Boucher, Olivier",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0003-2328-5769"
+              }
+            ]
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Sébastien",
+            "familyName": "Denvil",
+            "name": "Denvil, Sébastien",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-6715-3533"
+              }
+            ]
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Sorbonne Université (IPSL/SU)"
+              }
+            ],
+            "givenName": "Guillaume",
+            "familyName": "Levavasseur",
+            "name": "Levavasseur, Guillaume",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-0801-0890"
+              }
+            ]
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Anne",
+            "familyName": "Cozic",
+            "name": "Cozic, Anne",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0001-7543-3466"
+              }
+            ]
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Arnaud",
+            "familyName": "Caubel",
+            "name": "Caubel, Arnaud",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-6210-8370"
+              }
+            ]
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Marie-Alice",
+            "familyName": "Foujols",
+            "name": "Foujols, Marie-Alice",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-9747-4928"
+              }
+            ]
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Yann",
+            "familyName": "Meurdesoif",
+            "name": "Meurdesoif, Yann"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Lidia",
+            "familyName": "Mellul",
+            "name": "Mellul, Lidia"
+          }
+        ],
+        "schemaVersion": "http://datacite.org/schema/kernel-4",
+        "versionCount": 0,
+        "metadataVersion": 0,
+        "citationCount": 0,
+        "types": {
+          "schemaOrg": "Dataset",
+          "resourceTypeGeneral": "Dataset",
+          "citeproc": "dataset",
+          "bibtex": "misc",
+          "ris": "DATA",
+          "resourceType": "Digital"
+        },
+        "isActive": true,
+        "viewsOverTime": [],
+        "identifiers": [],
+        "subjects": [
+          {
+            "subject": "Climate"
+          },
+          {
+            "subject": "CMIP6"
+          },
+          {
+            "schemeUri": "http://github.com/WCRP-CMIP/CMIP6_CVs",
+            "subject": "CMIP6.GMMIP.IPSL.IPSL-CM6A-LR",
+            "subjectScheme": "DRS"
+          },
+          {
+            "subject": "GMMIP"
+          },
+          {
+            "subject": "IPCC"
+          },
+          {
+            "subject": "IPCC-AR6"
+          },
+          {
+            "subject": "IPCC-AR6_CMIP6"
+          },
+          {
+            "subject": "IPCC-DDC"
+          },
+          {
+            "subject": "IPSL"
+          },
+          {
+            "subject": "IPSL-CM6A-LR"
+          },
+          {
+            "subject": "climate change"
+          },
+          {
+            "subject": "model-output"
+          }
+        ],
+        "titles": [
+          {
+            "title": "IPCC DDC: IPSL IPSL-CM6A-LR model output prepared for CMIP6 GMMIP"
+          }
+        ],
+        "url": "http://cera-www.dkrz.de/WDCC/ui/Compact.jsp?acronym=C6GMIPICL",
+        "downloadCount": 0,
+        "rightsList": [
+          {
+            "rightsIdentifierScheme": "SPDX",
+            "rightsUri": "https://creativecommons.org/licenses/by/4.0/legalcode",
+            "schemeUri": "https://spdx.org/licenses/",
+            "rights": "Creative Commons Attribution 4.0 International",
+            "rightsIdentifier": "cc-by-4.0"
+          }
+        ],
+        "contentUrl": null,
+        "contributors": [
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Olivier",
+            "familyName": "Boucher",
+            "name": "Boucher, Olivier",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0003-2328-5769"
+              }
+            ],
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Sébastien",
+            "familyName": "Denvil",
+            "name": "Denvil, Sébastien",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-6715-3533"
+              }
+            ],
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Sorbonne Université (IPSL/SU)"
+              }
+            ],
+            "givenName": "Guillaume",
+            "familyName": "Levavasseur",
+            "name": "Levavasseur, Guillaume",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-0801-0890"
+              }
+            ],
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Anne",
+            "familyName": "Cozic",
+            "name": "Cozic, Anne",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0001-7543-3466"
+              }
+            ],
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Arnaud",
+            "familyName": "Caubel",
+            "name": "Caubel, Arnaud",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-6210-8370"
+              }
+            ],
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Marie-Alice",
+            "familyName": "Foujols",
+            "name": "Foujols, Marie-Alice",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-9747-4928"
+              }
+            ],
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Yann",
+            "familyName": "Meurdesoif",
+            "name": "Meurdesoif, Yann",
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Lidia",
+            "familyName": "Mellul",
+            "name": "Mellul, Lidia",
+            "contributorType": "ContactPerson"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Olivier",
+            "familyName": "Boucher",
+            "name": "Boucher, Olivier",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0003-2328-5769"
+              }
+            ],
+            "contributorType": "Editor"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Sébastien",
+            "familyName": "Denvil",
+            "name": "Denvil, Sébastien",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-6715-3533"
+              }
+            ],
+            "contributorType": "Editor"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Sorbonne Université (IPSL/SU)"
+              }
+            ],
+            "givenName": "Guillaume",
+            "familyName": "Levavasseur",
+            "name": "Levavasseur, Guillaume",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-0801-0890"
+              }
+            ],
+            "contributorType": "Editor"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Anne",
+            "familyName": "Cozic",
+            "name": "Cozic, Anne",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0001-7543-3466"
+              }
+            ],
+            "contributorType": "Editor"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Arnaud",
+            "familyName": "Caubel",
+            "name": "Caubel, Arnaud",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-6210-8370"
+              }
+            ],
+            "contributorType": "Editor"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Marie-Alice",
+            "familyName": "Foujols",
+            "name": "Foujols, Marie-Alice",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-9747-4928"
+              }
+            ],
+            "contributorType": "Editor"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Commissariat à l'Energie Atomique (IPSL/CEA)"
+              }
+            ],
+            "givenName": "Yann",
+            "familyName": "Meurdesoif",
+            "name": "Meurdesoif, Yann",
+            "contributorType": "Editor"
+          },
+          {
+            "affiliation": [
+              {
+                "name": "Institut Pierre-Simon Laplace / Centre National de Recherche Scientifique (IPSL/CNRS)"
+              }
+            ],
+            "givenName": "Lidia",
+            "familyName": "Mellul",
+            "name": "Mellul, Lidia",
+            "contributorType": "Editor"
+          }
+        ],
+        "referenceCount": 0,
+        "viewCount": 0,
+        "downloadsOverTime": [],
+        "doi": "10.26050/wdcc/ar6.c6gmipicl",
+        "publisher": {
+          "name": "World Data Center for Climate (WDCC) at DKRZ",
+          "schemeUri": "https://ror.org",
+          "publisherIdentifier": "https://ror.org/03ztgj037",
+          "publisherIdentifierScheme": "ROR",
+          "lang": "en"
+        },
+        "version": "1",
+        "state": "findable",
+        "alternateIdentifiers": []
+      },
+      "relationships": {
+        "client": {
+          "data": {
+            "id": "dkrz.wdcc",
+            "type": "clients"
+          }
+        },
+        "provider": {
+          "data": {
+            "id": "dkrz",
+            "type": "providers"
+          }
+        },
+        "media": {
+          "data": []
+        },
+        "references": {
+          "data": []
+        },
+        "citations": {
+          "data": []
+        },
+        "parts": {
+          "data": []
+        },
+        "partOf": {
+          "data": []
+        },
+        "versions": {
+          "data": []
+        },
+        "versionOf": {
+          "data": []
+        }
+      }
+  }
+]}

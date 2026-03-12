@@ -312,6 +312,7 @@ class TestDataciteProcessing(unittest.TestCase):
         # check that the idmanager for the isbn was returned and that it works as expected
         self.assertTrue(isbn_man_exp.is_valid(isbn_id))
         self.assertTrue(isbn_man_exp_2.is_valid(isbn_id))
+
     def test_csv_creator2(self):
         datacite_processor = DataciteProcessing(orcid_index=IOD, doi_csv=WANTED_DOIS, publishers_filepath_dc=None)
         data = load_json(DATA2, None)

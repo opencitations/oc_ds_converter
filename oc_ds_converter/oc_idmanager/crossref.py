@@ -33,11 +33,13 @@ class CrossrefManager(IdentifierManager):
         else:
             self.storage_manager = storage_manager
         self._api = "https://api.crossref.org/members/"
+        self._api_funders = "https://api.crossref.org/funders/"
         self._api_works_route = r"https://api.openalex.org/works/"
         self._api_sources_route = r"https://api.openalex.org/sources/"
         self._use_api_service = use_api_service
         self._p = "crossref:"
         self._url_id_pref = "https://openalex.org/"
+
 
     def validated_as_id(self, id_string):
         crossref_validation_value = self.storage_manager.get_value(id_string)

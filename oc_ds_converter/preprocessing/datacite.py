@@ -11,7 +11,9 @@ from tqdm import tqdm
 
 class DatacitePreProcessing(Preprocessing):
     """This class aims at pre-processing DataCite dumps.
-    In particular, DatacitePreProcessing splits the original nldJSON in many JSON files, each one containing the number of entities specified in input by the user. Further, the class discards those entities that do not provide useful information for meta"""
+    In particular, DatacitePreProcessing splits the original nldJSON in many JSON files,
+    each one containing the number of entities specified in input by the user.
+    Further, the class discards those entities that do not provide useful information for meta"""
 
     def __init__(self, input_dir, output_dir, interval, filter=None, low_memo=True):
         self._req_type = ".json"

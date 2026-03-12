@@ -1,0 +1,652 @@
+{
+  "data": [
+    {
+      "id": "10.5281/zenodo.8232826",
+      "type": "dois",
+      "attributes": {
+        "container": {},
+        "reason": null,
+        "prefix": "10.5281",
+        "citationsOverTime": [],
+        "registered": "2023-08-10T11:18:53Z",
+        "language": "pt",
+        "source": "mds",
+        "suffix": "zenodo.8232826",
+        "relatedItems": [],
+        "descriptions": [
+          {
+            "descriptionType": "Abstract",
+            "description": "Software for acquisition, processing, and analyzing center-of-pressure data from a force platform."
+          },
+          {
+            "descriptionType": "Other",
+            "description": "Installer and executable file compiled with LabVIEW version 2014"
+          }
+        ],
+        "sizes": [],
+        "versionOfCount": 1,
+        "relatedIdentifiers": [
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1111/sms.12847",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.12678/1089-313x.21.4.151",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.46979/rbn.v52i4.5546",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.jbiomech.2014.07.010",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.humov.2013.06.005",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1080/00222895.2014.916651",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.5007/1980-0037.2014v16n3p287",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1590/s0103-51502010000200003",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.6061/clinics/2013(11)07",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.humov.2020.102588",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.jbmt.2023.04.020",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.clinbiomech.2022.105711",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1080/10749357.2022.2130620",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1080/03091902.2022.2043947",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsVersionOf",
+            "relatedIdentifier": "10.5281/zenodo.8210025",
+            "relatedIdentifierType": "DOI"
+          }
+        ],
+        "created": "2023-08-10T11:18:53Z",
+        "dates": [
+          {
+            "date": "2023-08-09",
+            "dateType": "Issued"
+          }
+        ],
+        "published": "2023-08-09",
+        "geoLocations": [],
+        "partCount": 0,
+        "publicationYear": 2023,
+        "partOfCount": 0,
+        "updated": "2023-08-10T11:19:09Z",
+        "formats": [],
+        "fundingReferences": [],
+        "creators": [
+          {
+            "givenName": "Arthur Sá",
+            "familyName": "Ferreira",
+            "name": "Ferreira, Arthur Sá",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0001-7014-2002"
+              }
+            ]
+          }
+        ],
+        "schemaVersion": "http://datacite.org/schema/kernel-4",
+        "versionCount": 0,
+        "metadataVersion": 0,
+        "citationCount": 0,
+        "types": {
+          "schemaOrg": "SoftwareSourceCode",
+          "resourceTypeGeneral": "Software",
+          "citeproc": "article",
+          "bibtex": "misc",
+          "ris": "COMP"
+        },
+        "isActive": true,
+        "viewsOverTime": [],
+        "identifiers": [],
+        "subjects": [
+          {
+            "subject": "Posturography"
+          },
+          {
+            "subject": "Biomedical signal processing"
+          },
+          {
+            "subject": "Postural balance"
+          }
+        ],
+        "titles": [
+          {
+            "title": "SuiteEBG"
+          }
+        ],
+        "url": "https://zenodo.org/record/8232826",
+        "downloadCount": 0,
+        "rightsList": [
+          {
+            "rightsUri": "info:eu-repo/semantics/openAccess",
+            "rights": "Open Access"
+          }
+        ],
+        "contentUrl": null,
+        "contributors": [],
+        "referenceCount": 0,
+        "viewCount": 0,
+        "downloadsOverTime": [],
+        "doi": "10.5281/zenodo.8232826",
+        "publisher": {
+          "name": "Zenodo"
+        },
+        "version": "2023",
+        "state": "findable",
+        "alternateIdentifiers": []
+      },
+      "relationships": {
+        "client": {
+          "data": {
+            "id": "cern.zenodo",
+            "type": "clients"
+          }
+        },
+        "provider": {
+          "data": {
+            "id": "cern",
+            "type": "providers"
+          }
+        },
+        "media": {
+          "data": []
+        },
+        "references": {
+          "data": []
+        },
+        "citations": {
+          "data": []
+        },
+        "parts": {
+          "data": []
+        },
+        "partOf": {
+          "data": []
+        },
+        "versions": {
+          "data": []
+        },
+        "versionOf": {
+          "data": [
+            {
+              "id": "10.5281/zenodo.8210025",
+              "type": "dois"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "10.5258/soton/d2733",
+      "type": "dois",
+      "attributes": {
+        "container": {},
+        "reason": null,
+        "prefix": "10.5258",
+        "citationsOverTime": [],
+        "registered": "2023-08-10T11:20:30Z",
+        "language": "en",
+        "source": "fabricaForm",
+        "suffix": "soton/d2733",
+        "relatedItems": [],
+        "descriptions": [
+          {
+            "descriptionType": "Abstract",
+            "description": "This dataset contains the data in the figures in the main article and supporting information The figures are as follows: Figure 1: Synchrotron XPS spectra for the Li 1s and O 1s regions of the pristine battery-grade lithium foil as a function of increasing excitation energies, with the calculated average probing depth provided for each spectrum. Figure 3: Synchrotron XPS spectra for the Li 1s and N 1s regions of the unmodified and nitrided electrodeposited lithium electrodes as a function of increasing excitation energies, with the calculated average probing depth provided for each spectrum. Figure 4: Voltage vs. time plots for the unidirectional galvanostatic polarization of the unmodified and nitrided electrodeposited lithium working electrodes in Li-Li cells. Experiments were done at a fixed current density of 5 mA cm-2, using a pristine battery-grade lithium foil as counter/reference electrode. Figure 5: Voltage vs. time profiles for the plating/stripping processes of unmodified and nitrided electrodeposited lithium electrodes, using a current density of 2 mA cm-2 in Li-Li symmetric cells, and associated Nyquist plots of the impedance spectra for the unmodified and nitrided samples before and after plating/stripping. Figure 8: STXM image (15 x 15 µm, 2460 eV, pixel size = 150 nm) of an unmodified electrodeposited lithium electrode exposure to a polysulfide solution for 30 minutes, Near edge X-ray absorption fine structure (NEXAFS) spectra at the S K-edge energies and corresponding cluster map. Figure 9: STXM image (15 x 15 µm, 2460 eV, pixel size = 150 nm) of an nitrided electrodeposited lithium electrode exposure to a polysulfide solution for 30 minutes, Near edge X-ray absorption fine structure (NEXAFS) spectra at the S K-edge energies and corresponding cluster map. Figure 10: Synchrotron XPS spectra for the S 2p and N 1s regions of the unmodified and nitrided electrodeposited lithium electrodes exposed to a polysulfide solution for 30 minutes, as a function of increasing excitation energies, with the calculated average probing depth provided for each spectrum Figure 11: XPS spectra (conventional Al Kα) for the S 2p and N 1s regions of the unmodified and nitrided electrodeposited lithium electrodes exposed to a polysulfide solution for 30 minutes, after 30 seconds of etching. Figure S2: Synchrotron XPS spectra for the O 1s, N 1s, C 1s and Li 1s regions of the surface of the pristine battery-grade lithium foil with native passivation layer as a function of increasing excitation energies, with the calculated average probing depth provided for each spectrum. Figure S3: Voltage profiles of the electrodeposition process for two identical cells in forming plated lithium electrodes on Ni discs. Figure S5: Synchrotron XPS spectra for the O 1s, and C 1s regions of the unmodified electrodeposited lithium electrode as a function of increasing excitation energies, with the calculated average probing depth provided for each spectrum. Figure S6: Synchrotron XPS spectra for the O 1s and C 1s regions of the nitrided electrodeposited lithium electrode as a function of increasing excitation energies, with the calculated average probing depth provided for each spectrum. Figure S8: NEXAFS spectrum of the S K-edge energy for the LiTFSI salt standard and Li2S6 standard. Figure S9: Cycling performance of Li-S cell assembled with an electrodeposited lithium anode that had been reacted with N2 (nitride) or not (unmodified) at C/10. Figure S10: Voltage profile at selected cycles for the Li-S cells as C/10",
+            "lang": "en-us"
+          }
+        ],
+        "sizes": [],
+        "versionOfCount": 0,
+        "relatedIdentifiers": [
+          {
+            "relationType": "IsCitedBy",
+            "resourceTypeGeneral": null,
+            "schemeType": null,
+            "schemeUri": null,
+            "relatedIdentifier": "10.1021/acsami.3c04897",
+            "relatedIdentifierType": "DOI",
+            "relatedMetadataScheme": null
+          }
+        ],
+        "created": "2023-08-10T11:17:49Z",
+        "dates": [
+          {
+            "date": "2016/2021",
+            "dateType": "Collected",
+            "dateInformation": null
+          },
+          {
+            "date": "2023",
+            "dateType": "Issued",
+            "dateInformation": null
+          }
+        ],
+        "published": "2023",
+        "geoLocations": [],
+        "partCount": 0,
+        "publicationYear": 2023,
+        "partOfCount": 0,
+        "updated": "2023-08-10T11:20:30Z",
+        "formats": [],
+        "fundingReferences": [],
+        "creators": [
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Nuria",
+            "familyName": "Garcia-Araez",
+            "name": "Garcia-Araez, Nuria",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0001-9095-2379"
+              }
+            ]
+          },
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Samuel",
+            "familyName": "Fitch",
+            "name": "Fitch, Samuel",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-3681-8985"
+              }
+            ]
+          },
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Gilles Ernest Heinrich Karl",
+            "familyName": "Moehl",
+            "name": "Moehl, Gilles Ernest Heinrich Karl",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Nina",
+            "familyName": "Meddings",
+            "name": "Meddings, Nina",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Sacha",
+            "familyName": "Fop",
+            "name": "Fop, Sacha",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Samantha",
+            "familyName": "Soule",
+            "name": "Soule, Samantha",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": null,
+            "affiliation": [
+              {
+                "affiliationIdentifier": "https://ror.org/05etxs293",
+                "schemeUri": "https://ror.org",
+                "name": "Diamond Light Source",
+                "affiliationIdentifierScheme": "ROR"
+              }
+            ],
+            "givenName": "Tien-Lin",
+            "familyName": "Lee",
+            "name": "Lee, Tien-Lin",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Majid",
+            "familyName": "Kazemian",
+            "name": "Kazemian, Majid",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": null,
+            "affiliation": [],
+            "givenName": "Andrew",
+            "familyName": "Hector",
+            "name": "Hector, Andrew",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0002-9964-2163"
+              }
+            ]
+          }
+        ],
+        "schemaVersion": "http://datacite.org/schema/kernel-4",
+        "versionCount": 0,
+        "metadataVersion": 2,
+        "citationCount": 0,
+        "types": {
+          "schemaOrg": "Dataset",
+          "resourceTypeGeneral": "Dataset",
+          "citeproc": "dataset",
+          "bibtex": "misc",
+          "ris": "DATA",
+          "resourceType": "Dataset"
+        },
+        "isActive": true,
+        "viewsOverTime": [],
+        "identifiers": [],
+        "subjects": [],
+        "titles": [
+          {
+            "titleType": null,
+            "lang": "en-us",
+            "title": "Dataset for article 'Combined electrochemical, XPS and STXM study of lithium nitride as a protective coating for lithium metal and lithium-sulfur batteries'"
+          }
+        ],
+        "url": "https://eprints.soton.ac.uk/480818/",
+        "downloadCount": 0,
+        "rightsList": [
+          {
+            "rightsIdentifierScheme": "SPDX",
+            "rightsUri": "https://creativecommons.org/licenses/by/4.0/legalcode",
+            "schemeUri": "https://spdx.org/licenses/",
+            "rights": "Creative Commons Attribution 4.0 International",
+            "rightsIdentifier": "cc-by-4.0"
+          }
+        ],
+        "contentUrl": null,
+        "contributors": [],
+        "referenceCount": 0,
+        "viewCount": 0,
+        "downloadsOverTime": [],
+        "doi": "10.5258/soton/d2733",
+        "publisher": {
+          "name": "University of Southampton",
+          "publisherIdentifierScheme": "ROR",
+          "publisherIdentifier": "",
+
+        },
+        "version": null,
+        "state": "findable",
+        "alternateIdentifiers": []
+      },
+      "relationships": {
+        "client": {
+          "data": {
+            "id": "bl.soton",
+            "type": "clients"
+          }
+        },
+        "provider": {
+          "data": {
+            "id": "hxhf",
+            "type": "providers"
+          }
+        },
+        "media": {
+          "data": []
+        },
+        "references": {
+          "data": []
+        },
+        "citations": {
+          "data": []
+        },
+        "parts": {
+          "data": []
+        },
+        "partOf": {
+          "data": []
+        },
+        "versions": {
+          "data": []
+        },
+        "versionOf": {
+          "data": []
+        }
+      }
+    },
+    {
+      "id": "10.5281/zenodo.8233113",
+      "type": "dois",
+      "attributes": {
+        "container": {},
+        "reason": null,
+        "prefix": "10.5281",
+        "citationsOverTime": [],
+        "registered": "2023-08-10T11:25:15Z",
+        "language": "pt",
+        "source": "mds",
+        "suffix": "zenodo.8233113",
+        "relatedItems": [],
+        "descriptions": [
+          {
+            "descriptionType": "Abstract",
+            "description": "Software for acquisition, processing, and analyzing posturography data using Wii Balance Board."
+          },
+          {
+            "descriptionType": "Other",
+            "description": "Installer and executable file compiled with LabVIEW version 2014"
+          }
+        ],
+        "sizes": [],
+        "versionOfCount": 0,
+        "relatedIdentifiers": [
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.2174/1871527315666151111120403",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.archger.2020.104228",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.archger.2019.103975",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsReferencedBy",
+            "resourceTypeGeneral": "JournalArticle",
+            "relatedIdentifier": "10.1016/j.jbmt.2023.04.020",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "IsVersionOf",
+            "relatedIdentifier": "10.5281/zenodo.8233112",
+            "relatedIdentifierType": "DOI"
+          }
+        ],
+        "created": "2023-08-10T11:25:15Z",
+        "dates": [
+          {
+            "date": "2019-04-27",
+            "dateType": "Issued"
+          }
+        ],
+        "published": "2019-04-27",
+        "geoLocations": [],
+        "partCount": 0,
+        "publicationYear": 2019,
+        "partOfCount": 0,
+        "updated": "2023-08-10T11:25:15Z",
+        "formats": [],
+        "fundingReferences": [],
+        "creators": [
+          {
+            "givenName": "Arthur de Sá",
+            "familyName": "Ferreira",
+            "name": "Ferreira, Arthur de Sá",
+            "nameIdentifiers": [
+              {
+                "nameIdentifierScheme": "ORCID",
+                "schemeUri": "https://orcid.org",
+                "nameIdentifier": "https://orcid.org/0000-0001-7014-2002"
+              }
+            ]
+          }
+        ],
+        "schemaVersion": "http://datacite.org/schema/kernel-4",
+        "versionCount": 0,
+        "metadataVersion": 0,
+        "citationCount": 0,
+        "types": {
+          "schemaOrg": "SoftwareSourceCode",
+          "resourceTypeGeneral": "Software",
+          "citeproc": "article",
+          "bibtex": "misc",
+          "ris": "COMP"
+        },
+        "isActive": true,
+        "viewsOverTime": [],
+        "identifiers": [],
+        "subjects": [
+          {
+            "subject": "Posturography"
+          },
+          {
+            "subject": "Biomedical signal processing"
+          },
+          {
+            "subject": "Postural balance"
+          }
+        ],
+        "titles": [
+          {
+            "title": "wiiVIEW"
+          }
+        ],
+        "url": "https://zenodo.org/record/8233113",
+        "downloadCount": 0,
+        "rightsList": [
+          {
+            "rightsUri": "info:eu-repo/semantics/openAccess",
+            "rights": "Open Access"
+          }
+        ],
+        "contentUrl": null,
+        "contributors": [],
+        "referenceCount": 0,
+        "viewCount": 0,
+        "downloadsOverTime": [],
+        "doi": "10.5281/zenodo.8233113",
+        "publisher": {
+          "name": "Zenodo"
+        },
+        "version": "2014",
+        "state": "findable",
+        "alternateIdentifiers": []
+      },
+      "relationships": {
+        "client": {
+          "data": {
+            "id": "cern.zenodo",
+            "type": "clients"
+          }
+        },
+        "provider": {
+          "data": {
+            "id": "cern",
+            "type": "providers"
+          }
+        },
+        "media": {
+          "data": []
+        },
+        "references": {
+          "data": []
+        },
+        "citations": {
+          "data": []
+        },
+        "parts": {
+          "data": []
+        },
+        "partOf": {
+          "data": []
+        },
+        "versions": {
+          "data": []
+        },
+        "versionOf": {
+          "data": []
+        }
+      }
+    }
+  ]
+}

@@ -26,7 +26,7 @@ from requests.exceptions import ConnectionError
 
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-#from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
 from typing import Type, Optional
 
 
@@ -68,7 +68,7 @@ class ViafManager(IdentifierManager):
             else:
                 if get_extra_info:
                     info = self.exists(viaf, get_extra_info=True)
-                    self.storage_manager.set_full_value(viaf,info[1])
+                    self.storage_manager.set_full_value(viaf, info[1])
                     return (info[0] and self.syntax_ok(viaf)), info[1]
                 validity_check = self.syntax_ok(viaf) and self.exists(viaf) 
                 self.storage_manager.set_value(viaf, validity_check)
