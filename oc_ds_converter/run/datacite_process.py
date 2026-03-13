@@ -1,37 +1,22 @@
-from json import JSONDecodeError
-from pathlib import Path
-import yaml
-from oc_ds_converter.lib.file_manager import normalize_path
-from oc_ds_converter.lib.jsonmanager import *
-from pebble import ProcessFuture, ProcessPool
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import \
-    RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import \
-    SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import \
-    InMemoryStorageManager
-from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
-import json
 import csv
 import json
 import os
 import sys
 from argparse import ArgumentParser
+from concurrent.futures import ProcessPoolExecutor
+from json import JSONDecodeError
+from multiprocessing import get_context
 from pathlib import Path
 
 import yaml
-from concurrent.futures import ProcessPoolExecutor
 from filelock import FileLock
-from multiprocessing import get_context
 from tqdm import tqdm
 
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
 from oc_ds_converter.lib.file_manager import normalize_path
-from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 
 
 def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_filepath:str|None,
@@ -94,42 +79,45 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
                 continue
 
     elif redis_storage_manager or max_workers > 1:
-        futures_pass1, futures_pass2 = [], []
-        with ProcessPool(max_workers=max_workers, max_tasks=1) as executor:
-            # Pass 1: last arg True
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
+            # Pass 1: is_first_iteration=True
+            futures_pass1 = []
             for json_file in tqdm(all_input_json):
                 chunk = read_json(json_file, bad_dir)
                 if chunk:
-                    future = executor.schedule(
+                    future = executor.submit(
                         get_citations_and_metadata,
-                        args=(json_file, chunk, preprocessed_citations_dir, csv_dir,
-                              orcid_doi_filepath, wanted_doi_filepath,
-                              publishers_filepath, storage_path, redis_storage_manager,
-                              testing, cache, True, use_orcid_api, use_ror_api, use_viaf_api, use_wikidata_api))
+                        json_file, chunk, preprocessed_citations_dir, csv_dir,
+                        orcid_doi_filepath, wanted_doi_filepath,
+                        publishers_filepath, storage_path, redis_storage_manager,
+                        testing, cache, True, use_orcid_api, use_ror_api, use_viaf_api, use_wikidata_api)
                     futures_pass1.append(future)
-                else:
-                    continue
 
-            # Pass 2: same files, last arg False
+            for future in futures_pass1:
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Task failed: {e}")
+
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
+            # Pass 2: is_first_iteration=False
+            futures_pass2 = []
             for json_file in tqdm(all_input_json):
                 chunk = read_json(json_file, bad_dir)
                 if chunk:
-                    future = executor.schedule(
+                    future = executor.submit(
                         get_citations_and_metadata,
-                        args=(json_file, chunk, preprocessed_citations_dir, csv_dir,
-                              orcid_doi_filepath, wanted_doi_filepath,
-                              publishers_filepath, storage_path, redis_storage_manager,
-                              testing, cache, False, use_orcid_api, use_ror_api, use_viaf_api, use_wikidata_api))
-                    futures_pass1.append(future)
-                else:
-                    continue
+                        json_file, chunk, preprocessed_citations_dir, csv_dir,
+                        orcid_doi_filepath, wanted_doi_filepath,
+                        publishers_filepath, storage_path, redis_storage_manager,
+                        testing, cache, False, use_orcid_api, use_ror_api, use_viaf_api, use_wikidata_api)
+                    futures_pass2.append(future)
 
-        # Wait for all (parallel across passes)
-        for future in futures_pass1 + futures_pass2:
-            try:
-                future.result()  # Blocks until done; raises if error/timeout
-            except Exception as e:
-                print(f"Task failed: {e}")  # Log errors
+            for future in futures_pass2:
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Task failed: {e}")
 
     if cache:
         if os.path.exists(cache):
