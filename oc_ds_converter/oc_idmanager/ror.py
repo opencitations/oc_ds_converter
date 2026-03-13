@@ -18,11 +18,12 @@
 from json import loads
 from re import match, sub
 from time import sleep
-from urllib.parse import unquote
+from typing import Optional
+from urllib.parse import quote, unquote
 
 from oc_ds_converter.oc_idmanager.base import IdentifierManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from requests import ReadTimeout, get
 from requests.exceptions import ConnectionError
 
@@ -30,30 +31,37 @@ from requests.exceptions import ConnectionError
 class RORManager(IdentifierManager):
     """This class implements an identifier manager for ROR identifier"""
 
-    def __init__(self, use_api_service: bool = True, storage_manager: StorageManager | None = None, testing: bool = True) -> None:
-        """ROR manager constructor."""
+    def __init__(self, use_api_service=True, storage_manager:Optional[StorageManager] = None):
+        """PMCID manager constructor."""
         super(RORManager, self).__init__()
         self._api = "https://api.ror.org/organizations/"
         self._use_api_service = use_api_service
         if storage_manager is None:
-            self.storage_manager = RedisStorageManager(testing=testing)
+            self.storage_manager = InMemoryStorageManager()
         else:
             self.storage_manager = storage_manager
         self._p = "ror:"
+
+    def validated_as_id(self, id_string):
+        ror_validation_value = self.storage_manager.get_value(id_string)
+        if isinstance(ror_validation_value, bool):
+            return ror_validation_value
+        else:
+            return None
+
 
     def is_valid(self, ror_id, get_extra_info=False):
         ror_id = self.normalise(ror_id, include_prefix=True)
 
         if ror_id is None:
             if get_extra_info:
-                return False, {"id": ror_id, "valid": False}
+                return False, {"id":ror_id, "valid":False}
             return False
+
         else:
-            ror_id_validation_value = self.storage_manager.get_value(ror_id)
-            if isinstance(ror_id_validation_value, bool):
-                if get_extra_info:
-                    return ror_id_validation_value, {"id": ror_id, "valid": ror_id_validation_value}
-                return ror_id_validation_value
+            id_validation_value = self.storage_manager.get_value(ror_id)
+            if isinstance(id_validation_value, bool):
+                return id_validation_value
             else:
                 if get_extra_info:
                     info = self.exists(ror_id, get_extra_info=True)
@@ -61,6 +69,7 @@ class RORManager(IdentifierManager):
                     return (info[0] and self.syntax_ok(ror_id)), info[1]
                 validity_check = self.syntax_ok(ror_id) and self.exists(ror_id)
                 self.storage_manager.set_value(ror_id, validity_check)
+
                 return validity_check
 
     def normalise(self, id_string, include_prefix=False):

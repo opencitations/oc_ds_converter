@@ -1,0 +1,229 @@
+{
+  "data": [
+    {
+      "id": "10.5281/zenodo.8265216",
+      "type": "dois",
+      "attributes": {
+        "container": {},
+        "reason": null,
+        "prefix": "10.5281",
+        "citationsOverTime": [],
+        "registered": "2023-08-19T08:25:51Z",
+        "language": null,
+        "source": "mds",
+        "suffix": "zenodo.8265216",
+        "relatedItems": [],
+        "descriptions": [
+          {
+            "descriptionType": "Abstract",
+            "description": "The file Radiosondage.pdf shows two atmospheric soundings in Ajaccio (Corsica) and Cuneo (Italy), on November 2nd, 2022, at 00:00 UTC. The file minute20.png shows the LMA VHF sources vertical distribution within the storm producing the luminous event, during 10 minutes between 20:15 and 20:25 UTC on November 2, 2022. The following files (minute 30.png etc..) shows the same distribution for 10 minutes and 10 minutes later."
+          }
+        ],
+        "sizes": [],
+        "versionOfCount": 0,
+        "relatedIdentifiers": [
+          {
+            "relationType": "IsCitedBy",
+            "relatedIdentifier": "10.5281/zenodo.8265217",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "Cites",
+            "relatedIdentifier": "10.5281/zenodo.8265216",
+            "relatedIdentifierType": "DOI"
+          },
+          {
+            "relationType": "HasVersion",
+            "relatedIdentifier": "10.5281/zenodo.8265217",
+            "relatedIdentifierType": "DOI"
+          }
+        ],
+        "created": "2023-08-19T08:25:51Z",
+        "dates": [
+          {
+            "date": "2023-08-19",
+            "dateType": "Issued"
+          }
+        ],
+        "published": "2023-08-19",
+        "geoLocations": [],
+        "partCount": 0,
+        "publicationYear": 2023,
+        "partOfCount": 0,
+        "updated": "2023-08-19T08:25:51Z",
+        "formats": [],
+        "fundingReferences": [],
+        "creators": [
+          {
+            "nameType": "Personal",
+            "affiliation": [
+              {
+                "name": "Laboratory of Aérologie, Université de Toulouse, UT3, CNRS, IRD, Toulouse, France"
+              }
+            ],
+            "givenName": "Serge",
+            "familyName": "Soula",
+            "name": "Soula, Serge",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": "Personal",
+            "affiliation": [
+              {
+                "name": "Laboratory of Aérologie, Université de Toulouse, UT3, CNRS, IRD, Toulouse, France"
+              }
+            ],
+            "givenName": "Gabriel",
+            "familyName": "Hausknost",
+            "name": "Hausknost, Gabriel",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": "Personal",
+            "affiliation": [
+              {
+                "name": "Laboratory of Aérologie, Université de Toulouse, UT3, CNRS, IRD, Toulouse, France"
+              }
+            ],
+            "givenName": "Axel",
+            "familyName": "Ventre",
+            "name": "Ventre, Axel",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": "Personal",
+            "affiliation": [
+              {
+                "name": "Laboratory of Aérologie, Université de Toulouse, UT3, CNRS, IRD, Toulouse, France"
+              }
+            ],
+            "givenName": "Sylvain",
+            "familyName": "Coquillat",
+            "name": "Coquillat, Sylvain",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": "Personal",
+            "affiliation": [
+              {
+                "name": "Institute of Electronics, AGH University of Science and Technology, Krakow, Poland"
+              }
+            ],
+            "givenName": "Janusz",
+            "familyName": "Mlynarcyk",
+            "name": "Mlynarcyk, Janusz",
+            "nameIdentifiers": []
+          },
+          {
+            "nameType": "Personal",
+            "affiliation": [
+              {
+                "name": "Storm chaser, freelance photographer, Moissac-Bellevue, France"
+              }
+            ],
+            "givenName": "Alex",
+            "familyName": "Hermant",
+            "name": "Hermant, Alex",
+            "nameIdentifiers": []
+          }
+        ],
+        "schemaVersion": "http://datacite.org/schema/kernel-4",
+        "versionCount": 0,
+        "metadataVersion": 0,
+        "citationCount": 0,
+        "types": {
+          "schemaOrg": "ScholarlyArticle",
+          "resourceTypeGeneral": "JournalArticle",
+          "citeproc": "article-journal",
+          "bibtex": "article",
+          "ris": "JOUR"
+        },
+        "isActive": true,
+        "viewsOverTime": [],
+        "identifiers": [
+          {
+            "identifier": "https://zenodo.org/record/8265217",
+            "identifierType": "URL"
+          }
+        ],
+        "subjects": [
+          {
+            "subject": "lightning"
+          }
+        ],
+        "titles": [
+          {
+            "title": "Supplemental data for the paper Paper #2023GL105146"
+          }
+        ],
+        "url": "https://zenodo.org/record/8265216",
+        "downloadCount": 0,
+        "rightsList": [
+          {
+            "rightsIdentifierScheme": "SPDX",
+            "rightsUri": "https://creativecommons.org/licenses/by/4.0/legalcode",
+            "schemeUri": "https://spdx.org/licenses/",
+            "rights": "Creative Commons Attribution 4.0 International",
+            "rightsIdentifier": "cc-by-4.0"
+          },
+          {
+            "rightsUri": "info:eu-repo/semantics/openAccess",
+            "rights": "Open Access"
+          }
+        ],
+        "contentUrl": null,
+        "contributors": [],
+        "referenceCount": 0,
+        "viewCount": 0,
+        "downloadsOverTime": [],
+        "doi": "10.5281/zenodo.8265216",
+        "publisher": {
+          "name": "Zenodo"
+        },
+        "version": null,
+        "state": "findable",
+        "alternateIdentifiers": [
+          {
+            "alternateIdentifierType": "URL",
+            "alternateIdentifier": "https://zenodo.org/record/8265217"
+          }
+        ]
+      },
+      "relationships": {
+        "client": {
+          "data": {
+            "id": "cern.zenodo",
+            "type": "clients"
+          }
+        },
+        "provider": {
+          "data": {
+            "id": "cern",
+            "type": "providers"
+          }
+        },
+        "media": {
+          "data": []
+        },
+        "references": {
+          "data": []
+        },
+        "citations": {
+          "data": []
+        },
+        "parts": {
+          "data": []
+        },
+        "partOf": {
+          "data": []
+        },
+        "versions": {
+          "data": []
+        },
+        "versionOf": {
+          "data": []
+        }
+      }
+    }
+  ]
+}

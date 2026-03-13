@@ -21,9 +21,35 @@ import html
 import re
 import warnings
 import os
+from xml.etree.ElementInclude import include
+
+import fakeredis
 import csv
 import json
 
+from bs4 import BeautifulSoup
+from pandas.core.apply import include_axis
+from soupsieve.util import lower
+
+from oc_ds_converter.oc_idmanager import WikidataManager
+from oc_ds_converter.oc_idmanager.doi import DOIManager
+from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
+from oc_ds_converter.lib.master_of_regex import *
+from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.issn import ISSNManager
+from oc_ds_converter.oc_idmanager.isbn import ISBNManager
+
+#for publishers
+from oc_ds_converter.oc_idmanager.arxiv import ArXivManager
+from oc_ds_converter.oc_idmanager.ror import RORManager
+from oc_ds_converter.oc_idmanager.viaf import ViafManager
+from oc_ds_converter.oc_idmanager.crossref import CrossrefManager
+
+from oc_ds_converter.datasource.redis import RedisDataSource
+from oc_ds_converter.ra_processor import RaProcessor
+from typing import Dict, List, Tuple, Optional, Type, Callable
 from pathlib import Path
 from typing import List, Tuple
 
@@ -44,10 +70,11 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 
 class DataciteProcessing(RaProcessor):
-    def __init__(self, orcid_index: str | None = None, publishers_filepath_dc: str | None = None, storage_manager: StorageManager | None = None, testing: bool = True, citing: bool = True, use_orcid_api: bool = True, exclude_existing: bool = False):
-        super(DataciteProcessing, self).__init__(orcid_index)
-        self.exclude_existing = exclude_existing
-        self._testing = testing
+    def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_dc: str = None,
+                 testing: bool = True, storage_manager: Optional[StorageManager] = None,
+                 use_orcid_api: bool = True, use_ror_api: bool = True, use_viaf_api:bool = True, use_wikidata_api:bool = True):
+        super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
+        # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
         if storage_manager is None:
             self.storage_manager = RedisStorageManager(testing=testing)
         else:
@@ -57,6 +84,8 @@ class DataciteProcessing(RaProcessor):
 
         self.needed_info = ["relationType", "relatedIdentifierType", "relatedIdentifier"]
         self.filter = ["references", "isreferencedby", "cites", "iscitedby"]
+
+        self.accepted_identifiers_ra = ['ror', 'viaf', 'orcid', 'wikidata']
 
         self.RIS_types_map = {'abst': 'abstract',
   'news': 'newspaper article',
@@ -174,13 +203,24 @@ class DataciteProcessing(RaProcessor):
         self.orcid_m = ORCIDManager(storage_manager=self.storage_manager, use_api_service=use_orcid_api, testing=testing)
         self.issn_m = ISSNManager()
         self.isbn_m = ISBNManager()
+        self.ror_m = RORManager(use_api_service=use_ror_api, storage_manager=self.storage_manager)
+        self.viaf_m = ViafManager(use_api_service=use_viaf_api, storage_manager=self.storage_manager)
+        self.wikidata_m = WikidataManager(use_api_service=use_wikidata_api, storage_manager=self.storage_manager)
         self.use_orcid_api = use_orcid_api
+        self.use_ror_api = use_ror_api
+        self.use_viaf_api = use_viaf_api
+        self.use_wikidata_api = use_wikidata_api
+        self.ra_man_dict = {"orcid": self.orcid_m, "viaf": self.viaf_m, "wikidata": self.wikidata_m, "ror": self.ror_m}
         self.venue_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
         # Temporary storage managers : all data must be stored in tmp storage manager and passed all together to the
         # main storage_manager  only once the full file is processed.
         self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager, testing=testing)
         self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager, use_api_service=use_orcid_api, testing=testing)
         self.venue_tmp_id_man_dict = {"issn": self.issn_m, "isbn": self.isbn_m}
+        self.tmp_ror_m = RORManager(use_api_service=use_ror_api, storage_manager=self.temporary_manager)
+        self.tmp_viaf_m = ViafManager(use_api_service=use_viaf_api, storage_manager=self.temporary_manager)
+        self.tmp_wikidata_m = WikidataManager(use_api_service=use_wikidata_api, storage_manager=self.temporary_manager)
+        self.ra_tmp_man_dict = {"orcid": self.tmp_orcid_m, "viaf": self.tmp_viaf_m, "wikidata": self.tmp_wikidata_m, "ror": self.tmp_ror_m}
 
         if testing:
             self.BR_redis = FakeRedisWrapper()
@@ -324,28 +364,40 @@ class DataciteProcessing(RaProcessor):
 
         return authors_strings_list, editors_string_list
 
+    def _normalize_ra(self, r):
+        """Metodo di supporto per normalizzare un Responsible Agent (per update_redis_values)."""
+        r_schema = r.split(":")[0]
+        id_manager = self.get_id_manager(r_schema, self.ra_man_dict)
+        return id_manager.normalise(r, include_prefix=True) if id_manager else None
+
     def update_redis_values(self, br, ra):
         self._redis_values_br = [
             x for x in (self.doi_m.normalise(b, include_prefix=True) for b in (br or [])) if x
         ]
         self._redis_values_ra = [
-            x for x in (self.orcid_m.normalise(r, include_prefix=True) for r in (ra or [])) if x
+            x for x in (self._normalize_ra(r) for r in (ra or [])) if x
         ]
 
     def validated_as(self, id_dict):
+        """ Controllo nello storage temporaneo: Prima verifica se l'id è già stato validato nella memoria/coda temporanea (tmp_doi_m.validated_as_id).
+            Controllo nello storage principale: Se non lo trova (is None), passa al manager principale (doi_m.validated_as_id).
+            Validated_as_id chiede al database locale (lo storage_manager) se ha già una risposta chiara (Vero/Falso) sulla validità di una stringa."""
         schema = id_dict["schema"].strip().lower()
         identifier = id_dict["identifier"]
 
-        if schema != "orcid":
+        if schema == 'doi':
             validity_value = self.tmp_doi_m.validated_as_id(identifier)
             if validity_value is None:
                 validity_value = self.doi_m.validated_as_id(identifier)
             return validity_value
         else:
-            validity_value = self.tmp_orcid_m.validated_as_id(identifier)
-            if validity_value is None:
-                validity_value = self.orcid_m.validated_as_id(identifier)
-            return validity_value
+            if schema in self.ra_tmp_man_dict.keys():
+                tmp_id_man = self.get_id_manager(schema, self.ra_tmp_man_dict)
+                id_man = self.get_id_manager(schema, self.ra_man_dict)
+                validity_value = tmp_id_man.validated_as_id(identifier)
+                if validity_value is None:
+                    validity_value = id_man.validated_as_id(identifier)
+                return validity_value
 
 
     def get_id_manager(self, schema_or_id, id_man_dict):
@@ -357,13 +409,11 @@ class DataciteProcessing(RaProcessor):
         id_man = id_man_dict.get(schema)
         return id_man
 
-
     def normalise_any_id(self, id_with_prefix):
-        id_man = self.doi_m
+        id_man = self.get_id_manager(id_with_prefix, self.ra_man_dict)
         id_no_pref = ":".join(id_with_prefix.split(":")[1:])
         norm_id_w_pref = id_man.normalise(id_no_pref, include_prefix=True)
         return norm_id_w_pref
-
 
     def dict_to_cache(self, dict_to_be_saved, path):
         path = Path(path)
@@ -519,7 +569,11 @@ class DataciteProcessing(RaProcessor):
             row['volume'] = volume
             row['issue'] = issue
             row['page'] = self.get_datacite_pages(attributes)
-            row['publisher'] = self.get_publisher_name(doi, attributes)
+            publisher_dict = attributes.get('publisher')
+            if publisher_dict:
+                row['publisher'] = self.get_publisher(doi, publisher_dict)
+            else:
+                row['publisher'] = ''
 
             if attributes.get("contributors"):
                 editors = [contributor for contributor in attributes.get("contributors") if
@@ -535,6 +589,20 @@ class DataciteProcessing(RaProcessor):
         return {}
 
     def to_validated_id_list(self, norm_id_dict):
+        """Questo metodo verifica la validità di un identificatore in base al suo schema (es. 'doi').
+    Ottimizza il processo interrogando prima una cache locale pre-caricata (`_redis_values_br`).
+    Se l'ID viene trovato in questa cache, viene immediatamente contrassegnato come valido nel
+    gestore di archiviazione (storage manager) temporaneo. In caso contrario, avvia un processo
+    di validazione completo tramite il metodo `is_valid` del manager temporaneo.
+
+    Argomenti:
+        norm_id_dict (dict): Un dizionario contenente l'identificatore normalizzato
+            e il suo schema. Le chiavi attese sono "id" (str) e "schema" (str).
+
+    Restituisce:
+        list: Una lista contenente l'identificatore valido se la validazione ha successo,
+            oppure una lista vuota se l'identificatore risulta non valido."""
+
         valid_id_list = []
         norm_id = norm_id_dict.get("id")
         schema = norm_id_dict.get("schema")
@@ -544,17 +612,21 @@ class DataciteProcessing(RaProcessor):
                 valid_id_list.append(norm_id)
             elif self.tmp_doi_m.is_valid(norm_id):
                 valid_id_list.append(norm_id)
-        elif schema == "orcid":
+
+
+        elif schema in self.accepted_identifiers_ra:
+            tmp_id_man = self.get_id_manager(schema, self.ra_tmp_man_dict)
+            use_schema_api = getattr(self, f"use_{schema}_api", False)
             if norm_id in self._redis_values_ra:
-                self.tmp_orcid_m.storage_manager.set_value(norm_id, True)
+                tmp_id_man.storage_manager.set_value(norm_id, True)
                 valid_id_list.append(norm_id)
-            elif not self.use_orcid_api:
-                # OFFLINE: non chiamare l'API per ORCID
+            elif not use_schema_api:
                 pass
-            elif self.tmp_orcid_m.is_valid(norm_id):
+            elif tmp_id_man.is_valid(norm_id):
                 valid_id_list.append(norm_id)
+
         else:
-            print("Schema not accepted:", norm_id_dict.get("schema"), "in ", norm_id_dict, ". Use 'orcid' or 'doi'.")
+            print("Schema not accepted:", norm_id_dict.get("schema"), "in ", norm_id_dict)
         return valid_id_list
 
     #no modified
@@ -584,46 +656,106 @@ class DataciteProcessing(RaProcessor):
         return self.get_pages(page_list)
 
     #modified
-    def get_publisher_name(self, doi: str, item: dict) -> str:
-        publisher = item.get("publisher")
-        if publisher:
-            txt = publisher.lower().strip()
-            if re.match(r"\(?:unav\)?", txt):
-                publisher = ""
-            elif re.match(r"\(?:unkn\)?", txt):
-                publisher = ""
-            elif re.match(r".*publ?isher not identified.*", txt):
-                publisher = ""
-            elif re.match(r"^\[?unknown]?(:*\[?unknown]?)*$", txt.replace(' ', '')):
-                publisher = ""
-            elif re.match(r"^not yet(?: published)?$", txt):
-                publisher = ""
-            elif re.match(r"[\[({]*s\.*[ln]\.*[)}\]]*([,:][\[({]*s\.*n\.*[)}\]]*)*", txt.replace(' ', '')):
-                publisher = ""
-            elif re.match(r"^(publisher )*not(?: specified\.*)|^(publisher )*not(?: provided\.*)$", txt):
-                publisher = ""
-            elif re.match(r"^not known$", txt):
-                publisher = ""
-            elif re.match(r"^(information )?not available.*", txt):
-                publisher = ""
-        else:
-            publisher = ""
+    def get_publisher(self, doi: str, publisher_item: dict) -> str:
+        """
+        https://datacite-metadata-schema.readthedocs.io/en/4.6/properties/publisher/
+        "publisher":
+                  {
+                    "name": "Dryad",
+                    "schemeUri": "https://ror.org",
+                    "publisherIdentifier": "https://ror.org/00x6h5n95",
+                    "publisherIdentifierScheme": "ROR",
+                    "lang": "en"
+                  }
+        accepted identifiers for publishers in Meta: https://opencitations.github.io/oc_meta/reference/csv_format/#responsible-agents
+        [orcid, viaf, crossref, wikidata, ror]
+        """
+        publisher_name = publisher_item.get("name") or ""
+        # 1. Normalizzazione ed esclusione publisher invalidi tramite Regex
+        if publisher_name:
+            txt = publisher_name.lower().strip()
+            txt_no_spaces = txt.replace(' ', '')
 
-        data = {
-            'publisher': publisher,
-            'prefix': doi.split('/')[0]
-        }
+            if (re.match(r"\(?:unav\)?", txt) or
+                    re.match(r"\(?:unkn\)?", txt) or
+                    re.match(r".*publ?isher not identified.*", txt) or
+                    re.match(r"^\[?unknown]?(:*\[?unknown]?)*$", txt_no_spaces) or
+                    re.match(r"^not yet(?: published)?$", txt) or
+                    re.match(r"[\[({]*s\.*[ln]\.*[)}\]]*([,:][\[({]*s\.*n\.*[)}\]]*)*", txt_no_spaces) or
+                    re.match(r"^(publisher )*not(?: specified\.*)|^(publisher )*not(?: provided\.*)$", txt) or
+                    re.match(r"^not known$", txt) or
+                    re.match(r"^(information )?not available.*", txt)):
+                publisher_name = ""
 
-        publisher = data['publisher']
-        prefix = data['prefix']
+        # 2. Estrazione ID e composizione nome editore di base
 
-        name_and_id = publisher
-        if self.publishers_mapping and prefix and prefix in self.publishers_mapping:
-            name = self.publishers_mapping[prefix]["name"]
-            member = self.publishers_mapping[prefix]["datacite_member"]
-            name_and_id = f'{name} [datacite:{member}]' if member else name
+        publisher_id = self.get_publisher_id(publisher_item)
+        publisher_id = f"[{publisher_id}]" if publisher_id else ""
+        publisher = f"{publisher_name} {publisher_id}".strip()
 
-        return name_and_id
+        # 3. Override con DataCite Mapping (struttura "piatta" senza deep nesting)
+        prefix = doi.split('/')[0] if doi else ""
+
+        if prefix and self.publishers_mapping and prefix in self.publishers_mapping:
+            mapped_data = self.publishers_mapping[prefix]
+            name = mapped_data.get("name", "")
+            member = mapped_data.get("datacite_member")
+
+            return f"{name} [datacite:{member}]" if member else name
+
+        # Fallback se non c'è mapping
+        return publisher
+
+    def get_publisher_id(self, publisher_item: dict) -> str:
+        publisher_id = publisher_item.get("publisherIdentifier")
+        if not publisher_id:
+            return ""
+
+        raw_scheme = publisher_item.get('publisherIdentifierScheme')
+        if not raw_scheme:
+            return ""
+
+        scheme = raw_scheme.lower().strip().replace(" ", "")
+
+        # Early return se lo schema non è accettato
+        if scheme not in self.accepted_identifiers_ra:
+            return ""
+
+        id_man = self.get_id_manager(scheme, self.ra_man_dict)
+        tmp_id_man = self.get_id_manager(scheme, self.ra_tmp_man_dict)
+
+        if not id_man or not tmp_id_man:
+            return ""
+
+        norm_id = id_man.normalise(publisher_id, include_prefix=True)
+        if not norm_id:
+            return ""
+
+        # --- Inizio fase di validazione ---
+        #controllo sia nello storage temporaneo che in quello generale
+        validity = self.validated_as({"identifier": norm_id, "schema": scheme})
+        if validity is True:
+            return norm_id
+        elif validity is False:
+            return ""
+
+        # Recupero dinamico dell'impostazione API
+        use_schema_api = getattr(self, f"use_{scheme}_api", False)
+
+        # Modalità Offline
+        if not use_schema_api:
+            if norm_id in self._redis_values_ra:
+                tmp_id_man.storage_manager.set_value(norm_id, True)
+                return norm_id
+            return ""  # Stop qui: se l'API è spenta e non è in Redis, è invalido
+
+        # Modalità Online (API)
+        norm_id_dict = {"id": norm_id, "schema": scheme}
+        if norm_id in self.to_validated_id_list(norm_id_dict):
+            return norm_id
+
+        #Se arriva fin qui, la validazione API è fallita.
+        return ""
 
     #no modified
     def get_venue_name(self, item: dict, row: dict) -> str:
@@ -816,7 +948,8 @@ class DataciteProcessing(RaProcessor):
     # added (division in first and second iteration)
     def extract_all_ids(self, citation, is_citing: bool):
 
-        if is_citing:
+        """Nella prima iterazione estraggo e normalizzo gli identificativi dei RA (authors, editors, publishers)"""
+        if is_first_iteration:
             all_br = set()
             all_ra = set()
 
@@ -842,10 +975,30 @@ class DataciteProcessing(RaProcessor):
                             if norm_ed_orcids:
                                 all_ra.update(norm_ed_orcids)
 
+                publisher = attributes.get("publisher")
+                if publisher:
+                    if publisher.get('publisherIdentifierScheme') and publisher.get('publisherIdentifier'):
+                        identifier_scheme = publisher['publisherIdentifierScheme']
+                        id_scheme_lower = identifier_scheme.lower().strip().replace(" ", "")
+                        id = publisher['publisherIdentifier']
+                        if id_scheme_lower in self.accepted_identifiers_ra:
+                            norm_publisher = {}
+                            if id_scheme_lower == 'orcid':
+                                norm_publisher = {self.orcid_m.normalise(id, include_prefix=True)}
+                            elif id_scheme_lower == 'ror':
+                                norm_publisher = {self.ror_m.normalise(id, include_prefix=True)}
+                            elif id_scheme_lower == 'wikidata':
+                                norm_publisher = {self.wikidata_m.normalise(id, include_prefix=True)}
+                            elif id_scheme_lower == 'viaf':
+                                norm_publisher = {self.viaf_m.normalise(id, include_prefix=True)}
+                            if norm_publisher:
+                                all_ra.update(norm_publisher)
+
             all_br = [x for x in all_br if x is not None]
             all_ra = [y for y in all_ra if y is not None]
             return all_br, all_ra
 
+        # Nella seconda iterazione normalizzo ed estraggo i doi dei related items (citanti e/o citati)
         else:
             all_br = set()
             all_ra = set()
@@ -865,8 +1018,10 @@ class DataciteProcessing(RaProcessor):
             all_ra = [y for y in all_ra if y is not None]
             return all_br, all_ra
 
-    def get_redis_validity_list(self, id_list, redis_db):
-        ids = list(id_list)
+    #added
+    def get_reids_validity_list(self, id_list, redis_db):
+        """Questo metodo interroga Redis per una lista di identificativi e restituisce solo quelli che risultano salvati come validi"""
+        ids = list(id_list)  # garantisci ordine deterministico
         if redis_db == "ra":
             validity = self.RA_redis.mexists_as_set(ids)
             return [ids[i] for i, v in enumerate(validity) if v]

@@ -4,6 +4,9 @@ from os import makedirs
 from os.path import exists, join
 
 from oc_ds_converter.oc_idmanager.jid import JIDManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
+from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 
 
 class JidIdentifierManagerTest(unittest.TestCase):
@@ -13,7 +16,7 @@ class JidIdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        self.test_dir = join("test", "data")
+        self.test_dir = os.path.join("test","data")
         self.test_json_path = join(self.test_dir, "glob.json")
         with open(self.test_json_path, encoding="utf-8") as fp:
             self.data = json.load(fp)
@@ -92,6 +95,8 @@ class JidIdentifierManagerTest(unittest.TestCase):
         # check that the storage was correctly deleted
         self.assertEqual(jm_nofile.storage_manager.get_all_keys(), set())
 
+    #### IN MEMORY STORAGE MANAGER
+
     def test_jid_memory_file_noapi(self):
         # Uses pre-seeded data (without updating it)
         # Uses RedisStorageManager storage manager
@@ -123,6 +128,8 @@ class JidIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(jm_nofile_noapi.is_valid(self.invalid_jid_1))
         jm_nofile_noapi.storage_manager.delete_storage()
 
+    #### SQLITE STORAGE MANAGER
+
     def test_jid_sqlite_nofile_api(self):
         # No pre-existing data
         # Uses RedisStorageManager
@@ -141,10 +148,14 @@ class JidIdentifierManagerTest(unittest.TestCase):
         # check that the storage was correctly deleted
         self.assertEqual(sql_jm_nofile.storage_manager.get_all_keys(), set())
 
-    def test_arxiv_sqlite_file_api(self):
-        # Uses pre-existing data in Redis
-        # Uses RedisStorageManager
-        # tests validation behavior with pre-seeded data
+    def test_jid_sqlite_file_api(self):
+        # Uses support file
+        # Uses SqliteStorageManager
+        # does not use API (so a syntactically correct id is considered to be valid)
+        # db creation
+        test_sqlite_db = os.path.join(self.test_dir, "database.db")
+        if os.path.exists(test_sqlite_db):
+            os.remove(test_sqlite_db)
         to_insert = [self.invalid_jid_1, self.valid_jid_1, self.valid_jid_3]
         sql_file = JIDManager(testing=True, use_api_service=True)
         for jid in to_insert:
@@ -168,7 +179,7 @@ class JidIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(sql_no_api.is_valid("jid:pjab1978"))  # not stored as invalid, has correct syntax
         sql_no_api.storage_manager.delete_storage()
 
-    def test_arxiv_sqlite_nofile_noapi(self):
+    def test_jid_sqlite_nofile_noapi(self):
         # Does not use support file
         # Uses RedisStorageManager
         # Does not use API (so a syntactically correct id which is not valid is considered to be valid)
@@ -176,4 +187,62 @@ class JidIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(jm_nofile_noapi.is_valid(self.valid_jid_1))
         self.assertTrue(jm_nofile_noapi.is_valid(self.invalid_jid_1))
         jm_nofile_noapi.storage_manager.delete_storage()
-        
+
+    #### REDIS STORAGE MANAGER
+    def test_jid_redis_nofile_api(self):
+        # No available data in redis db
+        # Storage manager : RedisStorageManager
+        # uses API
+        jm_nofile = JIDManager(storage_manager=RedisStorageManager(testing=True))
+        self.assertTrue(jm_nofile.is_valid(self.valid_jid_1))
+        self.assertTrue(jm_nofile.is_valid(self.valid_jid_2))
+        self.assertTrue(jm_nofile.is_valid(self.valid_jid_3))
+        self.assertFalse(jm_nofile.is_valid(self.invalid_jid_1))
+        self.assertFalse(jm_nofile.is_valid(self.invalid_jid_2))
+        # check that the redis db was correctly filled and that it contains all the validated ids
+
+        validated_ids = {self.valid_jid_1, self.valid_jid_2, self.valid_jid_3, self.invalid_jid_1,
+                         self.invalid_jid_2}
+        validated_ids = {jm_nofile.normalise(x, include_prefix=True) for x in validated_ids}
+        all_ids_stored = jm_nofile.storage_manager.get_all_keys()
+        # check that all the validated ids are stored in the json file
+        self.assertEqual(validated_ids, all_ids_stored)
+        jm_nofile.storage_manager.delete_storage()
+        # check that the support file was correctly deleted
+        self.assertEqual(jm_nofile.storage_manager.get_all_keys(), set())
+
+    def test_jid_redis_file_api(self):
+        # Uses data in redis db
+        # Uses RedisStorageManager
+        # fills db
+
+        #use API to save validity values
+        to_insert = [self.invalid_jid_1, self.valid_jid_1, self.valid_jid_3]
+        storage_manager = RedisStorageManager(testing=True)
+        redis_file = JIDManager(storage_manager=storage_manager, use_api_service=True)
+        for id in to_insert:
+            norm_id = redis_file.normalise(id, include_prefix=True)
+            is_valid = redis_file.is_valid(norm_id)
+            # insert_tup = (norm_id, is_valid)
+            redis_file.storage_manager.set_value(norm_id, is_valid)
+
+        # does not use API, retrieve values from DB
+        redis_no_api = JIDManager(storage_manager=storage_manager, use_api_service=False)
+        all_db_keys = redis_no_api.storage_manager.get_all_keys()
+        # check that all the normalised ids in the list were correctly inserted in the db
+        self.assertTrue(all(redis_no_api.normalise(x, include_prefix=True) in all_db_keys for x in to_insert))
+        self.assertTrue(redis_no_api.is_valid(self.valid_jid_1))  # is stored in support file as valid
+        self.assertTrue(redis_no_api.is_valid(self.valid_jid_2))  # is stored in support file as valid
+        self.assertFalse(redis_no_api.is_valid(self.invalid_jid_1))  # is stored in support file as invalid
+        self.assertTrue(redis_no_api.is_valid(self.invalid_jid_2))  # is not stored in support file as invalid, does not exist but has correct syntax
+        redis_no_api.storage_manager.delete_storage()
+
+    def test_jid_redis_nofile_noapi(self):
+        # No data in redis db
+        # Uses RedisStorageManager
+        # Does not use API (so a syntactically correct id which is not valid is considered to be valid)
+        jm_nofile_noapi = JIDManager(storage_manager=RedisStorageManager(testing=True), use_api_service=False)
+        self.assertTrue(jm_nofile_noapi.is_valid(self.valid_jid_1))
+        self.assertTrue(jm_nofile_noapi.is_valid(self.invalid_jid_1))
+
+        jm_nofile_noapi.storage_manager.delete_storage()

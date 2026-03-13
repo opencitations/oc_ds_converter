@@ -30,7 +30,7 @@ class ArxivIdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        self.test_dir = join("test", "data")
+        self.test_dir = os.path.join("test","data")
         self.test_json_path = join(self.test_dir, "glob.json")
         with open(self.test_json_path, encoding="utf-8") as fp:
             self.data = json.load(fp)
@@ -149,7 +149,6 @@ class ArxivIdentifierManagerTest(unittest.TestCase):
         self.assertTrue(am_nofile_noapi.is_valid(self.valid_arxiv_1v))
         self.assertTrue(am_nofile_noapi.is_valid(self.invalid_arxiv_1))
         am_nofile_noapi.storage_manager.delete_storage()
-
 
 
     #### REDIS STORAGE MANAGER
