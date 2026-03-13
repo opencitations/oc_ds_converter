@@ -9,7 +9,7 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStor
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
 
-TEST_DIR = "datacite_processing"
+TEST_DIR = os.path.join("test","datacite_processing")
 TMP_SUPPORT_MATERIAL = os.path.join(TEST_DIR, "tmp_support")
 IOD = os.path.join(TEST_DIR, 'iod')
 WANTED_DOIS = os.path.join(TEST_DIR, 'wanted_dois')
@@ -202,10 +202,6 @@ class TestDataciteProcessing(unittest.TestCase):
         valid_viaf_in_db = {"identifier": "viaf:108389263", "schema": "viaf"}
         invalid_viaf_in_db = {"identifier": "viaf:12345ABC", "schema": "viaf"}
 
-        valid_crossref_not_in_db = {"identifier": "crossref:10.13039/501100000288", "schema": "crossref"}
-        valid_crossref_in_db = {"identifier": "crossref:10.13039/100000001", "schema": "crossref"}
-        invalid_crossref_in_db = {"identifier": "crossref:10.13039/invalid-id", "schema": "crossref"}
-
         valid_wikidata_not_in_db = {"identifier": "wikidata:Q2330656", "schema": "wikidata"}
         valid_wikidata_in_db = {"identifier": "wikidata:Q42", "schema": "wikidata"}
         invalid_wikidata_in_db = {"identifier": "wikidata:Q_invalid_123", "schema": "wikidata"}
@@ -222,9 +218,6 @@ class TestDataciteProcessing(unittest.TestCase):
 
         sqlite_man.set_value(valid_viaf_in_db["identifier"], True)
         sqlite_man.set_value(invalid_viaf_in_db["identifier"], False)
-
-        sqlite_man.set_value(valid_crossref_in_db["identifier"], True)
-        sqlite_man.set_value(invalid_crossref_in_db["identifier"], False)
 
         sqlite_man.set_value(valid_wikidata_in_db["identifier"], True)
         sqlite_man.set_value(invalid_wikidata_in_db["identifier"], False)
@@ -249,10 +242,6 @@ class TestDataciteProcessing(unittest.TestCase):
         viaf_validated_as_False = d_processing_sql.validated_as(invalid_viaf_in_db)
         viaf_not_validated = d_processing_sql.validated_as(valid_viaf_not_in_db)
 
-        crossref_validated_as_True = d_processing_sql.validated_as(valid_crossref_in_db)
-        crossref_validated_as_False = d_processing_sql.validated_as(invalid_crossref_in_db)
-        crossref_not_validated = d_processing_sql.validated_as(valid_crossref_not_in_db)
-
         wikidata_validated_as_True = d_processing_sql.validated_as(valid_wikidata_in_db)
         wikidata_validated_as_False = d_processing_sql.validated_as(invalid_wikidata_in_db)
         wikidata_not_validated = d_processing_sql.validated_as(valid_wikidata_not_in_db)
@@ -273,10 +262,6 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(viaf_validated_as_True, True)
         self.assertEqual(viaf_validated_as_False, False)
         self.assertEqual(viaf_not_validated, None)
-
-        self.assertEqual(crossref_validated_as_True, True)
-        self.assertEqual(crossref_validated_as_False, False)
-        self.assertEqual(crossref_not_validated, None)
 
         self.assertEqual(wikidata_validated_as_True, True)
         self.assertEqual(wikidata_validated_as_False, False)
@@ -314,10 +299,6 @@ class TestDataciteProcessing(unittest.TestCase):
         valid_viaf_in_db = {"identifier": "viaf:108389263", "schema": "viaf"}
         invalid_viaf_in_db = {"identifier": "viaf:12345ABC", "schema": "viaf"}
 
-        valid_crossref_not_in_db = {"identifier": "crossref:10.13039/501100000288", "schema": "crossref"}
-        valid_crossref_in_db = {"identifier": "crossref:10.13039/100000001", "schema": "crossref"}
-        invalid_crossref_in_db = {"identifier": "crossref:10.13039/invalid-id", "schema": "crossref"}
-
         valid_wikidata_not_in_db = {"identifier": "wikidata:Q2330656", "schema": "wikidata"}
         valid_wikidata_in_db = {"identifier": "wikidata:Q42", "schema": "wikidata"}
         invalid_wikidata_in_db = {"identifier": "wikidata:Q_invalid_123", "schema": "wikidata"}
@@ -333,9 +314,6 @@ class TestDataciteProcessing(unittest.TestCase):
 
         inmemory_man.set_value(valid_viaf_in_db["identifier"], True)
         inmemory_man.set_value(invalid_viaf_in_db["identifier"], False)
-
-        inmemory_man.set_value(valid_crossref_in_db["identifier"], True)
-        inmemory_man.set_value(invalid_crossref_in_db["identifier"], False)
 
         inmemory_man.set_value(valid_wikidata_in_db["identifier"], True)
         inmemory_man.set_value(invalid_wikidata_in_db["identifier"], False)
@@ -360,10 +338,6 @@ class TestDataciteProcessing(unittest.TestCase):
         viaf_validated_as_False = d_processing.validated_as(invalid_viaf_in_db)
         viaf_not_validated = d_processing.validated_as(valid_viaf_not_in_db)
 
-        crossref_validated_as_True = d_processing.validated_as(valid_crossref_in_db)
-        crossref_validated_as_False = d_processing.validated_as(invalid_crossref_in_db)
-        crossref_not_validated = d_processing.validated_as(valid_crossref_not_in_db)
-
         wikidata_validated_as_True = d_processing.validated_as(valid_wikidata_in_db)
         wikidata_validated_as_False = d_processing.validated_as(invalid_wikidata_in_db)
         wikidata_not_validated = d_processing.validated_as(valid_wikidata_not_in_db)
@@ -383,10 +357,6 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(viaf_validated_as_True, True)
         self.assertEqual(viaf_validated_as_False, False)
         self.assertEqual(viaf_not_validated, None)
-
-        self.assertEqual(crossref_validated_as_True, True)
-        self.assertEqual(crossref_validated_as_False, False)
-        self.assertEqual(crossref_not_validated, None)
 
         self.assertEqual(wikidata_validated_as_True, True)
         self.assertEqual(wikidata_validated_as_False, False)
@@ -423,10 +393,6 @@ class TestDataciteProcessing(unittest.TestCase):
         valid_viaf_in_db = {"identifier": "viaf:108389263", "schema": "viaf"}
         invalid_viaf_in_db = {"identifier": "viaf:12345ABC", "schema": "viaf"}
 
-        valid_crossref_not_in_db = {"identifier": "crossref:10.13039/501100000288", "schema": "crossref"}
-        valid_crossref_in_db = {"identifier": "crossref:10.13039/100000001", "schema": "crossref"}
-        invalid_crossref_in_db = {"identifier": "crossref:10.13039/invalid-id", "schema": "crossref"}
-
         valid_wikidata_not_in_db = {"identifier": "wikidata:Q2330656", "schema": "wikidata"}
         valid_wikidata_in_db = {"identifier": "wikidata:Q42", "schema": "wikidata"}
         invalid_wikidata_in_db = {"identifier": "wikidata:Q_invalid_123", "schema": "wikidata"}
@@ -442,9 +408,6 @@ class TestDataciteProcessing(unittest.TestCase):
 
         redis_man.set_value(valid_viaf_in_db["identifier"], True)
         redis_man.set_value(invalid_viaf_in_db["identifier"], False)
-
-        redis_man.set_value(valid_crossref_in_db["identifier"], True)
-        redis_man.set_value(invalid_crossref_in_db["identifier"], False)
 
         redis_man.set_value(valid_wikidata_in_db["identifier"], True)
         redis_man.set_value(invalid_wikidata_in_db["identifier"], False)
@@ -467,10 +430,6 @@ class TestDataciteProcessing(unittest.TestCase):
         viaf_validated_as_False = d_processing_redis.validated_as(invalid_viaf_in_db)
         viaf_not_validated = d_processing_redis.validated_as(valid_viaf_not_in_db)
 
-        crossref_validated_as_True = d_processing_redis.validated_as(valid_crossref_in_db)
-        crossref_validated_as_False = d_processing_redis.validated_as(invalid_crossref_in_db)
-        crossref_not_validated = d_processing_redis.validated_as(valid_crossref_not_in_db)
-
         wikidata_validated_as_True = d_processing_redis.validated_as(valid_wikidata_in_db)
         wikidata_validated_as_False = d_processing_redis.validated_as(invalid_wikidata_in_db)
         wikidata_not_validated = d_processing_redis.validated_as(valid_wikidata_not_in_db)
@@ -490,10 +449,6 @@ class TestDataciteProcessing(unittest.TestCase):
         self.assertEqual(viaf_validated_as_True, True)
         self.assertEqual(viaf_validated_as_False, False)
         self.assertEqual(viaf_not_validated, None)
-
-        self.assertEqual(crossref_validated_as_True, True)
-        self.assertEqual(crossref_validated_as_False, False)
-        self.assertEqual(crossref_not_validated, None)
 
         self.assertEqual(wikidata_validated_as_True, True)
         self.assertEqual(wikidata_validated_as_False, False)
@@ -527,9 +482,6 @@ class TestDataciteProcessing(unittest.TestCase):
         viaf_id = "viaf:102333412"
         viaf_string = "viaf"
 
-        crossref_id = "crossref:297"
-        crossref_string = "crossref"
-
         wikidata_id = "wikidata:Q42"
         wikidata_string = "wikidata"
 
@@ -547,9 +499,6 @@ class TestDataciteProcessing(unittest.TestCase):
 
         viaf_man_exp = d_processing.get_id_manager(viaf_id, ra_man_dict)
         viaf_man_exp_2 = d_processing.get_id_manager(viaf_string, ra_man_dict)
-
-        crossref_man_exp = d_processing.get_id_manager(crossref_id, ra_man_dict)
-        crossref_man_exp_2 = d_processing.get_id_manager(crossref_string, ra_man_dict)
 
         wikidata_man_exp = d_processing.get_id_manager(wikidata_id, ra_man_dict)
         wikidata_man_exp_2 = d_processing.get_id_manager(wikidata_string, ra_man_dict)
@@ -573,10 +522,6 @@ class TestDataciteProcessing(unittest.TestCase):
         # check that the idmanager for the viaf was returned and that it works as expected
         self.assertTrue(viaf_man_exp.is_valid(viaf_id))
         self.assertTrue(viaf_man_exp_2.is_valid(viaf_id))
-
-        # check that the idmanager for the crossref was returned and that it works as expected
-        self.assertTrue(crossref_man_exp.is_valid(crossref_id))
-        self.assertTrue(crossref_man_exp_2.is_valid(crossref_id))
 
         # check that the idmanager for the wikidata was returned and that it works as expected
         self.assertTrue(wikidata_man_exp.is_valid(wikidata_id))

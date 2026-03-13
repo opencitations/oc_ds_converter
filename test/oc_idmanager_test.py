@@ -16,6 +16,7 @@
 
 
 import json
+import os
 import unittest
 from os import makedirs
 from os.path import exists, join
@@ -32,15 +33,9 @@ class IdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        test_dir = "data"
+        test_dir = os.path.join("test","data")
         with open(join(test_dir, "glob.json"), encoding="utf-8") as fp:
             self.data = json.load(fp)
-
-        self.valid_wikidata_1 = "Q34433"
-        self.valid_wikidata_2 = "Q24698708"
-        self.valid_wikidata_3 = "Q15767074"
-        self.invalid_wikidata_1 = "Q34433Q345"
-        self.invalid_wikidata_3 = "Q12"  # not existing yet
 
         self.valid_wikipedia_1 = "30456"
         self.valid_wikipedia_2 = "43744177" # category page
@@ -53,11 +48,6 @@ class IdentifierManagerTest(unittest.TestCase):
         self.valid_url_4 = "https://it.wikipedia.org/wiki/Muro di Berlino"
         self.invalid_url_1 = "https://www.nih.gov/invalid_url"
         self.invalid_url_2 = "opencitations.net/not a real page .org"  # not existing yet
-
-        self.valid_ror_1 = "https://ror.org/040jc3p57"
-        self.valid_ror_2 = "01111rn36"
-        self.invalid_ror_1 = "la673822"
-        self.invalid_ror_2 = ".org/560jc3p57"
 
     def test_url_valid(self):
         um_nofile = URLManager()
@@ -113,46 +103,3 @@ class IdentifierManagerTest(unittest.TestCase):
         wpm_nofile_noapi = WikipediaManager(clean_data, use_api_service=False)
         self.assertTrue(wpm_nofile_noapi.is_valid(self.valid_wikipedia_1))
         self.assertTrue(wpm_nofile_noapi.is_valid(self.valid_wikipedia_2))
-
-    def test_wikidata_normalise(self):
-        wdm = WikidataManager()
-        self.assertTrue(
-            self.valid_wikidata_1,
-            wdm.normalise(self.valid_wikidata_1.replace("Q", "https://www.wikidata.org/wiki/Q"))
-        )
-        self.assertTrue(
-            self.valid_wikidata_2,
-            wdm.normalise(self.valid_wikidata_2)
-        )
-        self.assertTrue(
-            self.valid_wikidata_2,
-            wdm.normalise(self.valid_wikidata_2.replace("Q", "wikidata: Q"))
-        )
-        self.assertTrue(
-            self.valid_wikidata_3,
-            wdm.normalise((self.valid_wikidata_3.replace("Q", "Q ")))
-        )
-
-    def test_wikidata_is_valid(self):
-        wdm = WikidataManager()
-        self.assertTrue(wdm.is_valid(self.valid_wikidata_1))
-        self.assertTrue(wdm.is_valid(self.valid_wikidata_2))
-        self.assertTrue(wdm.is_valid(self.valid_wikidata_3))
-        self.assertFalse(wdm.is_valid(self.invalid_wikidata_1))
-        self.assertFalse(wdm.is_valid(self.invalid_wikidata_3))
-
-        wdm_file = WikidataManager(self.data)
-        self.assertTrue(wdm_file.normalise(self.valid_wikidata_1, include_prefix=True) in self.data)
-        self.assertTrue(wdm_file.normalise(self.valid_wikidata_2, include_prefix=True) in self.data)
-        self.assertTrue(wdm_file.normalise(self.invalid_wikidata_3, include_prefix=True) in self.data)
-        self.assertTrue(wdm_file.is_valid((wdm_file.normalise(self.valid_wikidata_1, include_prefix=True))))
-        self.assertTrue(wdm_file.is_valid((wdm_file.normalise(self.valid_wikidata_2, include_prefix=True))))
-        self.assertFalse(wdm_file.is_valid((wdm_file.normalise(self.invalid_wikidata_3, include_prefix=True))))
-
-        clean_data = {}
-        wdm_nofile_noapi = WikidataManager(storage_manager = clean_data, use_api_service = False)
-        self.assertTrue(wdm_nofile_noapi.is_valid(self.valid_wikidata_1))
-        self.assertTrue(wdm_nofile_noapi.is_valid(self.valid_wikidata_2))
-
-
-

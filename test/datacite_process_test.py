@@ -10,7 +10,7 @@ import json
 class DataciteProcessTest(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.test_dir = 'datacite_process'
+        self.test_dir = os.path.join("test",'datacite_process')
         self.json_dir = os.path.join(self.test_dir, 'jsonFiles')
         self.output_dir = os.path.join(self.test_dir, 'output_dir')
         self.processing_test_dir = os.path.join('test', 'datacite_processing')

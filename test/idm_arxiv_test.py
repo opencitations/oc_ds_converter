@@ -38,7 +38,7 @@ class ArxivIdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        self.test_dir = "data"
+        self.test_dir = os.path.join("test","data")
         self.test_json_path = join(self.test_dir, "glob.json")
         with open(self.test_json_path, encoding="utf-8") as fp:
             self.data = json.load(fp)

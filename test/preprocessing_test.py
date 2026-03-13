@@ -14,7 +14,7 @@ import pandas as pd
 from oc_ds_converter.preprocessing.datacite import DatacitePreProcessing
 from oc_ds_converter.preprocessing.nih import NIHPreProcessing
 
-BASE_DIR = "preprocess"
+BASE_DIR = os.path.join("test","preprocess")
 class PreprocessingTest(unittest.TestCase):
         def setUp(self):
             self._input_dir_nih = os.path.join(BASE_DIR, "data_nih")

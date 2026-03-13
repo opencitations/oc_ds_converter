@@ -158,39 +158,33 @@ class PubMedProcess(unittest.TestCase):
 
         expected = ([(0, 6), (7, 13), (14, 20), (21, 27)], True)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache1, lock=None)
-        os.remove(self.cache1+".lock")
         self.assertEqual(result, expected)
 
         # CASO 1: risulta iniziata la seconda iterazione ma non la prima: comportamento anomalo, return None
 
         expected = None
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache2, lock=None)
-        os.remove(self.cache2+".lock")
         self.assertEqual(result, expected)
 
         # CASO 2: Seconda iterazione iniziata
         # CASO 2.1: Seconda iterazione iniziata, nessun chunk saltato
         expected = ([(7, 13), (14, 20), (21, 27)], False)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache3, lock=None)
-        os.remove(self.cache3+".lock")
         self.assertEqual(result, expected)
 
         # CASO 2.1.1 Seconda iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
         expected = ([], False)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache5, lock=None)
-        os.remove(self.cache5+".lock")
         self.assertEqual(result, expected)
 
         # CASO 2.1.2 Seconda iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
         expected = ([(14, 20), (21, 27)], False)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache6, lock=None)
-        os.remove(self.cache6+".lock")
         self.assertEqual(result, expected)
 
         # CASO 2.2: Seconda iterazione iniziata, con chunk saltati
         expected = ([(0, 6), (14, 20), (21, 27)], False)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache4, lock=None)
-        os.remove(self.cache4+".lock")
         self.assertEqual(result, expected)
 
 
@@ -199,19 +193,16 @@ class PubMedProcess(unittest.TestCase):
         # CASO 3.1.1 Prima iterazione iniziata, nessun chunk saltato, non ci sono più row da processare
         expected = ([], True)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache8, lock=None)
-        os.remove(self.cache8+".lock")
         self.assertEqual(result, expected)
 
         # CASO 3.1.2 Prima iterazione iniziata, nessun chunk saltato, ci sono altre row da processare
         expected = ([(14, 20), (21, 27)], True)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache7, lock=None)
-        os.remove(self.cache7+".lock")
         self.assertEqual(result, expected)
 
         # CASO 3.2: Prima iterazione iniziata, con chunk saltati
         expected = ([(0, 6), (21, 27)], True)
         result = assign_chunks(n_processes, interval, n_total_rows, self.cache9, lock=None)
-        os.remove(self.cache9 + ".lock")
         self.assertEqual(result, expected)
 
 
