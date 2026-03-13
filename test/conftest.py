@@ -36,6 +36,7 @@ def mock_http_requests(request):
         _register_datacite_mocks(rsps)
         _register_jid_mocks(rsps)
         _register_ror_mocks(rsps)
+        _register_viaf_mocks(rsps)
         _register_wikidata_mocks(rsps)
         _register_wikipedia_mocks(rsps)
         _register_medra_mocks(rsps)
@@ -203,6 +204,36 @@ def _register_doi_mocks(rsps: responses.RequestsMock) -> None:
         "10.1234/html-title",
         "10.1234/with-editor",
         "10.1001/test.12345",
+        # DataCite test DOIs
+        "10.1016/j.archger.2019.103975",
+        "10.1016/j.archger.2020.104228",
+        "10.1016/j.clinbiomech.2022.105711",
+        "10.1016/j.humov.2013.06.005",
+        "10.1016/j.humov.2020.102588",
+        "10.1016/j.jbiomech.2014.07.010",
+        "10.1016/j.jbmt.2023.04.020",
+        "10.1021/acsami.3c04897",
+        "10.1080/00222895.2014.916651",
+        "10.1080/03091902.2022.2043947",
+        "10.1080/10749357.2022.2130620",
+        "10.1111/sms.12847",
+        "10.12678/1089-313x.21.4.151",
+        "10.1590/s0103-51502010000200003",
+        "10.2174/1871527315666151111120403",
+        # NOTE: 10.46979/rbn.v52i4.5546 is intentionally invalid for datacite tests
+        "10.5007/1980-0037.2014v16n3p287",
+        "10.5258/soton/d2733",
+        "10.5281/zenodo.8210025",
+        "10.5281/zenodo.8232826",
+        "10.5281/zenodo.8233112",
+        "10.5281/zenodo.8233113",
+        "10.5281/zenodo.8265216",
+        "10.5281/zenodo.8265217",
+        "10.6061/clinics/2013(11)07",
+        "10.5281/zenodo.8249952",
+        "10.5281/zenodo.8249970",
+        "10.1017/9781009157896",
+        "10.1017/9781009157896.005",
     }
 
     def doi_callback(request):
@@ -514,6 +545,15 @@ def _register_orcid_mocks(rsps: responses.RequestsMock) -> None:
         "0000-0002-4847-4163", "0000-0002-8454-1159",
         "0000-0003-1094-3363", "0000-0003-1223-5934",
         "0000-0003-2712-1825",
+        "0000-0001-6147-9981", "0000-0001-7392-1415",
+        "0000-0001-7543-3466", "0000-0001-9940-8409",
+        "0000-0002-0801-0890", "0000-0002-3019-5377",
+        "0000-0002-5870-1542", "0000-0002-6210-8370",
+        "0000-0002-6715-3533", "0000-0002-8013-9947",
+        "0000-0002-9747-4928", "0000-0003-0621-9209",
+        "0000-0003-1445-0291", "0000-0003-2185-3267",
+        "0000-0003-2328-5769", "0000-0003-2713-8387",
+        "0000-0003-4149-9760",
     }
     base_orcid_data = {
         "person": {
@@ -701,7 +741,10 @@ def _register_jid_mocks(rsps: responses.RequestsMock) -> None:
 
 
 def _register_ror_mocks(rsps: responses.RequestsMock) -> None:
-    valid_rors = {"040jc3p57", "01111rn36", "0138va192", "00wb4mk85"}
+    valid_rors = {
+        "040jc3p57", "01111rn36", "0138va192", "00wb4mk85",
+        "03ztgj037", "03ztgj039", "041qv0h25", "04wxnsj81", "04wxnsj89",
+    }
 
     def ror_callback(request):
         url = request.url
@@ -718,8 +761,31 @@ def _register_ror_mocks(rsps: responses.RequestsMock) -> None:
     )
 
 
+def _register_viaf_mocks(rsps: responses.RequestsMock) -> None:
+    valid_viafs = {
+        "5604148947771454950004", "234145033", "56752857",
+        "148463773", "102333412",
+    }
+
+    def viaf_callback(request):
+        url = request.url
+        for viaf_id in valid_viafs:
+            if viaf_id in url:
+                return (200, {}, json_module.dumps({
+                    "ns1:VIAFCluster": {"ns1:viafID": viaf_id}
+                }))
+        return (404, {}, "")
+
+    rsps.add_callback(
+        responses.GET,
+        re.compile(r"https?://viaf\.org/viaf/.*"),
+        callback=viaf_callback,
+        content_type="application/json",
+    )
+
+
 def _register_wikidata_mocks(rsps: responses.RequestsMock) -> None:
-    valid_wikidata_ids = {"Q34433", "Q24698708", "Q15767074"}
+    valid_wikidata_ids = {"Q34433", "Q24698708", "Q15767074", "Q7842", "Q42"}
 
     def wikidata_callback(request):
         url = request.url

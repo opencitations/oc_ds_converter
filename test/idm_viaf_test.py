@@ -95,9 +95,9 @@ class viafIdentifierManagerTest(unittest.TestCase):
 
 
     def test_viaf_default(self):
-        am_nofile = ViafManager()
+        am_nofile = ViafManager(storage_manager=InMemoryStorageManager("storage/id_value.json"))
         # No support files (it generates it)
-        # Default storage manager : in Memory + generates file on method call (not automatically)
+        # Uses InMemoryStorageManager + generates file on method call (not automatically)
         # uses API
         self.assertTrue(am_nofile.is_valid(self.valid_viaf_1))
         self.assertTrue(am_nofile.is_valid(self.valid_viaf_2))

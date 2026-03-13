@@ -1,6 +1,6 @@
 import json
 import unittest
-from os import makedirs
+from os import makedirs, remove
 from os.path import exists, join
 
 from oc_ds_converter.oc_idmanager.jid import JIDManager
@@ -16,7 +16,7 @@ class JidIdentifierManagerTest(unittest.TestCase):
         if not exists("tmp"):
             makedirs("tmp")
 
-        self.test_dir = os.path.join("test","data")
+        self.test_dir = join("test","data")
         self.test_json_path = join(self.test_dir, "glob.json")
         with open(self.test_json_path, encoding="utf-8") as fp:
             self.data = json.load(fp)
@@ -153,9 +153,9 @@ class JidIdentifierManagerTest(unittest.TestCase):
         # Uses SqliteStorageManager
         # does not use API (so a syntactically correct id is considered to be valid)
         # db creation
-        test_sqlite_db = os.path.join(self.test_dir, "database.db")
-        if os.path.exists(test_sqlite_db):
-            os.remove(test_sqlite_db)
+        test_sqlite_db = join(self.test_dir, "database.db")
+        if exists(test_sqlite_db):
+            remove(test_sqlite_db)
         to_insert = [self.invalid_jid_1, self.valid_jid_1, self.valid_jid_3]
         sql_file = JIDManager(testing=True, use_api_service=True)
         for jid in to_insert:

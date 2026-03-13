@@ -157,6 +157,10 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                                redis_storage_manager: bool,
                                testing: bool, cache: str, is_first_iteration:bool, use_orcid_api: bool, use_ror_api: bool,
                                use_viaf_api: bool, use_wikidata_api: bool):
+    if redis_storage_manager:
+        storage_manager = RedisStorageManager(testing=testing)
+    else:
+        storage_manager = SqliteStorageManager(storage_path) if storage_path else InMemoryStorageManager()
 
     if cache:
         if not cache.endswith(".json"):
@@ -242,7 +246,7 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                                     break
                     
                     if at_least_one_valid_object_id:
-                        if is_citing_par:
+                        if is_first_iteration_par:
                             ent_all_br, ent_all_ra = dc_csv.extract_all_ids(entity, True)
                         else:
                             ent_all_br, ent_all_ra = dc_csv.extract_all_ids(entity, False)
@@ -279,18 +283,18 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
 
         dc_csv.memory_to_storage()
         if is_citing_par:
-            task_done(is_citing_par=True)
+            task_done(is_first_iteration_par=True)
         else:
-            task_done(is_citing_par=False)
+            task_done(is_first_iteration_par=False)
         return ent_list, citation_list
 
 
     def task_done(is_first_iteration_par: bool) -> None:
         try:
-            if is_citing_par and "citing" not in cache_dict.keys():
+            if is_first_iteration_par and "citing" not in cache_dict.keys():
                 cache_dict["citing"] = set()
 
-            if not is_citing_par and "cited" not in cache_dict.keys():
+            if not is_first_iteration_par and "cited" not in cache_dict.keys():
                 cache_dict["cited"] = set()
 
             for k,v in cache_dict.items():
@@ -331,8 +335,8 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
         except Exception as e:
             print(e)
 
-    if is_citing:
-        get_all_redis_ids_and_save_updates(chunk, is_citing_par=True)
+    if is_first_iteration:
+        get_all_redis_ids_and_save_updates(chunk, is_first_iteration_par=True)
         for entity in tqdm(chunk):
             try:
                 if entity:
@@ -366,8 +370,8 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                 continue
         save_files(data_subject, index_citations_to_csv, True)
 
-    if not is_citing:
-        get_all_redis_ids_and_save_updates(chunk, is_citing_par=False)
+    if not is_first_iteration:
+        get_all_redis_ids_and_save_updates(chunk, is_first_iteration_par=False)
         for entity in tqdm(chunk):
             try:
                 if entity:

@@ -33,7 +33,7 @@ class TestDataciteProcessing(unittest.TestCase):
         all_ra = set()
         dcp = DataciteProcessing()
         for entity in self.expected_entities:
-            allids = dcp.extract_all_ids(entity, is_first_iteration=True)
+            allids = dcp.extract_all_ids(entity, is_citing=True)
             all_br.update(set(allids[0]))
             all_ra.update(set(allids[1]))
 
@@ -48,7 +48,7 @@ class TestDataciteProcessing(unittest.TestCase):
         all_ra = set()
         dcp = DataciteProcessing()
         for entity in self.expected_entities:
-            allids = dcp.extract_all_ids(entity, is_first_iteration=False)
+            allids = dcp.extract_all_ids(entity, is_citing=False)
 
             all_br.update(set(allids[0]))
             all_ra.update(set(allids[1]))
@@ -84,9 +84,9 @@ class TestDataciteProcessing(unittest.TestCase):
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_sqlite(self):
         dcp = DataciteProcessing()
-        dcp.BR_redis.set("doi:10.5281/zenodo.8249952", "omid:1")
-        dcp.RA_redis.set("orcid:0000-0002-8013-9947", "omid:2")
-        dcp.RA_redis.set("ror:03ztgj039", "omid:3") #invalid ror
+        dcp.BR_redis.sadd("doi:10.5281/zenodo.8249952", "omid:1")
+        dcp.RA_redis.sadd("orcid:0000-0002-8013-9947", "omid:2")
+        dcp.RA_redis.sadd("ror:03ztgj039", "omid:3")  # invalid ror
 
         br = {"doi:10.5281/zenodo.8249952", "doi:10.5281/zenodo.8249970", "doi:10.1017/9781009157896", "doi:10.1017/9781009157896.005"}
 
@@ -109,9 +109,9 @@ class TestDataciteProcessing(unittest.TestCase):
 
     def test_get_redis_validity_dict_w_fakeredis_db_values_redis(self):
         dcp = DataciteProcessing(storage_manager=RedisStorageManager())
-        dcp.BR_redis.set("doi:10.5281/zenodo.8249970", "omid:1")
-        dcp.RA_redis.set("orcid:0000-0002-6210-8370", "omid:2")
-        dcp.RA_redis.set("ror:03ztgj039", "omid:3")  # invalid ror
+        dcp.BR_redis.sadd("doi:10.5281/zenodo.8249970", "omid:1")
+        dcp.RA_redis.sadd("orcid:0000-0002-6210-8370", "omid:2")
+        dcp.RA_redis.sadd("ror:03ztgj039", "omid:3")  # invalid ror
 
         br = {"doi:10.5281/zenodo.8249952", "doi:10.5281/zenodo.8249970", "doi:10.1017/9781009157896", "doi:10.1017/9781009157896.005"}
 
@@ -1304,7 +1304,7 @@ class TestDataciteProcessing(unittest.TestCase):
                 'contributorType': 'Editor',
                 'nameIdentifiers': []}]}
 
-        datacite_processor = DataciteProcessing(IOD, WANTED_DOIS)
+        datacite_processor = DataciteProcessing()
         authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
                                                                     doi="doi:10.1002/2014jd022411")
         editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [],
@@ -1343,7 +1343,7 @@ class TestDataciteProcessing(unittest.TestCase):
                  "nameIdentifiers": []}],
             "contributors": []
         }
-        datacite_processor = DataciteProcessing(IOD, WANTED_DOIS)
+        datacite_processor = DataciteProcessing()
         authors_list = datacite_processor.add_authors_to_agent_list(entity_attr_dict, [],
                                                                     doi="doi:10.1594/pangaea.231378")
         editors_list = datacite_processor.add_editors_to_agent_list(entity_attr_dict, [],

@@ -72,7 +72,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 class DataciteProcessing(RaProcessor):
     def __init__(self, orcid_index: str = None, doi_csv: str = None, publishers_filepath_dc: str = None,
                  testing: bool = True, storage_manager: Optional[StorageManager] = None,
-                 use_orcid_api: bool = True, use_ror_api: bool = True, use_viaf_api:bool = True, use_wikidata_api:bool = True):
+                 use_orcid_api: bool = True, use_ror_api: bool = True, use_viaf_api:bool = True, use_wikidata_api:bool = True,
+                 exclude_existing: bool = False):
         super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
         # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
         if storage_manager is None:
@@ -80,6 +81,7 @@ class DataciteProcessing(RaProcessor):
         else:
             self.storage_manager = storage_manager
 
+        self.exclude_existing = exclude_existing
         self.temporary_manager = BatchManager()
 
         self.needed_info = ["relationType", "relatedIdentifierType", "relatedIdentifier"]
@@ -949,7 +951,7 @@ class DataciteProcessing(RaProcessor):
     def extract_all_ids(self, citation, is_citing: bool):
 
         """Nella prima iterazione estraggo e normalizzo gli identificativi dei RA (authors, editors, publishers)"""
-        if is_first_iteration:
+        if is_citing:
             all_br = set()
             all_ra = set()
 
