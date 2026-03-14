@@ -13,7 +13,6 @@ WANTED_DOIS_FOLDER = os.path.join(BASE, 'wanted_dois')
 DATA = os.path.join(BASE, 'dois_1011230-jsts172_1.json')
 DATA_DIR = BASE
 MULTIPROCESS_OUTPUT = os.path.join(BASE, 'multi_process_test')
-PUBLISHERS_MAPPING = os.path.join(BASE, 'publishers.csv')
 
 
 class TestJalcProcessing(unittest.TestCase):
@@ -81,6 +80,7 @@ class TestJalcProcessing(unittest.TestCase):
             data = json.load(content)
         output = list()
         item = data["data"]
+        jalc_processor_citing.prefetch_doi_orcid_index([item["doi"]])
         tabular_data = jalc_processor_citing.csv_creator(item)
         if tabular_data:
             output.append(tabular_data)
@@ -140,6 +140,7 @@ class TestJalcProcessing(unittest.TestCase):
     def test_orcid_finder(self):
         jalc_processor = JalcProcessing(orcid_index=IOD)
         doi = '10.11185/imt.8.380'
+        jalc_processor.prefetch_doi_orcid_index([doi])
         orcid_found = jalc_processor.orcid_finder(doi)
         expected_output = {'0000-0002-2149-4113': 'dobashi, yoshinori'}
         self.assertEqual(orcid_found, expected_output)
@@ -158,8 +159,9 @@ class TestJalcProcessing(unittest.TestCase):
             ]
         jalc_processor = JalcProcessing()
         csv_manager = CSVManager()
-        csv_manager.data = {'10.11224/cleftpalate1976.23.2_83': {'豊田, 純一朗 [0000-0002-8210-7076]'}}
+        csv_manager.data = {'doi:10.11224/cleftpalate1976.23.2_83': {'豊田, 純一朗 [0000-0002-8210-7076]'}}
         jalc_processor.orcid_index = csv_manager
+        jalc_processor.prefetch_doi_orcid_index(['10.11224/cleftpalate1976.23.2_83'])
         authors_strings_list, editors_strings_list = jalc_processor.get_agents_strings_list('10.11224/cleftpalate1976.23.2_83', authors_list)
         expected_authors_list = ['井崎 豊田, 理理子', '豊田, 純一朗 [orcid:0000-0002-8210-7076]']
         expected_editors_list = []
@@ -509,7 +511,7 @@ class TestJalcProcessing(unittest.TestCase):
         }
         entity_dict = entity_dict["data"]
         jalc_processor = JalcProcessing()
-        authors_list = jalc_processor.get_authors(entity_dict)
+        authors_list = jalc_processor._extract_agents(entity_dict)
         authors_strings_list, _ = jalc_processor.get_agents_strings_list(entity_dict["doi"], authors_list)
         expected_authors_list = ['O. Cruz, Rex Victor', 'B. Bantayan, Rosario', 'D. Landicho, Leila', 'C. Bantayan, Nathaniel']
 
@@ -826,7 +828,7 @@ class TestJalcProcessing(unittest.TestCase):
         }
         entity_dict = entity_dict["data"]
         jalc_processor = JalcProcessing()
-        authors_list = jalc_processor.get_authors(entity_dict)
+        authors_list = jalc_processor._extract_agents(entity_dict)
         authors_strings_list, _ = jalc_processor.get_agents_strings_list(entity_dict["doi"], authors_list)
         expected_authors_list = ['豊田, 理理子', '豊田, 理純一朗']
         self.assertEqual(authors_strings_list, expected_authors_list)
@@ -1159,7 +1161,7 @@ class TestJalcProcessing(unittest.TestCase):
         }
         entity_dict = entity_dict["data"]
         jalc_processor = JalcProcessing()
-        authors_list = jalc_processor.get_authors(entity_dict)
+        authors_list = jalc_processor._extract_agents(entity_dict)
         authors_strings_list, _ = jalc_processor.get_agents_strings_list(entity_dict["doi"], authors_list)
         expected_authors_list = ['豊田, 理理子', '豊田, 理純一朗', '豊田, 理純一朗']
         self.assertEqual(authors_strings_list, expected_authors_list)
@@ -1422,70 +1424,14 @@ class TestJalcProcessing(unittest.TestCase):
         }
         entity_dict = entity_dict["data"]
         jalc_processor = JalcProcessing(orcid_index=IOD)
-        authors_list = jalc_processor.get_authors(entity_dict)
+        jalc_processor.prefetch_doi_orcid_index([entity_dict["doi"]])
+        authors_list = jalc_processor._extract_agents(entity_dict)
         authors_strings_list, _ = jalc_processor.get_agents_strings_list(entity_dict["doi"], authors_list)
         expected_authors_list = ['TAKAGI, Yoshiki [orcid:0000-0001-9597-7030]', 'Yoshiki, TAKAGI']
 
         self.assertEqual(authors_strings_list, expected_authors_list)
 
-
-    def test_get_publisher_name_cited_with_mapping1(self):
-        # The prefix is in the publishers' mapping
-        jalc_processor = JalcProcessing(publishers_filepath_jalc=PUBLISHERS_MAPPING, citing=False)
-        item_dict = {
-            "sequence": "11",
-            "doi": "10.1093/comjnl/4.4.332",
-            "content_language": "en",
-            "original_text": "11) FRANCIS J. G. F. The QR transformation, parts I and II. Computer Journal.  (1962)  vol.4, 265-271,  p.332-345.  doi:10.1093/comjnl/4.4.332"
-        }
-        publisher_name = jalc_processor.get_publisher_name(item_dict)
-        self.assertEqual(publisher_name, 'Oxford University Press (OUP) [crossref:286]')
-
-    def test_get_publisher_name_cited_with_mapping2(self):
-        # The prefix is not in the publishers' mapping
-        jalc_processor = JalcProcessing(publishers_filepath_jalc=PUBLISHERS_MAPPING, citing=False)
-        item_dict = {
-            "sequence": "3",
-            "doi": "10.2307/1252042",
-            "journal_title_name_list": [
-                {
-                    "journal_title_name": "Journal of Marketing",
-                    "lang": "en"
-                }
-            ],
-            "title_list": [
-                {
-                    "lang": "en",
-                    "title": "The impact of physical surroundings on customers and employees"
-                }
-            ],
-            "volume": "56",
-            "issue": "2",
-            "first_page": "57",
-            "last_page": "71",
-            "publication_date": {
-                "publication_year": "1992"
-            },
-            "creator_list": [
-                {
-                    "sequence": "1",
-                    "type": "person",
-                    "names": [
-                        {
-                            "lang": "en",
-                            "last_name": "Bitner",
-                            "first_name": "M. J."
-                        }
-                    ]
-                }
-            ],
-            "content_language": "en",
-            "original_text": "Bitner, M. J. (1992), &quot;Servicecapes : The Impact of Physical Surroundings on Customers and Employees, &quot; Journal of Marketing, Vol. 56, pp. 57-71."
-        }
-        publisher_name = jalc_processor.get_publisher_name(item_dict)
-        self.assertEqual(publisher_name, '')
-
-    def test_get_publisher_name_cited_without_mapping(self):
+    def test_extract_publisher_cited_without_redis(self):
         item_dict = {
             "sequence": "11",
             "doi": "10.1093/comjnl/4.4.332",
@@ -1493,19 +1439,19 @@ class TestJalcProcessing(unittest.TestCase):
             "original_text": "11) FRANCIS J. G. F. The QR transformation, parts I and II. Computer Journal.  (1962)  vol.4, 265-271,  p.332-345.  doi:10.1093/comjnl/4.4.332"
         }
         jalc_processor = JalcProcessing(citing = False)
-        publisher_name = jalc_processor.get_publisher_name(item_dict)
+        publisher_name = jalc_processor._extract_publisher(item_dict)
         self.assertEqual(publisher_name, '')
 
-    def test_get_venue(self):
+    def test_extract_venue(self):
         with open(DATA, "r", encoding="utf-8") as content:
             data = json.load(content)
         item_dict = data["data"]
         jalc_processor = JalcProcessing()
-        venue_name = jalc_processor.get_venue(item_dict)
+        venue_name = jalc_processor._extract_venue(item_dict)
         self.assertEqual(venue_name, 'The Journal of Space Technology and Science [issn:0911-551X issn:2186-4772 jid:jsts]')
 
 
-    def test_get_venue_without_full(self):
+    def test_extract_venue_without_full(self):
         item_dict = {
             "status": "OK",
             "apiType": "doi",
@@ -1794,10 +1740,10 @@ class TestJalcProcessing(unittest.TestCase):
             }
         }
         jalc_processor = JalcProcessing()
-        venue_name = jalc_processor.get_venue(item_dict["data"])
+        venue_name = jalc_processor._extract_venue(item_dict["data"])
         self.assertEqual(venue_name, 'JSTS [issn:0911-551X issn:2186-4772 jid:jsts]')
 
-    def test_get_pages_with_underscore(self):
+    def test_extract_pages_with_underscore(self):
         # first_page: 1_34, last_page: 1_48
         item_dict = {
             "status": "OK",
@@ -2476,11 +2422,11 @@ class TestJalcProcessing(unittest.TestCase):
             }
         }
         jalc_processor = JalcProcessing()
-        pages = jalc_processor.get_jalc_pages(item_dict["data"])
+        pages = jalc_processor._extract_pages(item_dict["data"])
         self.assertEqual(pages, '1_34-1_48')
 
 
-    def test_get_pages_wrong_letter(self):
+    def test_extract_pages_wrong_letter(self):
         #first_page: 1_34b
         item_dict = {
             "status": "OK",
@@ -3159,10 +3105,10 @@ class TestJalcProcessing(unittest.TestCase):
             }
         }
         jalc_processor = JalcProcessing()
-        pages = jalc_processor.get_jalc_pages(item_dict["data"])
+        pages = jalc_processor._extract_pages(item_dict["data"])
         self.assertEqual(pages, '1_34-1_48')
 
-    def test_get_pages_just_one_page(self):
+    def test_extract_pages_just_one_page(self):
         item_dict = {
             "status": "OK",
             "apiType": "doi",
@@ -3839,10 +3785,10 @@ class TestJalcProcessing(unittest.TestCase):
             }
         }
         jalc_processor = JalcProcessing()
-        pages = jalc_processor.get_jalc_pages(item_dict["data"])
+        pages = jalc_processor._extract_pages(item_dict["data"])
         self.assertEqual(pages, '1_34-1_34')
 
-    def test_get_pages_non_roman_letters(self):
+    def test_extract_pages_non_roman_letters(self):
         item_dict = {
             "status": "OK",
             "apiType": "doi",
@@ -4520,7 +4466,7 @@ class TestJalcProcessing(unittest.TestCase):
             }
         }
         jalc_processor = JalcProcessing()
-        pages = jalc_processor.get_jalc_pages(item_dict["data"])
+        pages = jalc_processor._extract_pages(item_dict["data"])
         self.assertEqual(pages, '')
         
     def test_get_ja_with_japanese(self):
@@ -4538,7 +4484,7 @@ class TestJalcProcessing(unittest.TestCase):
         self.assertEqual(en, expected_out)
 
     def test_to_validated_id_list(self):
-        inp_1 = 'doi:10.13039/100005522'
+        inp_1 = {'id': 'doi:10.13039/100005522', 'schema': 'doi'}
         j_p = JalcProcessing()
         # CASE1_1: No already validated ids + 1 id to be validated, which is valid
         out_1 = j_p.to_validated_id_list(inp_1)
@@ -4550,17 +4496,17 @@ class TestJalcProcessing(unittest.TestCase):
         """Test aggiunta ORCID da index per autore"""
         jalc_processor = JalcProcessing()
         csv_manager = CSVManager()
-        # Creo un ORCID index con entry per l'autore
         csv_manager.data = {
-            '10.11178/example.1': {
+            'doi:10.11178/example.1': {
                 '山田, 太郎 [0000-0001-2345-6789]'
             }
         }
         jalc_processor.orcid_index = csv_manager
+        jalc_processor.prefetch_doi_orcid_index([self.entity_dict_single_author["data"]["doi"]])
 
-        authors_list = jalc_processor.get_authors(self.entity_dict_single_author["data"])
+        authors_list = jalc_processor._extract_agents(self.entity_dict_single_author["data"])
         authors_strings_list, _ = jalc_processor.get_agents_strings_list(
-            self.entity_dict_single_author["data"]["doi"], 
+            self.entity_dict_single_author["data"]["doi"],
             authors_list
         )
 
@@ -4571,15 +4517,15 @@ class TestJalcProcessing(unittest.TestCase):
         """Test quando l'ORCID index contiene solo uno degli autori omonimi"""
         jalc_processor = JalcProcessing()
         csv_manager = CSVManager()
-        # ORCID index con solo uno degli autori omonimi
         csv_manager.data = {
-            '10.11178/example.2': {
+            'doi:10.11178/example.2': {
                 '田中, 一郎 [0000-0003-4567-8901]'
             }
         }
         jalc_processor.orcid_index = csv_manager
+        jalc_processor.prefetch_doi_orcid_index([self.entity_dict_homonyms["data"]["doi"]])
 
-        authors_list = jalc_processor.get_authors(self.entity_dict_homonyms["data"])
+        authors_list = jalc_processor._extract_agents(self.entity_dict_homonyms["data"])
         authors_strings_list, _ = jalc_processor.get_agents_strings_list(
             self.entity_dict_homonyms["data"]["doi"],
             authors_list
@@ -4593,11 +4539,11 @@ class TestJalcProcessing(unittest.TestCase):
         """Test quando l'ORCID index è vuoto"""
         jalc_processor = JalcProcessing()
         csv_manager = CSVManager()
-        # ORCID index vuoto
         csv_manager.data = {}
         jalc_processor.orcid_index = csv_manager
+        jalc_processor.prefetch_doi_orcid_index([self.entity_dict_single_author["data"]["doi"]])
 
-        authors_list = jalc_processor.get_authors(self.entity_dict_single_author["data"])
+        authors_list = jalc_processor._extract_agents(self.entity_dict_single_author["data"])
         authors_strings_list, _ = jalc_processor.get_agents_strings_list(
             self.entity_dict_single_author["data"]["doi"],
             authors_list

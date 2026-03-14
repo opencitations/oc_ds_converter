@@ -17,7 +17,6 @@ OUTPUT = os.path.join(BASE, 'output')
 SUPPORT_MATERIAL = os.path.join(BASE, 'support_material')
 IOD_SUPPORT = os.path.join(SUPPORT_MATERIAL, 'iod')
 INPUT_SUPPORT = os.path.join(SUPPORT_MATERIAL, 'input')
-PUBLISHERS_SUPPORT = os.path.join(SUPPORT_MATERIAL, 'publishers.csv')
 
 class TestJalcProcess(unittest.TestCase):
     def setUp(self):
@@ -29,7 +28,6 @@ class TestJalcProcess(unittest.TestCase):
         self.cache_test = join(self.support_mat, "cache_1.json")
         self.any_db = join(self.test_dir, "anydb.db")
         self.any_db1 = join(self.test_dir, "anydb1.db")
-        self.publishers_file = join(self.support_mat, "publishers.csv")
         self.orcid_doi = join(self.support_mat, "iod")
         self.sample_dupl = join(self.test_dir, "duplicates_sample")
         self.cache_test1 = join(self.support_mat, "cache_test1.json")
@@ -50,7 +48,7 @@ class TestJalcProcess(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
+        preprocess(jalc_json_dir=self.sample_dump_dir, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -123,7 +121,7 @@ class TestJalcProcess(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(jalc_json_dir=self.sample_fake_dump_dir, publishers_filepath=self.publishers_file,
+        preprocess(jalc_json_dir=self.sample_fake_dump_dir,
                    orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
 
         citations_in_output = 0
@@ -179,7 +177,7 @@ class TestJalcProcess(unittest.TestCase):
         citations_output_path = self.output_dir + "_citations"
         if os.path.exists(citations_output_path):
             shutil.rmtree(citations_output_path)
-        preprocess(jalc_json_dir=self.sample_dump_dir, publishers_filepath=self.publishers_file, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
+        preprocess(jalc_json_dir=self.sample_dump_dir, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir, cache=self.cache_test)
 
         citations_in_output = 0
         encountered_ids = set()
@@ -260,7 +258,7 @@ class TestJalcProcess(unittest.TestCase):
             json.dump(processed_files_dict, write_cache)
 
         preprocess(jalc_json_dir=self.sample_dump_dir, orcid_doi_filepath=self.orcid_doi, csv_dir=self.output_dir,
-                   publishers_filepath=self.publishers_file, cache=self.cache_test1)
+                   cache=self.cache_test1)
 
         citations_in_output = 0
         encountered_ids = set()

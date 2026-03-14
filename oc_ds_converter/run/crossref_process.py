@@ -16,7 +16,6 @@
 
 
 import csv
-import json
 import os
 import sys
 import tarfile
@@ -41,23 +40,15 @@ from oc_ds_converter.datasource.orcid_index import (
 from oc_ds_converter.lib.console import advance_progress, console, create_progress
 from oc_ds_converter.lib.file_manager import normalize_path, pathoo
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type, load_json
-from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
-from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
-
-
-def get_storage_manager(storage_path: str | None, testing: bool) -> StorageManager:
-    if storage_path:
-        if not os.path.exists(storage_path):
-            if not os.path.exists(os.path.abspath(os.path.join(storage_path, os.pardir))):
-                Path(os.path.abspath(os.path.join(storage_path, os.pardir))).mkdir(parents=True, exist_ok=True)
-        if storage_path.endswith(".db"):
-            return SqliteStorageManager(storage_path)
-        if storage_path.endswith(".json"):
-            return InMemoryStorageManager(storage_path)
-        raise ValueError(f"Storage path must end with .db or .json, got: {storage_path}")
-    return RedisStorageManager(testing=testing)
+from oc_ds_converter.lib.process_utils import (
+    cleanup_testing_storage,
+    delete_cache_files,
+    get_storage_manager,
+    init_process_cache,
+    is_file_in_cache,
+    mark_file_completed,
+    normalize_cache_path,
+)
 
 
 
@@ -112,14 +103,6 @@ def _run_iteration(
                     was_processed = future.result()
                     advance_progress(progress, task, processed=was_processed)
             console.print(f'[green]{iteration_num} iteration complete[/green]')
-
-
-def _delete_cache_files(cache_path: str) -> None:
-    if os.path.exists(cache_path):
-        os.remove(cache_path)
-    lock_file = cache_path + ".lock"
-    if os.path.exists(lock_file):
-        os.remove(lock_file)
 
 
 def _extract_redis_ids_and_update(
@@ -183,31 +166,7 @@ def _save_output_files(
             dict_writer.writerows(citation_rows)
 
     processor.memory_to_storage()
-    _mark_file_completed(cache_path, lock, filename, processing_citing)
-
-
-def _mark_file_completed(
-    cache_path: str,
-    lock: BaseFileLock,
-    filename: str,
-    processing_citing: bool,
-) -> None:
-    iteration_key = "citing" if processing_citing else "cited"
-    with lock:
-        cache_dict: dict[str, list[str]] = {}
-        if os.path.exists(cache_path):
-            with open(cache_path, "r", encoding="utf-8") as f:
-                cache_dict = json.load(f)
-
-        if iteration_key not in cache_dict:
-            cache_dict[iteration_key] = []
-
-        file_basename = Path(filename).name
-        if file_basename not in cache_dict[iteration_key]:
-            cache_dict[iteration_key].append(file_basename)
-
-        with open(cache_path, "w", encoding="utf-8") as f:
-            json.dump(cache_dict, f)
+    mark_file_completed(cache_path, lock, filename, processing_citing)
 
 
 def _process_citing_entities(
@@ -370,14 +329,9 @@ def preprocess(
     _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing, storage_path=storage_path)
     _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing, storage_path=storage_path)
 
-    # DELETE CACHE AND .LOCK FILE
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
-    _delete_cache_files(cache_path)
-
-    # added to avoid order-related issues in sequential tests runs
-    if testing:
-        storage_manager = RedisStorageManager(testing=testing)
-        storage_manager.delete_storage()
+    delete_cache_files(cache_path)
+    cleanup_testing_storage(testing)
 
 
 def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: str, csv_dir: str,
@@ -388,40 +342,13 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                                storage_path: str | None = None) -> bool:
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
-    if cache:
-        if not cache.endswith(".json"):
-            cache = os.path.join(os.getcwd(), "cache.json")
-        else:
-            if not os.path.exists(os.path.abspath(os.path.join(cache, os.pardir))):
-                Path(os.path.abspath(os.path.join(cache, os.pardir))).mkdir(parents=True, exist_ok=True)
-    else:
-        cache = os.path.join(os.getcwd(), "cache.json")
+    cache_path = normalize_cache_path(cache)
+    lock = FileLock(cache_path + ".lock")
+    cache_dict = init_process_cache(cache_path, lock)
 
-    lock = FileLock(cache + ".lock")
-    cache_dict: dict[str, list[str]] = {"citing": [], "cited": []}
-    write_new = False
-    if os.path.exists(cache):
-        with lock:
-            with open(cache, "r", encoding="utf-8") as c:
-                try:
-                    cache_dict = json.load(c)
-                except json.JSONDecodeError:
-                    write_new = True
-    else:
-        write_new = True
-    if write_new:
-        with lock:
-            with open(cache, "w", encoding="utf-8") as c:
-                json.dump(cache_dict, c)
-
-    # skip if in cache
     file_basename = Path(file_name).name
-    if cache_dict.get("citing"):
-        if processing_citing and file_basename in cache_dict["citing"]:
-            return False
-    if cache_dict.get("cited"):
-        if not processing_citing and file_basename in cache_dict["cited"]:
-            return False
+    if is_file_in_cache(cache_dict, file_basename, processing_citing):
+        return False
 
     storage_manager = get_storage_manager(storage_path, testing)
     crossref_csv = CrossrefProcessing(
@@ -453,13 +380,13 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         citing_entity_rows = _process_citing_entities(crossref_csv, source_dict)
         _save_output_files(
             citing_entity_rows, [], metadata_output_base, citation_links_output_base,
-            crossref_csv, True, cache, lock, file_basename
+            crossref_csv, True, cache_path, lock, file_basename
         )
     else:
         cited_entity_rows, citation_rows = _process_cited_entities(crossref_csv, source_dict)
         _save_output_files(
             cited_entity_rows, citation_rows, metadata_output_base, citation_links_output_base,
-            crossref_csv, False, cache, lock, file_basename
+            crossref_csv, False, cache_path, lock, file_basename
         )
 
     return True

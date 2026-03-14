@@ -1,9 +1,13 @@
+import csv
+import json
 import os.path
 import shutil
+import tarfile
 import unittest
 from os.path import basename, join
-from oc_ds_converter.run.crossref_process import *
 from pathlib import Path
+
+from oc_ds_converter.run.crossref_process import preprocess
 
 
 class CrossrefProcessTest(unittest.TestCase):
