@@ -64,7 +64,7 @@ def _run_iteration(
     processing_citing: bool,
     use_orcid_api: bool,
     max_workers: int = 1,
-    use_redis_publishers: bool = False,
+    use_redis: bool = False,
     exclude_existing: bool = False,
     storage_path: str | None = None,
 ) -> None:
@@ -80,7 +80,7 @@ def _run_iteration(
                     filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                     publishers_filepath,
                     testing, cache, processing_citing=processing_citing, use_orcid_api=use_orcid_api,
-                    use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing,
+                    use_redis=use_redis, exclude_existing=exclude_existing,
                     storage_path=storage_path
                 )
                 advance_progress(progress, task, processed=was_processed)
@@ -95,7 +95,7 @@ def _run_iteration(
                         get_citations_and_metadata,
                         filename, targz_fd, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                         publishers_filepath,
-                        testing, cache, processing_citing, use_orcid_api, use_redis_publishers,
+                        testing, cache, processing_citing, use_orcid_api, use_redis,
                         exclude_existing, storage_path
                     )
                     futures.append(future)
@@ -264,6 +264,7 @@ def preprocess(
     csv_dir: str,
     cache: str | None = None,
     testing: bool = True,
+    use_redis: bool = False,
     max_workers: int = 1,
     use_orcid_api: bool = True,
     update_publishers: bool = False,
@@ -289,8 +290,7 @@ def preprocess(
         else:
             console.print('[green]Publishers data is up to date[/green]')
 
-    use_redis_publishers = max_workers > 1
-    if use_redis_publishers and os.path.exists(publishers_filepath):
+    if use_redis and os.path.exists(publishers_filepath):
         publishers_redis = PublishersRedis(testing=testing)
         if not publishers_redis.has_data() or update_publishers:
             console.print('[cyan]Loading publishers to Redis...[/cyan]')
@@ -302,14 +302,18 @@ def preprocess(
     if not os.path.exists(publishers_filepath) if publishers_filepath else False:
         publishers_filepath = None
 
-    orcid_index_redis = OrcidIndexRedis(testing=testing)
-    if orcid_doi_filepath:
-        console.print('[cyan]Updating DOI-ORCID index in Redis...[/cyan]')
-        orcid_index_redis.clear()
-        load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
-        console.print('[green]DOI-ORCID index updated in Redis[/green]')
+    if use_redis:
+        orcid_index_redis = OrcidIndexRedis(testing=testing)
+        if orcid_doi_filepath:
+            console.print('[cyan]Updating DOI-ORCID index in Redis...[/cyan]')
+            orcid_index_redis.clear()
+            load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
+            console.print('[green]DOI-ORCID index updated in Redis[/green]')
+        else:
+            console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
+        orcid_index_for_processor: str | None = None
     else:
-        console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
+        orcid_index_for_processor = orcid_doi_filepath
 
     # create output dir for citation data
     preprocessed_citations_dir = csv_dir + "_citations"
@@ -322,12 +326,12 @@ def preprocess(
     console.print(f'[cyan]Found {total_files} files to process[/cyan]')
 
     iteration_args = (
-        all_files, targz_fd, preprocessed_citations_dir, csv_dir, None,
+        all_files, targz_fd, preprocessed_citations_dir, csv_dir, orcid_index_for_processor,
         publishers_filepath, testing, cache
     )
 
-    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing, storage_path=storage_path)
-    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis_publishers=use_redis_publishers, exclude_existing=exclude_existing, storage_path=storage_path)
+    _run_iteration(*iteration_args, processing_citing=True, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis=use_redis, exclude_existing=exclude_existing, storage_path=storage_path)
+    _run_iteration(*iteration_args, processing_citing=False, use_orcid_api=use_orcid_api, max_workers=max_workers, use_redis=use_redis, exclude_existing=exclude_existing, storage_path=storage_path)
 
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
     delete_cache_files(cache_path)
@@ -338,7 +342,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
                                orcid_index: str | None,
                                publishers_filepath: str | None,
                                testing: bool, cache: str | None, processing_citing: bool, use_orcid_api: bool,
-                               use_redis_publishers: bool = False, exclude_existing: bool = False,
+                               use_redis: bool = False, exclude_existing: bool = False,
                                storage_path: str | None = None) -> bool:
     if isinstance(file_name, tarfile.TarInfo):
         file_name = file_name.name
@@ -355,7 +359,7 @@ def get_citations_and_metadata(file_name, targz_fd, preprocessed_citations_dir: 
         orcid_index=orcid_index, publishers_filepath=publishers_filepath,
         storage_manager=storage_manager,
         testing=testing, citing=processing_citing, use_orcid_api=use_orcid_api,
-        use_redis_orcid_index=True, use_redis_publishers=use_redis_publishers,
+        use_redis_orcid_index=use_redis, use_redis_publishers=use_redis,
         exclude_existing=exclude_existing
     )
 
@@ -424,8 +428,10 @@ if __name__ == '__main__':  # pragma: no cover
                                  'not citations). When enabled, checks DB-META-BR before creating metadata rows.')
     arg_parser.add_argument('-s', '--storage_path', dest='storage_path', required=False,
                             help='Path for ID validation storage. Use .db extension for SQLite or .json for '
-                                 'in-memory JSON storage. If not specified, uses Redis (default). '
-                                 'Note: SQLite and JSON storage are single-threaded (--max_workers is ignored).')
+                                 'in-memory JSON storage. If not specified, uses in-memory storage.')
+    arg_parser.add_argument('-r', '--use-redis', dest='use_redis', action='store_true', required=False,
+                            help='Use Redis for DOI-ORCID index and publishers lookup. Required for multiprocessing. '
+                                 'By default, in-memory storage is used.')
 
     args = arg_parser.parse_args()
     config = args.config
@@ -450,10 +456,15 @@ if __name__ == '__main__':  # pragma: no cover
     exclude_existing = settings.get('exclude_existing', args.exclude_existing) if settings else args.exclude_existing
     storage_path = settings.get('storage_path', args.storage_path) if settings else args.storage_path
     storage_path = normalize_path(storage_path) if storage_path else None
+    use_redis = settings.get('use_redis', args.use_redis) if settings else args.use_redis
 
     # SQLite and InMemory don't support concurrent access
     if storage_path and max_workers > 1:
         console.print('[yellow]Warning: SQLite/JSON storage requires single-threaded mode. Setting max_workers=1[/yellow]')
+        max_workers = 1
+
+    if max_workers > 1 and not use_redis:
+        console.print('[yellow]Warning: Multiprocessing requires Redis. Setting max_workers=1[/yellow]')
         max_workers = 1
 
     if max_workers > 1 and crossref_json_dir.endswith('.tar.gz'):
@@ -468,6 +479,7 @@ if __name__ == '__main__':  # pragma: no cover
         csv_dir=csv_dir,
         cache=cache,
         testing=testing,
+        use_redis=use_redis,
         max_workers=max_workers,
         use_orcid_api=use_orcid_api,
         update_publishers=update_publishers,

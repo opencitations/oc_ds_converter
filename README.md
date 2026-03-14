@@ -79,10 +79,19 @@ Each class provides methods for:
 </ol>
 
 <h3 id="dsm"> Data storage management </h3>
-OpenCitations ds_converter uses Redis for persistent storage of validation data (class `RedisStorageManager(StorageManager)`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/redis_manager.py`).
+OpenCitations ds_converter supports three storage backends for validation data:
 
-An instance of the `RedisStorageManager` is used by all the ID Managers instantiated in the process to store validation data at the end of each data chunk management.
-The temporary storage manager used while processing a data chunk is a simple in-memory dictionary wrapper (class `BatchManager`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/batch_manager.py`). This approach batches writes to Redis for better performance. If the process stops mid-chunk, the data in BatchManager is lost and the chunk is reprocessed from the beginning on restart. Since validation results are idempotent, reprocessing simply overwrites the same values in Redis. 
+1. **In-memory storage** (default): Uses a simple in-memory dictionary. Data is lost when the process ends. Suitable for single-threaded processing.
+2. **SQLite storage**: Persistent file-based storage. Suitable for single-threaded processing with persistence needs.
+3. **Redis storage**: Persistent networked storage. Required for multiprocessing (`--max_workers > 1`).
+
+The storage backend can be selected via command-line arguments:
+- Default (no flags): in-memory storage
+- `-s path/to/file.db`: SQLite storage
+- `-s path/to/file.json`: in-memory storage with JSON persistence
+- `-r` or `--use-redis`: Redis storage (required for multiprocessing)
+
+The temporary storage manager used while processing a data chunk is a simple in-memory dictionary wrapper (class `BatchManager`, defined in `oc_ds_converter/oc_idmanager/oc_data_storage/batch_manager.py`). This approach batches writes to the main storage for better performance. If the process stops mid-chunk, the data in BatchManager is lost and the chunk is reprocessed from the beginning on restart. Since validation results are idempotent, reprocessing simply overwrites the same values. 
 
 <!-- ID VALIDATION PROCESS -->
 <h2 id="validation">ID Validation Process</h2>
@@ -94,7 +103,7 @@ Subsequently, we perform another full iteration, validating all identifiers not 
 
 ![Data dump iteration for data validation](https://github.com/ariannamorettj/OC_documents/blob/5115cf039b4baa2319c6c22cc270647861ae2f5a/id_validation_process_dump_iteration_diagram.png) 
 
-Note that input datasets are typically composed of multiple files. Each file is processed independently, and a cache file tracks which files have been completed. During file processing, validation data is temporarily stored in `BatchManager` (see `oc_ds_converter/oc_idmanager/oc_data_storage/batch_manager.py`), a simple in-memory dictionary. When the file processing completes and the CSV output tables are produced, all accumulated data is transferred to Redis in a single batch operation (`mset`), reducing network overhead compared to individual writes. The file is then marked as completed in the cache. If the process is interrupted mid-file, the file is not in the cache and will be reprocessed from the beginning on restart. However, IDs already stored in Redis from previous operations do not require new API calls.
+Note that input datasets are typically composed of multiple files. Each file is processed independently, and a cache file tracks which files have been completed. During file processing, validation data is temporarily stored in `BatchManager` (see `oc_ds_converter/oc_idmanager/oc_data_storage/batch_manager.py`), a simple in-memory dictionary. When the file processing completes and the CSV output tables are produced, all accumulated data is transferred to the main storage in a single batch operation, reducing overhead compared to individual writes. The file is then marked as completed in the cache. If the process is interrupted mid-file, the file is not in the cache and will be reprocessed from the beginning on restart. However, IDs already stored in the main storage from previous operations do not require new API calls.
 For each encountered identifier to be validated, an ordered list of checks should be performed, stopping as soon as the validity value can be assessed:
 
 1. Search for the identifier in the batch manager, containing data concerning the current data chunk;
@@ -107,13 +116,17 @@ For each encountered identifier to be validated, an ordered list of checks shoul
 
 To produce the citations and metadata CSV output from a data source, it is possible to execute its specific process by selecting the correct source from `oc_ds_converter/run/` directory. For example, the oc_ds_converter process for **JaLC** data source can be launched as follows:
 
-```
+```bash
+# Single-threaded processing (default, in-memory storage)
+python oc_ds_converter/run/jalc_process.py -ja /Volumes/my_disk/JALC_INPUT -out /Volumes/my_disk/JALC_OUTPUT
+
+# Multi-threaded processing (requires Redis)
 python oc_ds_converter/run/jalc_process.py -ja /Volumes/my_disk/JALC_INPUT -out /Volumes/my_disk/JALC_OUTPUT -ca /Volumes/my_disk/JOCI_CACHE.json -r -m 3
 ```
 
-This command launches a process of data conversion from the input data dump (located at `/Volumes/my_disk/JALC_INPUT`) into metadata CSV tables (stored at `/Volumes/my_disk/JALC_OUTPUT`) and citation CSV tables (stored in a directory automatically generated at `/Volumes/my_disk/JALC_OUTPUT_citations`), using up to 3 workers for the process parallelization (`-m 3`) and Redis as storage system (`-r`) . While the process is being executed, a cache file at `/Volumes/my_disk/JOCI_CACHE.json` is created and updated. 
+This command launches a process of data conversion from the input data dump (located at `/Volumes/my_disk/JALC_INPUT`) into metadata CSV tables (stored at `/Volumes/my_disk/JALC_OUTPUT`) and citation CSV tables (stored in a directory automatically generated at `/Volumes/my_disk/JALC_OUTPUT_citations`). When using `-r` (Redis) and `-m 3`, the process uses up to 3 workers for parallelization. While the process is being executed, a cache file at `/Volumes/my_disk/JOCI_CACHE.json` is created and updated.
 
-More in detail, each data source run script has a set of arguments that can be adapted to meet the peculiarities of the dataset. However, all the sources should accept a similar list of arguments: 
+More in detail, each data source run script has a set of arguments that can be adapted to meet the peculiarities of the dataset. However, all the sources should accept a similar list of arguments:
 
 - **'--config'**: The path to a configuration file, where the other arguments can be declared;
 - **'--input_location'**: The path to the input data;
@@ -122,9 +135,10 @@ More in detail, each data source run script has a set of arguments that can be a
 - **'--orcid'**: The path to an optional support table mapping DOIs to ORCIDs of the publications' authors, used to enrich the metadata.
 - **'--wanted'**: The path to an optional CSV filepath containing a list of DOIs to process.
 - **'--cache'**: The cache file path, that will be automatically deleted at the end of the process.
-- **'--verbose'**: Argument which allows to declare whether a verbose description of the process execution is required. 
+- **'--storage_path'**: Path for ID validation storage. Use `.db` extension for SQLite or `.json` for in-memory JSON storage. If not specified, uses in-memory storage.
+- **'--use-redis'**: Use Redis for DOI-ORCID index and publishers lookup. Required for multiprocessing. By default, in-memory storage is used.
 - **'--testing'**: The parameter to define whether or not the script is to be run in testing mode. When testing mode is enabled, a fake in-memory Redis instance is used instead of a real Redis server.
-- **'--max_workers'**: The integer number of workers used to run the process in parallel executions. 
+- **'--max_workers'**: The integer number of workers used to run the process in parallel executions. Requires `--use-redis` to be enabled. 
 
 
 <!-- HOW TO EXTEND THE SOFTWARE -->

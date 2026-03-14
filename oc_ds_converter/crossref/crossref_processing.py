@@ -22,7 +22,6 @@ import re
 from collections import defaultdict
 from typing import List, Optional, Tuple
 
-from oc_ds_converter.datasource.orcid_index import PublishersRedis
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.crossref_style_processing import CrossrefStyleProcessing
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
@@ -51,13 +50,9 @@ class CrossrefProcessing(CrossrefStyleProcessing):
             citing=citing,
             use_redis_orcid_index=use_redis_orcid_index,
             use_orcid_api=use_orcid_api,
+            use_redis_publishers=use_redis_publishers,
         )
         self.exclude_existing = exclude_existing
-        self.use_redis_publishers = use_redis_publishers
-
-        self._publishers_redis: PublishersRedis | None = None
-        if use_redis_publishers:
-            self._publishers_redis = PublishersRedis(testing=testing)
 
     def _extract_doi(self, item: dict) -> str:
         doi = item.get('DOI', '')
@@ -161,56 +156,32 @@ class CrossrefProcessing(CrossrefStyleProcessing):
         pages_list = re.split(pages_separator, item['page'])
         return self.get_pages(pages_list)
 
-    def get_publisher_name(self, doi:str, item:dict) -> str:
-        data = {
-            'publisher': '',
-            'member': None,
-            'prefix': doi.split('/')[0]
-        }
-        for field in {'publisher', 'member', 'prefix'}:
-            if field in item:
-                if item[field]:
-                    data[field] = item[field]
-        publisher = data['publisher']
-        member = data['member']
-        prefix = data['prefix']
+    def get_publisher_name(self, doi: str, item: dict) -> str:
+        publisher = item.get('publisher', '')
+        member = item.get('member')
+        prefix = item.get('prefix') or doi.split('/')[0]
 
-        if self.use_redis_publishers and self._publishers_redis:
-            return self._get_publisher_name_from_redis(publisher, member, prefix)
-
-        relevant_member = False
-
-        if self.publishers_mapping and member:
-            if member in self.publishers_mapping:
-                relevant_member = True
-        if self.publishers_mapping:
-            if relevant_member:
-                name = self.publishers_mapping[member]['name']
-                name_and_id = f'{name} [crossref:{member}]'
-            else:
-                member_dict = next(({member:data} for member, data in self.publishers_mapping.items() if prefix in data['prefixes']), None)
-                if member_dict:
-                    member = list(member_dict.keys())[0]
-                    name_and_id = f"{member_dict[member]['name']} [crossref:{member}]"
-                else:
-                    name_and_id = publisher
-        else:
-            name_and_id = f'{publisher} [crossref:{member}]' if member else publisher
-        return name_and_id
-
-    def _get_publisher_name_from_redis(self, publisher: str, member: str | None, prefix: str) -> str:
-        redis = self._publishers_redis
-        if redis is None:
-            return f'{publisher} [crossref:{member}]' if member else publisher
         if member:
-            pub_data = redis.get_by_member(str(member))
-            if pub_data:
-                return f"{pub_data['name']} [crossref:{member}]"
-        pub_data = redis.get_by_prefix(prefix)
-        if pub_data:
-            member_id = redis._r.get(f"{redis.DOI_PREFIX_KEY}{prefix}")
-            return f"{pub_data['name']} [crossref:{member_id}]"
+            name = self._get_publisher_name_by_member(str(member))
+            if name:
+                return f'{name} [crossref:{member}]'
+
+        result = self.get_publisher_by_prefix(prefix)
+        if result:
+            name, member_id = result
+            return f'{name} [crossref:{member_id}]'
+
         return f'{publisher} [crossref:{member}]' if member else publisher
+
+    def _get_publisher_name_by_member(self, member: str) -> str | None:
+        if self.use_redis_publishers and self._publishers_redis:
+            pub_data = self._publishers_redis.get_by_member(member)
+            if pub_data:
+                return str(pub_data['name'])
+            return None
+        if self.publishers_mapping and member in self.publishers_mapping:
+            return str(self.publishers_mapping[member]['name'])
+        return None
 
 
     def get_venue_name(self, item:dict, row:dict) -> str:

@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-from oc_ds_converter.datasource.orcid_index import PublishersRedis
 from oc_ds_converter.lib.crossref_style_processing import CrossrefStyleProcessing
 from oc_ds_converter.oc_idmanager.jid import JIDManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
@@ -27,6 +26,7 @@ class JalcProcessing(CrossrefStyleProcessing):
     def __init__(
         self,
         orcid_index: str | None = None,
+        publishers_filepath: str | None = None,
         storage_manager: StorageManager | None = None,
         testing: bool = True,
         citing: bool = True,
@@ -36,17 +36,14 @@ class JalcProcessing(CrossrefStyleProcessing):
     ):
         super().__init__(
             orcid_index=orcid_index,
-            publishers_filepath=None,
+            publishers_filepath=publishers_filepath,
             storage_manager=storage_manager,
             testing=testing,
             citing=citing,
             use_redis_orcid_index=use_redis_orcid_index,
+            use_redis_publishers=use_redis_publishers,
         )
         self.exclude_existing = exclude_existing
-        self.use_redis_publishers = use_redis_publishers
-        self._publishers_redis: PublishersRedis | None = None
-        if use_redis_publishers:
-            self._publishers_redis = PublishersRedis(testing=testing)
 
         self.jid_m = JIDManager(storage_manager=self.storage_manager, testing=testing)
         self.tmp_jid_m = JIDManager(storage_manager=self.temporary_manager, testing=testing)
@@ -172,18 +169,14 @@ class JalcProcessing(CrossrefStyleProcessing):
             if 'publisher_list' in item:
                 return self.get_ja(item['publisher_list'])[0].get('publisher_name', '')
             return ''
-        if not self.use_redis_publishers or not self._publishers_redis:
-            return ''
         doi = item.get('doi', '')
         prefix = doi.split('/')[0] if doi else ""
         if not prefix:
             return ''
-        pub_data = self._publishers_redis.get_by_prefix(prefix)
-        if pub_data:
-            member_id = self._publishers_redis._r.get(
-                f"{self._publishers_redis.DOI_PREFIX_KEY}{prefix}"
-            )
-            return f"{pub_data['name']} [crossref:{member_id}]"
+        result = self.get_publisher_by_prefix(prefix)
+        if result:
+            name, member_id = result
+            return f"{name} [crossref:{member_id}]"
         return ''
 
     def extract_all_ids(self, entity_dict: dict, is_citing: bool) -> tuple[list[str], list[str]]:

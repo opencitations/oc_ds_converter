@@ -24,7 +24,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis
+from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis, PublishersRedis
 from oc_ds_converter.datasource.redis import FakeRedisWrapper, RedisDataSource
 from oc_ds_converter.oc_idmanager import ORCIDManager
 from oc_ds_converter.oc_idmanager.doi import DOIManager
@@ -60,6 +60,7 @@ class CrossrefStyleProcessing(RaProcessor):
         citing: bool = True,
         use_redis_orcid_index: bool = False,
         use_orcid_api: bool = True,
+        use_redis_publishers: bool = False,
     ):
         orcid_index_obj = (
             OrcidIndexRedis(testing=testing)
@@ -70,6 +71,10 @@ class CrossrefStyleProcessing(RaProcessor):
         self.citing = citing
         self._testing = testing
         self.use_orcid_api = use_orcid_api
+        self.use_redis_publishers = use_redis_publishers
+        self._publishers_redis: PublishersRedis | None = None
+        if use_redis_publishers:
+            self._publishers_redis = PublishersRedis(testing=testing)
 
         if storage_manager is None:
             self.storage_manager = RedisStorageManager(testing=testing)
@@ -212,6 +217,22 @@ class CrossrefStyleProcessing(RaProcessor):
                 valid_id_list.append(norm_id)
 
         return valid_id_list
+
+    def get_publisher_by_prefix(self, prefix: str) -> tuple[str, str] | None:
+        """Look up publisher by DOI prefix. Returns (name, member_id) or None."""
+        if self.use_redis_publishers and self._publishers_redis:
+            pub_data = self._publishers_redis.get_by_prefix(prefix)
+            if pub_data:
+                member_id = self._publishers_redis._r.get(
+                    f"{self._publishers_redis.DOI_PREFIX_KEY}{prefix}"
+                )
+                return str(pub_data['name']), str(member_id)
+            return None
+        if self.publishers_mapping:
+            for member, data in self.publishers_mapping.items():
+                if prefix in data['prefixes']:
+                    return str(data['name']), member
+        return None
 
     def _extract_volume(self, item: dict) -> str:
         return item.get('volume', '')

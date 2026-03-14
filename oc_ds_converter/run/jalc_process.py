@@ -26,7 +26,12 @@ from pathlib import Path
 import yaml
 from filelock import BaseFileLock, FileLock
 
-from oc_ds_converter.datasource.orcid_index import OrcidIndexRedis, load_orcid_index_to_redis
+from oc_ds_converter.datasource.orcid_index import (
+    OrcidIndexRedis,
+    PublishersRedis,
+    load_orcid_index_to_redis,
+    load_publishers_to_redis,
+)
 from oc_ds_converter.jalc.jalc_processing import JalcProcessing
 from oc_ds_converter.lib.console import advance_progress, console, create_progress
 from oc_ds_converter.lib.file_manager import normalize_path, pathoo
@@ -48,12 +53,15 @@ def _run_iteration(
     all_files: list[str],
     preprocessed_citations_dir: str,
     csv_dir: str,
+    publishers_filepath: str | None,
+    orcid_index_filepath: str | None,
     testing: bool,
     cache: str | None,
     processing_citing: bool,
     max_workers: int = 1,
     exclude_existing: bool = False,
     storage_path: str | None = None,
+    use_redis: bool = False,
 ) -> None:
     iteration_label = "citing entities" if processing_citing else "cited entities"
     iteration_num = "First" if processing_citing else "Second"
@@ -67,11 +75,14 @@ def _run_iteration(
                     zip_file=zip_file,
                     preprocessed_citations_dir=preprocessed_citations_dir,
                     csv_dir=csv_dir,
+                    publishers_filepath=publishers_filepath,
+                    orcid_index_filepath=orcid_index_filepath,
                     testing=testing,
                     cache=cache,
                     processing_citing=processing_citing,
                     exclude_existing=exclude_existing,
                     storage_path=storage_path,
+                    use_redis=use_redis,
                 )
                 advance_progress(progress, task, processed=was_processed)
         else:
@@ -83,11 +94,14 @@ def _run_iteration(
                         zip_file=zip_file,
                         preprocessed_citations_dir=preprocessed_citations_dir,
                         csv_dir=csv_dir,
+                        publishers_filepath=publishers_filepath,
+                        orcid_index_filepath=orcid_index_filepath,
                         testing=testing,
                         cache=cache,
                         processing_citing=processing_citing,
                         exclude_existing=exclude_existing,
                         storage_path=storage_path,
+                        use_redis=use_redis,
                     )
                     futures.append(future)
                 for future in futures:
@@ -229,22 +243,37 @@ def preprocess(
     jalc_json_dir: str,
     orcid_doi_filepath: str | None,
     csv_dir: str,
+    publishers_filepath: str | None = None,
     cache: str | None = None,
     testing: bool = True,
+    use_redis: bool = False,
     max_workers: int = 1,
     exclude_existing: bool = False,
     storage_path: str | None = None,
 ) -> None:
     preprocessed_citations_dir = create_output_dirs(csv_dir)
 
-    orcid_index_redis = OrcidIndexRedis(testing=testing)
-    if orcid_doi_filepath:
-        console.print('[cyan]Updating DOI-ORCID index in Redis...[/cyan]')
-        orcid_index_redis.clear()
-        load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
-        console.print('[green]DOI-ORCID index updated in Redis[/green]')
+    if use_redis:
+        orcid_index_redis = OrcidIndexRedis(testing=testing)
+        if orcid_doi_filepath:
+            console.print('[cyan]Updating DOI-ORCID index in Redis...[/cyan]')
+            orcid_index_redis.clear()
+            load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
+            console.print('[green]DOI-ORCID index updated in Redis[/green]')
+        else:
+            console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
+        orcid_index_for_processor: str | None = None
     else:
-        console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
+        orcid_index_for_processor = orcid_doi_filepath
+
+    if use_redis and publishers_filepath and os.path.exists(publishers_filepath):
+        publishers_redis = PublishersRedis(testing=testing)
+        if not publishers_redis.has_data():
+            console.print('[cyan]Loading publishers to Redis...[/cyan]')
+            publishers_redis.clear()
+            load_publishers_to_redis(publishers_filepath, publishers_redis)
+            console.print('[green]Publishers loaded to Redis[/green]')
+        publishers_filepath = None
 
     console.print(f'[cyan]Getting all files from {jalc_json_dir}[/cyan]')
     all_input_zip_raw, _ = get_all_files_by_type(jalc_json_dir, ".zip", cache)
@@ -252,14 +281,16 @@ def preprocess(
     console.print(f'[cyan]Found {len(all_input_zip)} files to process[/cyan]')
 
     iteration_args = (
-        all_input_zip, preprocessed_citations_dir, csv_dir,
-        testing, cache
+        all_input_zip, preprocessed_citations_dir, csv_dir, publishers_filepath,
+        orcid_index_for_processor, testing, cache
     )
 
     _run_iteration(*iteration_args, processing_citing=True, max_workers=max_workers,
-                   exclude_existing=exclude_existing, storage_path=storage_path)
+                   exclude_existing=exclude_existing, storage_path=storage_path,
+                   use_redis=use_redis)
     _run_iteration(*iteration_args, processing_citing=False, max_workers=max_workers,
-                   exclude_existing=exclude_existing, storage_path=storage_path)
+                   exclude_existing=exclude_existing, storage_path=storage_path,
+                   use_redis=use_redis)
 
     cache_path = cache if cache else os.path.join(os.getcwd(), "cache.json")
     delete_cache_files(cache_path)
@@ -270,11 +301,14 @@ def get_citations_and_metadata(
     zip_file: str,
     preprocessed_citations_dir: str,
     csv_dir: str,
+    publishers_filepath: str | None,
+    orcid_index_filepath: str | None,
     testing: bool,
     cache: str | None,
     processing_citing: bool,
     exclude_existing: bool = False,
     storage_path: str | None = None,
+    use_redis: bool = False,
 ) -> bool:
     cache_path = normalize_cache_path(cache)
     lock = FileLock(cache_path + ".lock")
@@ -286,13 +320,14 @@ def get_citations_and_metadata(
 
     storage_manager = get_storage_manager(storage_path, testing)
     jalc_csv = JalcProcessing(
-        orcid_index=None,
+        orcid_index=orcid_index_filepath,
+        publishers_filepath=publishers_filepath,
         storage_manager=storage_manager,
         testing=testing,
         citing=processing_citing,
         exclude_existing=exclude_existing,
-        use_redis_orcid_index=True,
-        use_redis_publishers=not processing_citing,
+        use_redis_orcid_index=use_redis,
+        use_redis_publishers=use_redis,
     )
 
     zip_f = zipfile.ZipFile(zip_file)
@@ -346,6 +381,8 @@ if __name__ == '__main__':  # pragma: no cover
                             help='Directory where CSV will be stored')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
+    arg_parser.add_argument('-p', '--publishers', dest='publishers_filepath', required=False,
+                            help='Path to publishers CSV file for DOI prefix to publisher name mapping')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                             help='Path to a JSON file for caching processed files. Tracks which files have been '
                                  'processed to allow resuming. Deleted at the end of successful processing.')
@@ -358,8 +395,10 @@ if __name__ == '__main__':  # pragma: no cover
                             help='Exclude entities that already exist in Meta from the output CSV')
     arg_parser.add_argument('-s', '--storage_path', dest='storage_path', required=False,
                             help='Path for ID validation storage. Use .db extension for SQLite or .json for '
-                                 'in-memory JSON storage. If not specified, uses Redis (default). '
-                                 'Note: SQLite and JSON storage are single-threaded (--max_workers is ignored).')
+                                 'in-memory JSON storage. If not specified, uses in-memory storage.')
+    arg_parser.add_argument('-r', '--use-redis', dest='use_redis', action='store_true', required=False,
+                            help='Use Redis for DOI-ORCID index and publishers lookup. Required for multiprocessing. '
+                                 'By default, in-memory storage is used.')
     args = arg_parser.parse_args()
     config = args.config
     settings = None
@@ -372,6 +411,8 @@ if __name__ == '__main__':  # pragma: no cover
     csv_dir = normalize_path(csv_dir)
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
+    publishers_filepath = settings.get('publishers_filepath', args.publishers_filepath) if settings else args.publishers_filepath
+    publishers_filepath = normalize_path(publishers_filepath) if publishers_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     testing = settings.get('testing', args.testing) if settings else args.testing
@@ -379,17 +420,24 @@ if __name__ == '__main__':  # pragma: no cover
     exclude_existing = settings.get('exclude_existing', args.exclude_existing) if settings else args.exclude_existing
     storage_path = settings.get('storage_path', args.storage_path) if settings else args.storage_path
     storage_path = normalize_path(storage_path) if storage_path else None
+    use_redis = settings.get('use_redis', args.use_redis) if settings else args.use_redis
 
     if storage_path and max_workers > 1:
         console.print('[yellow]Warning: SQLite/JSON storage requires single-threaded mode. Setting max_workers=1[/yellow]')
+        max_workers = 1
+
+    if max_workers > 1 and not use_redis:
+        console.print('[yellow]Warning: Multiprocessing requires Redis. Setting max_workers=1[/yellow]')
         max_workers = 1
 
     preprocess(
         jalc_json_dir=jalc_json_dir,
         orcid_doi_filepath=orcid_doi_filepath,
         csv_dir=csv_dir,
+        publishers_filepath=publishers_filepath,
         cache=cache,
         testing=testing,
+        use_redis=use_redis,
         max_workers=max_workers,
         exclude_existing=exclude_existing,
         storage_path=storage_path,
