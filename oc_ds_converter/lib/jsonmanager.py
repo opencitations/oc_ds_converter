@@ -75,8 +75,35 @@ def load_json(file:str|tarfile.TarInfo, targz_fd:tarfile.TarFile | None) -> dict
     return result
 
 
-def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|None=None):
-    result = []
+def _is_container_zip(zip_path: str) -> bool:
+    """Check if a zip contains other zips (container) vs data files (final)."""
+    with zipfile.ZipFile(zip_path, 'r') as zf:
+        names = zf.namelist()
+        return any(n.endswith('.zip') for n in names)
+
+
+def _collect_final_zips(zip_path: str, cache: set[str], dest_dir: str) -> list[str]:
+    """Recursively extract container zips and collect final zips."""
+    result: list[str] = []
+    makedirs(dest_dir, exist_ok=True)
+
+    with zipfile.ZipFile(zip_path, 'r') as zf:
+        zf.extractall(dest_dir)
+
+    for root, _, files in walk(dest_dir):
+        for f in files:
+            if f.endswith('.zip') and not f.startswith('.') and f not in cache:
+                nested_path = os.path.join(root, f)
+                if _is_container_zip(nested_path):
+                    nested_dest = nested_path.replace('.zip', '') + "_decompr_zip_dir"
+                    result.extend(_collect_final_zips(nested_path, cache, nested_dest))
+                else:
+                    result.append(nested_path)
+    return result
+
+
+def get_all_files_by_type(i_dir_or_compr: str, req_type: str, cache_filepath: str | None = None):
+    result: list[str | tarfile.TarInfo] = []
     targz_fd = None
     cache = init_cache(cache_filepath)
 
@@ -84,7 +111,12 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
         for cur_dir, cur_subdir, cur_files in walk(i_dir_or_compr):
             for cur_file in cur_files:
                 if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and basename(cur_file) not in cache:
-                    result.append(os.path.join(cur_dir, cur_file))
+                    file_path = os.path.join(cur_dir, cur_file)
+                    if req_type == ".zip" and _is_container_zip(file_path):
+                        dest_base = file_path.replace('.zip', '') + "_decompr_zip_dir"
+                        result.extend(_collect_final_zips(file_path, cache, dest_base))
+                    else:
+                        result.append(file_path)
     elif i_dir_or_compr.endswith("tar.gz"):
         targz_fd = tarfile.open(i_dir_or_compr, "r:gz", encoding="utf-8")
         for cur_file in targz_fd:
@@ -100,15 +132,22 @@ def get_all_files_by_type(i_dir_or_compr:str, req_type:str, cache_filepath:str|N
                     result.append(cur_dir + sep + cur_file)
         targz_fd.close()
     elif i_dir_or_compr.endswith("zip"):
-        with zipfile.ZipFile(i_dir_or_compr, 'r') as zip_ref:
+        if req_type == ".zip":
+            if _is_container_zip(i_dir_or_compr):
+                dest_base = i_dir_or_compr.replace('.zip', '') + "_decompr_zip_dir"
+                result.extend(_collect_final_zips(i_dir_or_compr, cache, dest_base))
+            elif basename(i_dir_or_compr) not in cache:
+                result.append(i_dir_or_compr)
+        else:
             dest_dir = i_dir_or_compr.replace('.zip', '') + "_decompr_zip_dir"
             if not exists(dest_dir):
                 makedirs(dest_dir)
-            zip_ref.extractall(dest_dir)
-        for cur_dir, cur_subdir, cur_files in walk(dest_dir):
-            for cur_file in cur_files:
-                if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and basename(cur_file) not in cache:
-                    result.append(cur_dir + sep + cur_file)
+            with zipfile.ZipFile(i_dir_or_compr, 'r') as zip_ref:
+                zip_ref.extractall(dest_dir)
+            for cur_dir, cur_subdir, cur_files in walk(dest_dir):
+                for cur_file in cur_files:
+                    if cur_file.endswith(req_type) and not basename(cur_file).startswith(".") and basename(cur_file) not in cache:
+                        result.append(cur_dir + sep + cur_file)
     elif i_dir_or_compr.endswith("zst"):
         input_file = pathlib.Path(i_dir_or_compr)
         dest_dir = i_dir_or_compr.split(".")[0] + "_decompr_zst_dir"

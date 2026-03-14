@@ -225,51 +225,6 @@ def _process_cited_entities(
     return cited_entity_rows, citation_rows
 
 
-def _get_all_input_files(
-    jalc_json_dir: str,
-    testing: bool,
-    cache: str | None,
-) -> list[str]:
-    els_to_be_skipped: list[str] = []
-    if not testing:
-        input_dir_cont = os.listdir(jalc_json_dir)
-        for el in input_dir_cont:
-            if el.startswith("._"):
-                els_to_be_skipped.append(os.path.join(jalc_json_dir, el))
-            elif el.endswith(".zip"):
-                base_name = el.replace('.zip', '')
-                if [x for x in os.listdir(jalc_json_dir) if x.startswith(base_name) and x.endswith("decompr_zip_dir")]:
-                    els_to_be_skipped.append(os.path.join(jalc_json_dir, el))
-
-    req_type = ".zip"
-    all_input_zip: list[str] = []
-
-    if not testing:
-        els_to_be_skipped_cont = [x for x in els_to_be_skipped if x.endswith(".zip")]
-        if els_to_be_skipped_cont:
-            for el_to_skip in els_to_be_skipped_cont:
-                if el_to_skip.startswith("._"):
-                    continue
-                base_name_el_to_skip = el_to_skip.replace('.zip', '')
-                for el in os.listdir(jalc_json_dir):
-                    if el == base_name_el_to_skip + "_decompr_zip_dir":
-                        all_input_zip = [
-                            os.path.join(jalc_json_dir, el, file)
-                            for file in os.listdir(os.path.join(jalc_json_dir, el))
-                            if not file.endswith(".json") and not file.startswith("._")
-                        ]
-
-        if len(all_input_zip) == 0:
-            for zip_lev0 in os.listdir(jalc_json_dir):
-                all_input_zip, _ = get_all_files_by_type(os.path.join(jalc_json_dir, zip_lev0), req_type, cache)
-    else:
-        all_input_zip_dirs = os.listdir(jalc_json_dir)
-        for zip_dir in all_input_zip_dirs:
-            all_input_zip, _ = get_all_files_by_type(os.path.join(jalc_json_dir, zip_dir), req_type, cache)
-
-    return all_input_zip
-
-
 def preprocess(
     jalc_json_dir: str,
     orcid_doi_filepath: str | None,
@@ -292,7 +247,8 @@ def preprocess(
         console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
 
     console.print(f'[cyan]Getting all files from {jalc_json_dir}[/cyan]')
-    all_input_zip = _get_all_input_files(jalc_json_dir, testing, cache)
+    all_input_zip_raw, _ = get_all_files_by_type(jalc_json_dir, ".zip", cache)
+    all_input_zip: list[str] = [f for f in all_input_zip_raw if isinstance(f, str)]
     console.print(f'[cyan]Found {len(all_input_zip)} files to process[/cyan]')
 
     iteration_args = (
