@@ -17,11 +17,15 @@
 import json
 import os
 import sys
+import threading
+import time
 import zipfile
 from argparse import ArgumentParser
 from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import get_context
+from multiprocessing import Manager, get_context
+from multiprocessing.managers import ValueProxy
 from pathlib import Path
+from typing import Callable
 
 import yaml
 from filelock import BaseFileLock, FileLock
@@ -49,6 +53,30 @@ from oc_ds_converter.lib.process_utils import (
 )
 
 
+def _count_json_files(
+    all_zip_files: list[str],
+    cache_path: str | None = None,
+    processing_citing: bool = True,
+) -> int:
+    cached_files: set[str] = set()
+    if cache_path:
+        normalized_cache = normalize_cache_path(cache_path)
+        if os.path.exists(normalized_cache):
+            lock = FileLock(normalized_cache + ".lock")
+            cache_dict = init_process_cache(normalized_cache, lock)
+            key = "citing" if processing_citing else "cited"
+            cached_files = set(cache_dict.get(key, []))
+
+    total = 0
+    for zip_path in all_zip_files:
+        filename = Path(zip_path).name
+        if filename in cached_files:
+            continue
+        with zipfile.ZipFile(zip_path) as zf:
+            total += sum(1 for x in zf.namelist() if "doiList" not in x and not x.endswith("/"))
+    return total
+
+
 def _run_iteration(
     all_files: list[str],
     preprocessed_citations_dir: str,
@@ -66,10 +94,9 @@ def _run_iteration(
     iteration_label = "citing entities" if processing_citing else "cited entities"
     iteration_num = "First" if processing_citing else "Second"
 
-    with create_progress() as progress:
-        task = progress.add_task(f"[green]{iteration_num} iteration ({iteration_label})", total=len(all_files))
-
-        if max_workers == 1:
+    if max_workers == 1:
+        with create_progress() as progress:
+            task = progress.add_task(f"[green]{iteration_num} iteration ({iteration_label})", total=len(all_files))
             for zip_file in all_files:
                 was_processed = get_citations_and_metadata(
                     zip_file=zip_file,
@@ -85,7 +112,34 @@ def _run_iteration(
                     use_redis=use_redis,
                 )
                 advance_progress(progress, task, processed=was_processed)
-        else:
+    else:
+        console.print(f'[cyan]Counting JSON files for {iteration_label}...[/cyan]')
+        total_json_files = _count_json_files(all_files, cache, processing_citing)
+        console.print(f'[cyan]Found {total_json_files} JSON files to process[/cyan]')
+
+        manager = Manager()
+        entity_counter: ValueProxy[int] = manager.Value('i', 0)
+        stop_event = threading.Event()
+
+        with create_progress() as progress:
+            entity_task = progress.add_task(
+                f"[green]{iteration_num} iteration ({iteration_label}) - JSON files",
+                total=total_json_files,
+            )
+
+            def update_progress() -> None:
+                last_value = 0
+                while not stop_event.is_set():
+                    current = entity_counter.value
+                    if current != last_value:
+                        progress.update(entity_task, completed=current)
+                        last_value = current
+                    time.sleep(0.2)
+                progress.update(entity_task, completed=entity_counter.value)
+
+            updater_thread = threading.Thread(target=update_progress, daemon=True)
+            updater_thread.start()
+
             with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
                 futures = []
                 for zip_file in all_files:
@@ -102,12 +156,20 @@ def _run_iteration(
                         exclude_existing=exclude_existing,
                         storage_path=storage_path,
                         use_redis=use_redis,
+                        entity_counter=entity_counter,
                     )
                     futures.append(future)
                 for future in futures:
-                    was_processed = future.result()
-                    advance_progress(progress, task, processed=was_processed)
-            console.print(f'[green]{iteration_num} iteration complete[/green]')
+                    try:
+                        future.result()
+                    except Exception as e:
+                        console.print(f'[red]Error: {e}[/red]')
+                        raise
+
+            stop_event.set()
+            updater_thread.join(timeout=1.0)
+
+        console.print(f'[green]{iteration_num} iteration complete ({entity_counter.value} JSON files processed)[/green]')
 
 
 def _extract_redis_ids_and_update(
@@ -167,6 +229,7 @@ def _save_output_files(
 def _process_citing_entities(
     processor: JalcProcessing,
     source_dict: list[dict],
+    on_entity_processed: Callable[[], None] | None = None,
 ) -> list[dict[str, str]]:
     citing_entity_rows: list[dict[str, str]] = []
 
@@ -174,20 +237,23 @@ def _process_citing_entities(
         if entity:
             d = entity.get("data")
             if not d:
+                if on_entity_processed:
+                    on_entity_processed()
                 continue
             norm_source_id = processor.doi_m.normalise(d['doi'], include_prefix=True)
 
             if norm_source_id and not processor.doi_m.storage_manager.get_value(norm_source_id):
                 if processor.exclude_existing and processor.BR_redis.exists_as_set(norm_source_id):
                     processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
-                    continue
-                processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
-
-                source_tab_data = processor.csv_creator(d)
-                if source_tab_data:
-                    processed_source_id = source_tab_data["id"]
-                    if processed_source_id:
-                        citing_entity_rows.append(source_tab_data)
+                else:
+                    processor.tmp_doi_m.storage_manager.set_value(norm_source_id, True)
+                    source_tab_data = processor.csv_creator(d)
+                    if source_tab_data:
+                        processed_source_id = source_tab_data["id"]
+                        if processed_source_id:
+                            citing_entity_rows.append(source_tab_data)
+        if on_entity_processed:
+            on_entity_processed()
 
     return citing_entity_rows
 
@@ -195,6 +261,7 @@ def _process_citing_entities(
 def _process_cited_entities(
     processor: JalcProcessing,
     source_dict: list[dict],
+    on_entity_processed: Callable[[], None] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     cited_entity_rows: list[dict[str, str]] = []
     citation_rows: list[dict[str, str]] = []
@@ -203,13 +270,19 @@ def _process_cited_entities(
         if entity:
             d = entity.get("data")
             if not d or not d.get("citation_list"):
+                if on_entity_processed:
+                    on_entity_processed()
                 continue
             norm_source_id = processor.doi_m.normalise(d['doi'], include_prefix=True)
             if not norm_source_id:
+                if on_entity_processed:
+                    on_entity_processed()
                 continue
 
             cit_list_entities = [x for x in d["citation_list"] if x.get("doi")]
             if not cit_list_entities:
+                if on_entity_processed:
+                    on_entity_processed()
                 continue
 
             valid_target_ids: list[str] = []
@@ -235,6 +308,8 @@ def _process_cited_entities(
 
             for target_id in valid_target_ids:
                 citation_rows.append({"citing": norm_source_id, "cited": target_id})
+        if on_entity_processed:
+            on_entity_processed()
 
     return cited_entity_rows, citation_rows
 
@@ -278,7 +353,7 @@ def preprocess(
     console.print(f'[cyan]Getting all files from {jalc_json_dir}[/cyan]')
     all_input_zip_raw, _ = get_all_files_by_type(jalc_json_dir, ".zip", cache)
     all_input_zip: list[str] = [f for f in all_input_zip_raw if isinstance(f, str)]
-    console.print(f'[cyan]Found {len(all_input_zip)} files to process[/cyan]')
+    console.print(f'[cyan]Found {len(all_input_zip)} ZIP files to process[/cyan]')
 
     iteration_args = (
         all_input_zip, preprocessed_citations_dir, csv_dir, publishers_filepath,
@@ -309,6 +384,7 @@ def get_citations_and_metadata(
     exclude_existing: bool = False,
     storage_path: str | None = None,
     use_redis: bool = False,
+    entity_counter: ValueProxy[int] | None = None,
 ) -> bool:
     cache_path = normalize_cache_path(cache)
     lock = FileLock(cache_path + ".lock")
@@ -331,7 +407,7 @@ def get_citations_and_metadata(
     )
 
     zip_f = zipfile.ZipFile(zip_file)
-    source_data = [x for x in zip_f.namelist() if not x.startswith("doiList")]
+    source_data = [x for x in zip_f.namelist() if "doiList" not in x and not x.endswith("/")]
     source_dict: list[dict] = []
     for json_file in source_data:
         f = zip_f.open(json_file, 'r')
@@ -350,14 +426,18 @@ def get_citations_and_metadata(
 
     _extract_redis_ids_and_update(jalc_csv, source_dict, processing_citing)
 
+    def increment_counter() -> None:
+        if entity_counter is not None:
+            entity_counter.value += 1
+
     if processing_citing:
-        citing_entity_rows = _process_citing_entities(jalc_csv, source_dict)
+        citing_entity_rows = _process_citing_entities(jalc_csv, source_dict, increment_counter)
         _save_output_files(
             citing_entity_rows, [], metadata_output_base, citation_links_output_base,
             jalc_csv, True, cache_path, lock, filename
         )
     else:
-        cited_entity_rows, citation_rows = _process_cited_entities(jalc_csv, source_dict)
+        cited_entity_rows, citation_rows = _process_cited_entities(jalc_csv, source_dict, increment_counter)
         _save_output_files(
             cited_entity_rows, citation_rows, metadata_output_base, citation_links_output_base,
             jalc_csv, False, cache_path, lock, filename
