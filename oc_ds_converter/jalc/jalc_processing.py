@@ -22,26 +22,30 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import Storage
 
 
 class JalcProcessing(CrossrefStyleProcessing):
+    # Publisher prefix mapping is disabled for JALC. Unlike Crossref, which provides
+    # a /members API endpoint with authoritative publisher names and their DOI prefixes,
+    # JALC has no equivalent endpoint. The JALC /prefixes API only returns prefix, ra,
+    # siteId, and updated_date - no publisher names. Since 99.8% of JALC prefixes are
+    # not in the Crossref mapping anyway (JALC is a separate DOI registration agency),
+    # we use publisher names directly from the source data's publisher_list field.
 
     def __init__(
         self,
         orcid_index: str | None = None,
-        publishers_filepath: str | None = None,
         storage_manager: StorageManager | None = None,
         testing: bool = True,
         citing: bool = True,
         exclude_existing: bool = False,
         use_redis_orcid_index: bool = False,
-        use_redis_publishers: bool = False,
     ):
         super().__init__(
             orcid_index=orcid_index,
-            publishers_filepath=publishers_filepath,
+            publishers_filepath=None,
             storage_manager=storage_manager,
             testing=testing,
             citing=citing,
             use_redis_orcid_index=use_redis_orcid_index,
-            use_redis_publishers=use_redis_publishers,
+            use_redis_publishers=False,
         )
         self.exclude_existing = exclude_existing
 
@@ -170,18 +174,8 @@ class JalcProcessing(CrossrefStyleProcessing):
         return type_map.get(content_type, '')
 
     def _extract_publisher(self, item: dict) -> str:
-        if self.citing:
-            if 'publisher_list' in item:
-                return self.get_ja(item['publisher_list'])[0].get('publisher_name', '')
-            return ''
-        doi = item.get('doi', '')
-        prefix = doi.split('/')[0] if doi else ""
-        if not prefix:
-            return ''
-        result = self.get_publisher_by_prefix(prefix)
-        if result:
-            name, member_id = result
-            return f"{name} [crossref:{member_id}]"
+        if 'publisher_list' in item:
+            return self.get_ja(item['publisher_list'])[0].get('publisher_name', '')
         return ''
 
     def extract_all_ids(self, entity_dict: dict, is_citing: bool) -> tuple[list[str], list[str]]:

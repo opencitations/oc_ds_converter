@@ -1479,19 +1479,6 @@ class TestJalcProcessing(unittest.TestCase):
         publisher_name = jalc_processor._extract_publisher(item_dict)
         self.assertEqual(publisher_name, '')
 
-    def test_extract_publisher_cited_with_csv_fallback(self):
-        publishers_path = os.path.join(os.path.dirname(__file__), '..', 'oc_ds_converter', 'crossref', 'data', 'publishers.csv')
-        item_dict = {
-            "doi": "10.1370/test.article",
-        }
-        jalc_processor = JalcProcessing(
-            citing=False,
-            publishers_filepath=publishers_path,
-            use_redis_publishers=False
-        )
-        publisher_name = jalc_processor._extract_publisher(item_dict)
-        self.assertEqual(publisher_name, 'Annals of Family Medicine [crossref:1]')
-
     def test_extract_venue(self):
         with open(DATA, "r", encoding="utf-8") as content:
             data = json.load(content)

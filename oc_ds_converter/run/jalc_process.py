@@ -32,9 +32,7 @@ from filelock import BaseFileLock, FileLock
 
 from oc_ds_converter.datasource.orcid_index import (
     OrcidIndexRedis,
-    PublishersRedis,
     load_orcid_index_to_redis,
-    load_publishers_to_redis,
 )
 from oc_ds_converter.jalc.jalc_processing import JalcProcessing
 from oc_ds_converter.lib.console import advance_progress, console, create_progress
@@ -81,7 +79,6 @@ def _run_iteration(
     all_files: list[str],
     preprocessed_citations_dir: str,
     csv_dir: str,
-    publishers_filepath: str | None,
     orcid_index_filepath: str | None,
     testing: bool,
     cache: str | None,
@@ -102,7 +99,6 @@ def _run_iteration(
                     zip_file=zip_file,
                     preprocessed_citations_dir=preprocessed_citations_dir,
                     csv_dir=csv_dir,
-                    publishers_filepath=publishers_filepath,
                     orcid_index_filepath=orcid_index_filepath,
                     testing=testing,
                     cache=cache,
@@ -148,7 +144,6 @@ def _run_iteration(
                         zip_file=zip_file,
                         preprocessed_citations_dir=preprocessed_citations_dir,
                         csv_dir=csv_dir,
-                        publishers_filepath=publishers_filepath,
                         orcid_index_filepath=orcid_index_filepath,
                         testing=testing,
                         cache=cache,
@@ -318,7 +313,6 @@ def preprocess(
     jalc_json_dir: str,
     orcid_doi_filepath: str | None,
     csv_dir: str,
-    publishers_filepath: str | None = None,
     cache: str | None = None,
     testing: bool = True,
     use_redis: bool = False,
@@ -341,22 +335,13 @@ def preprocess(
     else:
         orcid_index_for_processor = orcid_doi_filepath
 
-    if use_redis and publishers_filepath and os.path.exists(publishers_filepath):
-        publishers_redis = PublishersRedis(testing=testing)
-        if not publishers_redis.has_data():
-            console.print('[cyan]Loading publishers to Redis...[/cyan]')
-            publishers_redis.clear()
-            load_publishers_to_redis(publishers_filepath, publishers_redis)
-            console.print('[green]Publishers loaded to Redis[/green]')
-        publishers_filepath = None
-
     console.print(f'[cyan]Getting all files from {jalc_json_dir}[/cyan]')
     all_input_zip_raw, _ = get_all_files_by_type(jalc_json_dir, ".zip", cache)
     all_input_zip: list[str] = [f for f in all_input_zip_raw if isinstance(f, str)]
     console.print(f'[cyan]Found {len(all_input_zip)} ZIP files to process[/cyan]')
 
     iteration_args = (
-        all_input_zip, preprocessed_citations_dir, csv_dir, publishers_filepath,
+        all_input_zip, preprocessed_citations_dir, csv_dir,
         orcid_index_for_processor, testing, cache
     )
 
@@ -376,7 +361,6 @@ def get_citations_and_metadata(
     zip_file: str,
     preprocessed_citations_dir: str,
     csv_dir: str,
-    publishers_filepath: str | None,
     orcid_index_filepath: str | None,
     testing: bool,
     cache: str | None,
@@ -397,13 +381,11 @@ def get_citations_and_metadata(
     storage_manager = get_storage_manager(storage_path, testing)
     jalc_csv = JalcProcessing(
         orcid_index=orcid_index_filepath,
-        publishers_filepath=publishers_filepath,
         storage_manager=storage_manager,
         testing=testing,
         citing=processing_citing,
         exclude_existing=exclude_existing,
         use_redis_orcid_index=use_redis,
-        use_redis_publishers=use_redis,
     )
 
     zip_f = zipfile.ZipFile(zip_file)
@@ -461,8 +443,6 @@ if __name__ == '__main__':  # pragma: no cover
                             help='Directory where CSV will be stored')
     arg_parser.add_argument('-o', '--orcid', dest='orcid_doi_filepath', required=False,
                             help='DOI-ORCID index filepath, to enrich data')
-    arg_parser.add_argument('-p', '--publishers', dest='publishers_filepath', required=False,
-                            help='Path to publishers CSV file for DOI prefix to publisher name mapping')
     arg_parser.add_argument('-ca', '--cache', dest='cache', required=False,
                             help='Path to a JSON file for caching processed files. Tracks which files have been '
                                  'processed to allow resuming. Deleted at the end of successful processing.')
@@ -491,8 +471,6 @@ if __name__ == '__main__':  # pragma: no cover
     csv_dir = normalize_path(csv_dir)
     orcid_doi_filepath = settings['orcid_doi_filepath'] if settings else args.orcid_doi_filepath
     orcid_doi_filepath = normalize_path(orcid_doi_filepath) if orcid_doi_filepath else None
-    publishers_filepath = settings.get('publishers_filepath', args.publishers_filepath) if settings else args.publishers_filepath
-    publishers_filepath = normalize_path(publishers_filepath) if publishers_filepath else None
     cache = settings['cache_filepath'] if settings else args.cache
     cache = normalize_path(cache) if cache else None
     testing = settings.get('testing', args.testing) if settings else args.testing
@@ -514,7 +492,6 @@ if __name__ == '__main__':  # pragma: no cover
         jalc_json_dir=jalc_json_dir,
         orcid_doi_filepath=orcid_doi_filepath,
         csv_dir=csv_dir,
-        publishers_filepath=publishers_filepath,
         cache=cache,
         testing=testing,
         use_redis=use_redis,
