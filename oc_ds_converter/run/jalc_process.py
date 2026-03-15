@@ -25,6 +25,7 @@ from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Manager, get_context
 from multiprocessing.managers import ValueProxy
 from pathlib import Path
+from contextlib import AbstractContextManager
 from typing import Callable
 
 import yaml
@@ -115,6 +116,7 @@ def _run_iteration(
 
         manager = Manager()
         entity_counter: ValueProxy[int] = manager.Value('i', 0)
+        counter_lock = manager.Lock()
         stop_event = threading.Event()
 
         with create_progress() as progress:
@@ -152,6 +154,7 @@ def _run_iteration(
                         storage_path=storage_path,
                         use_redis=use_redis,
                         entity_counter=entity_counter,
+                        counter_lock=counter_lock,
                     )
                     futures.append(future)
                 for future in futures:
@@ -369,6 +372,7 @@ def get_citations_and_metadata(
     storage_path: str | None = None,
     use_redis: bool = False,
     entity_counter: ValueProxy[int] | None = None,
+    counter_lock: AbstractContextManager[bool] | None = None,
 ) -> bool:
     cache_path = normalize_cache_path(cache)
     lock = FileLock(cache_path + ".lock")
@@ -409,8 +413,9 @@ def get_citations_and_metadata(
     _extract_redis_ids_and_update(jalc_csv, source_dict, processing_citing)
 
     def increment_counter() -> None:
-        if entity_counter is not None:
-            entity_counter.value += 1
+        if entity_counter is not None and counter_lock is not None:
+            with counter_lock:
+                entity_counter.value += 1
 
     if processing_citing:
         citing_entity_rows = _process_citing_entities(jalc_csv, source_dict, increment_counter)
