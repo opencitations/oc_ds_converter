@@ -76,11 +76,11 @@ class JalcProcessing(CrossrefStyleProcessing):
 
     def _extract_agents(self, item: dict) -> list[dict]:
         authors: list[dict[str, str]] = []
-        creators = item.get("creator_list")
-        if creators:
-            for c in creators:
+        creator_list = item.get("creator_list")
+        if creator_list:
+            for creator in creator_list:
                 agent: dict[str, str] = {"role": "author"}
-                names = c.get('names', [])
+                names = creator.get('names', [])
                 if names:
                     ja_name = self.get_ja(names)[0]
                     last_name = ja_name.get('last_name', '')
@@ -96,6 +96,11 @@ class JalcProcessing(CrossrefStyleProcessing):
                 agent["name"] = full_name
                 agent["family"] = last_name
                 agent["given"] = first_name
+                researcher_id_list = creator.get('researcher_id_list', [])
+                for researcher_id in researcher_id_list:
+                    if researcher_id.get('type') == 'ORCID' and researcher_id.get('id_code'):
+                        agent['orcid'] = researcher_id['id_code']
+                        break
                 authors.append(agent)
         return authors
 

@@ -40,6 +40,43 @@ class TestJalcProcessing(unittest.TestCase):
             }
         }
 
+        # Entity dict con autore che ha ORCID in researcher_id_list
+        self.entity_dict_with_orcid_in_metadata = {
+            "data": {
+                "doi": "10.11187/example.orcid",
+                "creator_list": [
+                    {
+                        "sequence": "1",
+                        "type": "person",
+                        "names": [
+                            {
+                                "lang": "en",
+                                "last_name": "LIN",
+                                "first_name": "Weiren"
+                            }
+                        ],
+                        "researcher_id_list": [
+                            {
+                                "id_code": "http://orcid.org/0000-0003-3228-2789",
+                                "type": "ORCID"
+                            }
+                        ]
+                    },
+                    {
+                        "sequence": "2",
+                        "type": "person",
+                        "names": [
+                            {
+                                "lang": "en",
+                                "last_name": "SMITH",
+                                "first_name": "John"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
         # Entity dict con autori omonimi
         self.entity_dict_homonyms = {
             "data": {
@@ -4563,6 +4600,37 @@ class TestJalcProcessing(unittest.TestCase):
         )
 
         expected_authors = ['山田, 太郎']
+        self.assertEqual(authors_strings_list, expected_authors)
+
+    def test_extract_agents_with_orcid_from_researcher_id_list(self):
+        """Test extraction of ORCID from researcher_id_list in creator metadata"""
+        jalc_processor = JalcProcessing()
+        authors_list = jalc_processor._extract_agents(
+            self.entity_dict_with_orcid_in_metadata["data"]
+        )
+
+        self.assertEqual(len(authors_list), 2)
+        self.assertEqual(authors_list[0]['family'], 'LIN')
+        self.assertEqual(authors_list[0]['given'], 'Weiren')
+        self.assertEqual(authors_list[0]['orcid'], 'http://orcid.org/0000-0003-3228-2789')
+        self.assertNotIn('orcid', authors_list[1])
+
+    def test_get_agents_strings_list_with_orcid_from_researcher_id_list(self):
+        """Test that ORCID from researcher_id_list is included in author string"""
+        jalc_processor = JalcProcessing()
+        csv_manager = CSVManager()
+        csv_manager.data = {}
+        jalc_processor.orcid_index = csv_manager
+
+        authors_list = jalc_processor._extract_agents(
+            self.entity_dict_with_orcid_in_metadata["data"]
+        )
+        authors_strings_list, _ = jalc_processor.get_agents_strings_list(
+            self.entity_dict_with_orcid_in_metadata["data"]["doi"],
+            authors_list
+        )
+
+        expected_authors = ['LIN, Weiren [orcid:0000-0003-3228-2789]', 'SMITH, John']
         self.assertEqual(authors_strings_list, expected_authors)
 
 
