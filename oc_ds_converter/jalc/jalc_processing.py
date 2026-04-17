@@ -5,14 +5,13 @@
 
 from __future__ import annotations
 
+import html
 import re
 
 from oc_ds_converter.lib.crossref_style_processing import CrossrefStyleProcessing
 from oc_ds_converter.oc_idmanager.jid import JIDManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 
-
-_WHITESPACE_RE = re.compile(r'\s+')
 
 # Inline lang prefixes observed in malformed JaLC entries (e.g.
 # "金大考古\nen: The Archaeological Journal of Kanazawa University"):
@@ -25,10 +24,7 @@ _INLINE_LANGS = ('ja', 'en')
 _LANG_PREFIX_RE = re.compile(
     rf'^\s*(?P<lang>{"|".join(_INLINE_LANGS)})\s*:\s*(?P<text>.+?)\s*$'
 )
-
-
-def _collapse_whitespace(value: str) -> str:
-    return _WHITESPACE_RE.sub(' ', value).strip()
+_WHITESPACE_RE = re.compile(r'\s+')
 
 
 def _expand_multilang_entries(entries: list[dict], text_key: str) -> list[dict]:
@@ -44,8 +40,15 @@ def _expand_multilang_entries(entries: list[dict], text_key: str) -> list[dict]:
         if 'lang' in entry or text_key not in entry:
             out.append(entry)
             continue
-        text = entry[text_key]
-        if not isinstance(text, str) or '\n' not in text:
+        raw = entry[text_key]
+        if not isinstance(raw, str):
+            out.append(entry)
+            continue
+        # Resolve HTML entities up-front: JaLC sources sometimes encode
+        # newlines as ``&#10;``, which would otherwise hide the packed-lang
+        # structure from the \n split below.
+        text = html.unescape(raw)
+        if '\n' not in text:
             out.append(entry)
             continue
         lines = [stripped for stripped in (s.strip() for s in text.splitlines()) if stripped]
@@ -56,9 +59,9 @@ def _expand_multilang_entries(entries: list[dict], text_key: str) -> list[dict]:
         for index, line in enumerate(lines):
             match = _LANG_PREFIX_RE.match(line)
             if match:
-                split.append({'lang': match['lang'], 'text': _collapse_whitespace(match['text'])})
+                split.append({'lang': match['lang'], 'text': _WHITESPACE_RE.sub(' ', match['text']).strip()})
             elif index == 0:
-                split.append({'lang': 'ja', 'text': _collapse_whitespace(line)})
+                split.append({'lang': 'ja', 'text': _WHITESPACE_RE.sub(' ', line).strip()})
             else:
                 split = []
                 break
@@ -126,7 +129,7 @@ class JalcProcessing(CrossrefStyleProcessing):
         title_list = item.get('title_list')
         if title_list:
             expanded = _expand_multilang_entries(title_list, 'title')
-            return _collapse_whitespace(self.get_ja(expanded)[0].get('title', ''))
+            return self.sanitize_text(self.get_ja(expanded)[0].get('title', ''))
         return ''
 
     def _extract_agents(self, item: dict) -> list[dict]:
@@ -138,8 +141,8 @@ class JalcProcessing(CrossrefStyleProcessing):
                 names = creator.get('names', [])
                 if names:
                     ja_name = self.get_ja(names)[0]
-                    last_name = _collapse_whitespace(ja_name.get('last_name', ''))
-                    first_name = _collapse_whitespace(ja_name.get('first_name', ''))
+                    last_name = self.sanitize_text(ja_name.get('last_name', ''))
+                    first_name = self.sanitize_text(ja_name.get('first_name', ''))
                 else:
                     last_name = ''
                     first_name = ''
@@ -170,9 +173,9 @@ class JalcProcessing(CrossrefStyleProcessing):
             if candidate_venues:
                 full_venue = [v for v in candidate_venues if v.get('type') == 'full']
                 if full_venue:
-                    venue_name = _collapse_whitespace(full_venue[0].get('journal_title_name', ''))
+                    venue_name = self.sanitize_text(full_venue[0].get('journal_title_name', ''))
                 elif candidate_venues:
-                    venue_name = _collapse_whitespace(candidate_venues[0].get('journal_title_name', ''))
+                    venue_name = self.sanitize_text(candidate_venues[0].get('journal_title_name', ''))
         if 'journal_id_list' in item:
             for v in item['journal_id_list']:
                 if isinstance(v, dict):
@@ -229,7 +232,7 @@ class JalcProcessing(CrossrefStyleProcessing):
 
     def _extract_publisher(self, item: dict) -> str:
         if 'publisher_list' in item:
-            return self.get_ja(item['publisher_list'])[0].get('publisher_name', '')
+            return self.sanitize_text(self.get_ja(item['publisher_list'])[0].get('publisher_name', ''))
         return ''
 
     def extract_all_ids(self, entity_dict: dict, is_citing: bool) -> tuple[list[str], list[str]]:

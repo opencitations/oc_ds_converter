@@ -1815,6 +1815,47 @@ class TestJalcProcessing(unittest.TestCase):
         venue_name = jalc_processor._extract_venue(item)
         self.assertEqual(venue_name, 'foo bar baz')
 
+    def test_extract_agents_html_entity_whitespace(self):
+        # Real JaLC record 10.14866/ajg.2009f.0.34.0: the source encodes a
+        # CR/LF inside a Japanese surname as HTML numeric references
+        # (``&#13;&#10;``). After decoding these must not survive into the
+        # CSV author cell, otherwise the curator's regex chokes on the
+        # embedded newline.
+        item = {
+            "creator_list": [
+                {
+                    "sequence": "1",
+                    "type": "person",
+                    "names": [
+                        {"lang": "ja", "last_name": "&#26706;&#13;&#10;原", "first_name": "康裕"}
+                    ],
+                }
+            ]
+        }
+        jalc_processor = JalcProcessing()
+        agents = jalc_processor._extract_agents(item)
+        self.assertEqual(agents[0]["family"], "桒 原")
+        self.assertEqual(agents[0]["name"], "桒 原, 康裕")
+
+    def test_extract_publisher_collapses_embedded_whitespace(self):
+        # Real JaLC record 10.34515/DATA.HSC-00000: publisher_name carries
+        # raw newlines and tabs from the source. Must be flattened to a
+        # single line before reaching the CSV.
+        item = {
+            "publisher_list": [
+                {
+                    "publisher_name": "\n\t  Hinode Science Center,\n\t  Institute for Space-Earth Environmental Research, Nagoya University\n\t",
+                    "lang": "en",
+                }
+            ]
+        }
+        jalc_processor = JalcProcessing()
+        publisher = jalc_processor._extract_publisher(item)
+        self.assertEqual(
+            publisher,
+            "Hinode Science Center, Institute for Space-Earth Environmental Research, Nagoya University",
+        )
+
     def test_extract_title_packed_multilang_single_entry(self):
         item = {
             "title_list": [
