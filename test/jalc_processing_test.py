@@ -1785,6 +1785,46 @@ class TestJalcProcessing(unittest.TestCase):
         venue_name = jalc_processor._extract_venue(item_dict["data"])
         self.assertEqual(venue_name, 'JSTS [issn:0911-551X issn:2186-4772 jid:jsts]')
 
+    def test_extract_venue_packed_multilang_single_entry(self):
+        # Real JaLC record 10.24517/0002000619: the publisher collapsed two
+        # languages into a single untagged entry separated by '\n' with an
+        # inline "en:" prefix. The first unprefixed line is the Japanese
+        # title; the extractor must recover it and must NOT emit a CSV cell
+        # containing a literal newline.
+        item = {
+            "journal_title_name_list": [
+                {
+                    "journal_title_name": "金大考古\nen: The Archaeological Journal of Kanazawa University"
+                }
+            ]
+        }
+        jalc_processor = JalcProcessing()
+        venue_name = jalc_processor._extract_venue(item)
+        self.assertEqual(venue_name, '金大考古')
+
+    def test_extract_venue_unparseable_multiline_is_flattened(self):
+        # A multiline entry that does NOT follow the "<lang>: ..." convention
+        # must not be split (no unsafe heuristic). Whitespace is still
+        # collapsed so the CSV cell stays single-line.
+        item = {
+            "journal_title_name_list": [
+                {"journal_title_name": "foo\nbar baz"}
+            ]
+        }
+        jalc_processor = JalcProcessing()
+        venue_name = jalc_processor._extract_venue(item)
+        self.assertEqual(venue_name, 'foo bar baz')
+
+    def test_extract_title_packed_multilang_single_entry(self):
+        item = {
+            "title_list": [
+                {"title": "日本語タイトル\nen: English Title Here"}
+            ]
+        }
+        jalc_processor = JalcProcessing()
+        title = jalc_processor._extract_title(item)
+        self.assertEqual(title, '日本語タイトル')
+
     def test_extract_pages_with_underscore(self):
         # first_page: 1_34, last_page: 1_48
         item_dict = {
