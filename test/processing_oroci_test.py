@@ -564,7 +564,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         op = OpenaireProcessing()
 
-        replaced_entity = {'schema': 'doi', 'identifier': 'doi:10.1000/FAKE_ID', 'valid': None}
+        replaced_entity = {'schema': 'handle', 'identifier': '20.500.11820/fake', 'valid': None}
         MODIFIED_ENTITY = {k: v for k, v in SAMPLE_ENTITY_FOR_CSV_CREATOR.items()}
         MODIFIED_ENTITY["identifier"]["to_be_val"] = []
         MODIFIED_ENTITY["identifier"]["to_be_val"].append(replaced_entity)
@@ -583,7 +583,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         op = OpenaireProcessing(testing=True)
 
-        replaced_entity = {'schema': 'doi', 'identifier': 'doi:10.1000/FAKE_ID', 'valid': None}
+        replaced_entity = {'schema': 'handle', 'identifier': '20.500.11820/fake', 'valid': None}
         MODIFIED_ENTITY = {k: v for k, v in SAMPLE_ENTITY_FOR_CSV_CREATOR.items()}
         MODIFIED_ENTITY["identifier"]["to_be_val"] = []
         MODIFIED_ENTITY["identifier"]["to_be_val"].append(replaced_entity)
@@ -966,8 +966,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(exp_7, out_7)
         self.assertEqual(exp_7_1, out_7_1)
 
-        # CASE8: None of the previous cases: return the first VALID DOI with highest priority prefix
-        #No one of the ids is valid, return an empty list
+        # CASE8: None of the previous cases: return the first syntactically valid DOI with highest priority prefix
         es_8 = [
             {'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.111', 'valid': None},
             {'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None},
@@ -975,11 +974,10 @@ class TestOpenaireProcessing(unittest.TestCase):
         ]
 
         out_8 = op.manage_doi_prefixes_priorities(es_8)
-        exp_8 = []
+        exp_8 = [{'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None}]
         self.assertEqual(exp_8, out_8)
 
-        # CASE8_1:
-        # No valid id among the ones with a max priority prefix -->  return the first valid ID in order of prefix priority
+        # CASE8_1: first syntactically valid DOI with highest priority prefix is returned
         es_8_1 = [
             {'schema': 'doi', 'identifier': '10.5281/zenodo.4725899', 'valid': None},
             {'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None},
@@ -987,7 +985,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         ]
 
         out_8_1 = op.manage_doi_prefixes_priorities(es_8_1)
-        exp_8_1 = [{'schema': 'doi', 'identifier': '10.5281/zenodo.4725899', 'valid': None}]
+        exp_8_1 = [{'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None}]
         self.assertEqual(exp_8_1, out_8_1)
 
         # CASE8_2:
@@ -1053,8 +1051,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         self.assertEqual(exp_7, out_7)
         self.assertEqual(exp_7_1, out_7_1)
 
-        # CASE8: None of the previous cases: return the first VALID DOI with highest priority prefix
-        #No one of the ids is valid, return an empty list
+        # CASE8: None of the previous cases: return the first syntactically valid DOI with highest priority prefix
         es_8 = [
             {'schema': 'doi', 'identifier': 'doi:10.5281/zenodo.111', 'valid': None},
             {'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None},
@@ -1062,11 +1059,10 @@ class TestOpenaireProcessing(unittest.TestCase):
         ]
 
         out_8 = op.manage_doi_prefixes_priorities(es_8)
-        exp_8 = []
+        exp_8 = [{'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None}]
         self.assertEqual(exp_8, out_8)
 
-        # CASE8_1:
-        # No valid id among the ones with a max priority prefix -->  return the first valid ID in order of prefix priority
+        # CASE8_1: first syntactically valid DOI with highest priority prefix is returned
         es_8_1 = [
             {'schema': 'doi', 'identifier': '10.5281/zenodo.4725899', 'valid': None},
             {'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None},
@@ -1074,7 +1070,7 @@ class TestOpenaireProcessing(unittest.TestCase):
         ]
 
         out_8_1 = op.manage_doi_prefixes_priorities(es_8_1)
-        exp_8_1 = [{'schema': 'doi', 'identifier': '10.5281/zenodo.4725899', 'valid': None}]
+        exp_8_1 = [{'schema': 'doi', 'identifier': 'doi:10.1184/abc', 'valid': None}]
         self.assertEqual(exp_8_1, out_8_1)
 
         # CASE8_2:
@@ -1110,7 +1106,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         op = OpenaireProcessing()
         # CASE1_2: No already validated ids + 1 id to be validated, which is invalid
-        inp_2 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:999920662931', 'valid': None}]}
+        inp_2 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:abc', 'valid': None}]}
         out_2 = op.to_validated_id_list(inp_2)
         exp_2 = []
         self.assertEqual(out_2, exp_2)
@@ -1134,7 +1130,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         op = OpenaireProcessing()
         # CASE1_5: No already validated ids + 1 id to be validated, which is not valid
-        inp_5 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': "doi", 'identifier': 'doi:10.0000/fake_id', 'valid': None}]}
+        inp_5 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': "doi", 'identifier': 'doi:INVALID/fake', 'valid': None}]}
         out_5 = op.to_validated_id_list(inp_5)
         exp_5 = []
         self.assertEqual(out_5, exp_5)
@@ -1272,7 +1268,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         op = OpenaireProcessing(testing=True)
         # CASE1_2: No already validated ids + 1 id to be validated, which is invalid
-        inp_2 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:999920662931', 'valid': None}]}
+        inp_2 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': 'pmid', 'identifier': 'pmid:abc', 'valid': None}]}
         out_2 = op.to_validated_id_list(inp_2)
         exp_2 = []
         self.assertEqual(out_2, exp_2)
@@ -1296,7 +1292,7 @@ class TestOpenaireProcessing(unittest.TestCase):
 
         op = OpenaireProcessing(testing=True)
         # CASE1_5: No already validated ids + 1 id to be validated, which is not valid
-        inp_5 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': "doi", 'identifier': 'doi:10.0000/fake_id', 'valid': None}]}
+        inp_5 =  {'valid': [], 'not_valid': [], 'to_be_val': [{'schema': "doi", 'identifier': 'doi:INVALID/fake', 'valid': None}]}
         out_5 = op.to_validated_id_list(inp_5)
         exp_5 = []
         self.assertEqual(out_5, exp_5)
