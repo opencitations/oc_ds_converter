@@ -1,3 +1,7 @@
+<!--
+SPDX-License-Identifier: CC0-1.0
+-->
+
 # [2.0.0](https://github.com/opencitations/oc_ds_converter/compare/v1.1.0...v2.0.0) (2026-04-02)
 
 
