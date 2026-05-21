@@ -474,10 +474,16 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
     try:
         data = []
         with open(json_path, 'r', encoding='utf-8') as json_object:
-            for line in json_object:
+            content = json_object.read()
+            for line in content.splitlines():
                 line = line.strip()
                 if line:
-                    data.append(json.loads(line))
+                    try:
+                        data.append(json.loads(line))
+                    except JSONDecodeError:
+                        # not JSONL, try as a single JSON object
+                        data = [json.loads(content)]
+                        break
         return data
     except JSONDecodeError as e:
         # File-level preview
