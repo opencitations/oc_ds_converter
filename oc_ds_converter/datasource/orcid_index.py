@@ -8,6 +8,7 @@ import json
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from csv import DictReader
+from multiprocessing import get_context
 from os import cpu_count, sep, walk
 from os.path import exists
 from typing import Protocol, cast
@@ -113,7 +114,9 @@ def load_orcid_index_to_redis(
             "[green]Loading DOI-ORCID index files", total=len(files_to_process)
         )
 
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        with ProcessPoolExecutor(
+            max_workers=max_workers, mp_context=get_context("forkserver")
+        ) as executor:
             futures = {
                 executor.submit(_process_csv_file, path): path
                 for path in files_to_process

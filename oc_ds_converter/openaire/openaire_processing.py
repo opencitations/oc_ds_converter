@@ -86,12 +86,13 @@ class OpenaireProcessing(RaProcessor):
             "Bioentity": "other",
             "Sound": "other",
         }
-        self.doi_m = DOIManager(storage_manager=self.storage_manager, testing=testing)
-        self.pmid_m = PMIDManager(storage_manager=self.storage_manager, testing=testing)
-        self.pmc_m = PMCIDManager(storage_manager=self.storage_manager, testing=testing)
-        self.arxiv_m = ArXivManager(storage_manager=self.storage_manager, testing=testing)
+        use_api = not testing
+        self.doi_m = DOIManager(use_api_service=use_api, storage_manager=self.storage_manager, testing=testing)
+        self.pmid_m = PMIDManager(use_api_service=use_api, storage_manager=self.storage_manager, testing=testing)
+        self.pmc_m = PMCIDManager(use_api_service=use_api, storage_manager=self.storage_manager, testing=testing)
+        self.arxiv_m = ArXivManager(use_api_service=use_api, storage_manager=self.storage_manager, testing=testing)
 
-        self.orcid_m = ORCIDManager(storage_manager=self.storage_manager, testing=testing)
+        self.orcid_m = ORCIDManager(use_api_service=use_api, storage_manager=self.storage_manager, testing=testing)
 
         self._id_man_dict = {"doi":self.doi_m, "pmid": self.pmid_m, "pmcid": self.pmc_m,"pmc": self.pmc_m, "arxiv":self.arxiv_m}
 
@@ -102,12 +103,12 @@ class OpenaireProcessing(RaProcessor):
         # a storage_manager db would be considered to have been processed and thus would be ignored by the process
         # and lost.
 
-        self.tmp_doi_m = DOIManager(storage_manager=self.temporary_manager, testing=testing)
-        self.tmp_pmid_m = PMIDManager(storage_manager=self.temporary_manager, testing=testing)
-        self.tmp_pmc_m = PMCIDManager(storage_manager=self.temporary_manager, testing=testing)
-        self.tmp_arxiv_m = ArXivManager(storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_doi_m = DOIManager(use_api_service=use_api, storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_pmid_m = PMIDManager(use_api_service=use_api, storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_pmc_m = PMCIDManager(use_api_service=use_api, storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_arxiv_m = ArXivManager(use_api_service=use_api, storage_manager=self.temporary_manager, testing=testing)
 
-        self.tmp_orcid_m = ORCIDManager(storage_manager=self.temporary_manager, testing=testing)
+        self.tmp_orcid_m = ORCIDManager(use_api_service=use_api, storage_manager=self.temporary_manager, testing=testing)
 
         self.tmp_id_man_dict = {"doi": self.tmp_doi_m, "pmid": self.tmp_pmid_m, "pmcid": self.tmp_pmc_m, "pmc": self.tmp_pmc_m,
                              "arxiv": self.tmp_arxiv_m}
@@ -396,7 +397,10 @@ class OpenaireProcessing(RaProcessor):
             if schema == "doi":
                 id = ent.get("identifier")
                 splitted_pref = id.split('/')[0]
-                pref = re.findall(r"(10.\d{4,9})", splitted_pref)[0]
+                matches = re.findall(r"(10.\d{4,9})", splitted_pref)
+                if not matches:
+                    return id_dict_list
+                pref = matches[0]
                 if pref == "10.48550":
                     if id.startswith("doi:"):
                         id = id[len("doi:"):]

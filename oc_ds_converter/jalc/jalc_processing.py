@@ -5,9 +5,73 @@
 
 from __future__ import annotations
 
+import html
+import re
+
 from oc_ds_converter.lib.crossref_style_processing import CrossrefStyleProcessing
 from oc_ds_converter.oc_idmanager.jid import JIDManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
+
+
+# Inline lang prefixes observed in malformed JaLC entries (e.g.
+# "金大考古\nen: The Archaeological Journal of Kanazawa University"):
+# the non-prefixed line is JaLC's primary language (ja), prefixed lines
+# declare their own language. A full scan of the JaLC dump (9.85M records)
+# shows only 'en:' appears as an inline prefix in packed-multilang entries;
+# all other languages (de, ru, fr, ...) occur exclusively as explicit
+# ``lang`` tags on well-formed entries and are handled by ``get_ja``.
+_INLINE_LANGS = ('ja', 'en')
+_LANG_PREFIX_RE = re.compile(
+    rf'^\s*(?P<lang>{"|".join(_INLINE_LANGS)})\s*:\s*(?P<text>.+?)\s*$'
+)
+_WHITESPACE_RE = re.compile(r'\s+')
+
+
+def _expand_multilang_entries(entries: list[dict], text_key: str) -> list[dict]:
+    """Split lang-less entries whose text packs multiple languages separated
+    by newlines (``"<ja>\\n en: <text>"``) into one entry per language. The
+    non-prefixed line is tagged as Japanese (JaLC's primary language).
+    Entries that already declare ``lang``, or that do not match the
+    packed-lang pattern, are returned unchanged. Sibling keys (such as
+    ``type``) are preserved on every derived entry.
+    """
+    out: list[dict] = []
+    for entry in entries:
+        if 'lang' in entry or text_key not in entry:
+            out.append(entry)
+            continue
+        raw = entry[text_key]
+        if not isinstance(raw, str):
+            out.append(entry)
+            continue
+        # Resolve HTML entities up-front: JaLC sources sometimes encode
+        # newlines as ``&#10;``, which would otherwise hide the packed-lang
+        # structure from the \n split below.
+        text = html.unescape(raw)
+        if '\n' not in text:
+            out.append(entry)
+            continue
+        lines = [stripped for stripped in (s.strip() for s in text.splitlines()) if stripped]
+        if len(lines) < 2:
+            out.append(entry)
+            continue
+        split: list[dict] = []
+        for index, line in enumerate(lines):
+            match = _LANG_PREFIX_RE.match(line)
+            if match:
+                split.append({'lang': match['lang'], 'text': _WHITESPACE_RE.sub(' ', match['text']).strip()})
+            elif index == 0:
+                split.append({'lang': 'ja', 'text': _WHITESPACE_RE.sub(' ', line).strip()})
+            else:
+                split = []
+                break
+        if not split:
+            out.append(entry)
+            continue
+        extras = {k: v for k, v in entry.items() if k != text_key}
+        for piece in split:
+            out.append({**extras, text_key: piece['text'], 'lang': piece['lang']})
+    return out
 
 
 class JalcProcessing(CrossrefStyleProcessing):
@@ -64,7 +128,8 @@ class JalcProcessing(CrossrefStyleProcessing):
     def _extract_title(self, item: dict) -> str:
         title_list = item.get('title_list')
         if title_list:
-            return self.get_ja(title_list)[0].get('title', '')
+            expanded = _expand_multilang_entries(title_list, 'title')
+            return self.sanitize_text(self.get_ja(expanded)[0].get('title', ''))
         return ''
 
     def _extract_agents(self, item: dict) -> list[dict]:
@@ -76,8 +141,8 @@ class JalcProcessing(CrossrefStyleProcessing):
                 names = creator.get('names', [])
                 if names:
                     ja_name = self.get_ja(names)[0]
-                    last_name = ja_name.get('last_name', '')
-                    first_name = ja_name.get('first_name', '')
+                    last_name = self.sanitize_text(ja_name.get('last_name', ''))
+                    first_name = self.sanitize_text(ja_name.get('first_name', ''))
                 else:
                     last_name = ''
                     first_name = ''
@@ -101,13 +166,16 @@ class JalcProcessing(CrossrefStyleProcessing):
         venue_name = ''
         journal_ids: list[str] = []
         if 'journal_title_name_list' in item:
-            candidate_venues = self.get_ja(item['journal_title_name_list'])
+            expanded = _expand_multilang_entries(
+                item['journal_title_name_list'], 'journal_title_name'
+            )
+            candidate_venues = self.get_ja(expanded)
             if candidate_venues:
                 full_venue = [v for v in candidate_venues if v.get('type') == 'full']
                 if full_venue:
-                    venue_name = full_venue[0].get('journal_title_name', '')
+                    venue_name = self.sanitize_text(full_venue[0].get('journal_title_name', ''))
                 elif candidate_venues:
-                    venue_name = candidate_venues[0].get('journal_title_name', '')
+                    venue_name = self.sanitize_text(candidate_venues[0].get('journal_title_name', ''))
         if 'journal_id_list' in item:
             for v in item['journal_id_list']:
                 if isinstance(v, dict):
@@ -164,7 +232,7 @@ class JalcProcessing(CrossrefStyleProcessing):
 
     def _extract_publisher(self, item: dict) -> str:
         if 'publisher_list' in item:
-            return self.get_ja(item['publisher_list'])[0].get('publisher_name', '')
+            return self.sanitize_text(self.get_ja(item['publisher_list'])[0].get('publisher_name', ''))
         return ''
 
     def extract_all_ids(self, entity_dict: dict, is_citing: bool) -> tuple[list[str], list[str]]:

@@ -1,3 +1,16 @@
+## [2.0.1](https://github.com/opencitations/oc_ds_converter/compare/v2.0.0...v2.0.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* **jalc:** decode html entities before flattening whitespace ([24faa3c](https://github.com/opencitations/oc_ds_converter/commit/24faa3cbcf3059c469de8f4b30d7bac4fbb85fd7)), closes [#13](https://github.com/opencitations/oc_ds_converter/issues/13) [#10](https://github.com/opencitations/oc_ds_converter/issues/10)
+* **jalc:** split packed multilang entries to keep CSV cells single-line ([0c8e357](https://github.com/opencitations/oc_ds_converter/commit/0c8e357e665030694c2bece70b9bdbac0b50252b))
+* **openaire:** disable api calls in test mode and guard doi prefix regex ([c0516db](https://github.com/opencitations/oc_ds_converter/commit/c0516dbd4ec22d91b7580759675abf4bd4e7337b))
+
+<!--
+SPDX-License-Identifier: CC0-1.0
+-->
+
 # [2.0.0](https://github.com/opencitations/oc_ds_converter/compare/v1.1.0...v2.0.0) (2026-04-02)
 
 

@@ -6,6 +6,7 @@ version = 1
 path = [
     ".gitignore",
     ".releaserc.json",
+    "CHANGELOG.md",
     "LICENSE",
     "oc_ds_converter/crossref/data/.gitkeep",
     "pyproject.toml",

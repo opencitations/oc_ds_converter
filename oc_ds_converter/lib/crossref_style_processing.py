@@ -24,6 +24,9 @@ from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import Storage
 from oc_ds_converter.ra_processor import RaProcessor
 
 
+_WHITESPACE_RE = re.compile(r'\s+')
+
+
 class CrossrefStyleProcessing(RaProcessor):
     """Base class for processors that follow the Crossref-style pattern.
 
@@ -39,6 +42,20 @@ class CrossrefStyleProcessing(RaProcessor):
             soup = BeautifulSoup(text, 'html.parser')
             text = soup.get_text()
         return html.unescape(text).replace('\n', '')
+
+    @staticmethod
+    def sanitize_text(value: str) -> str:
+        """Resolve HTML entities and flatten every whitespace run to a single
+        space. Entity resolution runs only when ``&`` appears in the input
+        (cheap membership test) because ``html.unescape`` is pure Python and
+        scans the whole string. Running the collapse *after* the unescape is
+        deliberate: sources sometimes encode embedded control characters as
+        ``&#13;&#10;``, and the decoded ``\\r``/``\\n`` must be collapsed too
+        or they will survive into the downstream CSV.
+        """
+        if '&' in value:
+            value = html.unescape(value)
+        return _WHITESPACE_RE.sub(' ', value).strip()
 
     def __init__(
         self,
