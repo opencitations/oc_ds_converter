@@ -62,7 +62,7 @@ class DataciteProcessing(RaProcessor):
                  testing: bool = True, storage_manager: Optional[StorageManager] = None,
                  use_orcid_api: bool = True, use_ror_api: bool = True, use_viaf_api:bool = True, use_wikidata_api:bool = True,
                  exclude_existing: bool = False):
-        super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
+        super(DataciteProcessing, self).__init__(orcid_index)
         # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
         if storage_manager is None:
             self.storage_manager = RedisStorageManager(testing=testing)
@@ -1020,3 +1020,10 @@ class DataciteProcessing(RaProcessor):
             return [ids[i] for i, v in enumerate(validity) if v]
         else:
             raise ValueError("redis_db must be either 'ra' or 'br'")
+        
+    def prefetch_doi_orcid_index(self, dois: list[str]) -> None:
+        keys = [
+            norm for doi in dois
+            if (norm := self.doi_m.normalise(doi, include_prefix=True))
+        ]
+        self._doi_orcid_cache = self.orcid_index.get_values_batch(keys)

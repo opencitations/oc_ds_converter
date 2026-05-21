@@ -19,8 +19,14 @@ import yaml
 from filelock import FileLock
 from tqdm import tqdm
 
+from oc_ds_converter.datasource.orcid_index import (
+    OrcidIndexRedis,
+    load_orcid_index_to_redis,
+)
+
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
 from oc_ds_converter.lib.file_manager import normalize_path
+from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
@@ -50,13 +56,23 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
             log = '[INFO: datacite_process] Processing: ' + '; '.join(what)
             print(log)
 
+    if redis_storage_manager:
+        orcid_index_redis = OrcidIndexRedis(testing=testing)
+        if orcid_doi_filepath:
+            print('Updating DOI-ORCID index in Redis...')
+            orcid_index_redis.clear()
+            load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
+            print('DOI-ORCID index updated in Redis')
+        else:
+            print('Using existing DOI-ORCID index from Redis')
+
     if verbose:
         print(f'[INFO: datacite_process] Getting all files from {datacite_json_dir}')
 
     all_input_json = []
     for entry in os.listdir(datacite_json_dir):
         fp = os.path.join(datacite_json_dir, entry)
-        if os.path.isfile(fp) and fp.endswith(".json") and os.path.basename(fp).startswith("jSonFile_") and not entry.startswith("._"):
+        if os.path.isfile(fp) and (fp.endswith(".jsonl") or fp.endswith(".json")):
             all_input_json.append(fp)
 
     # dedup e ordine stabile
@@ -225,7 +241,14 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
         (istanza della classe DataciteProcessing)"""
         all_br = []
         all_ra = []
+        all_dois_for_orcid_index = []
+        
         for entity in sli_da:
+            if entity:
+                if entity.get("type") == "dois":
+                    doi_id = entity.get("id")
+                    if doi_id:
+                        all_dois_for_orcid_index.append(doi_id)
             if entity and "attributes" in entity:
                 attributes = entity["attributes"]
                 rel_ids = attributes.get("relatedIdentifiers")
@@ -248,6 +271,7 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
 
+        dc_csv.prefetch_doi_orcid_index(all_dois_for_orcid_index)
         redis_validity_values_br = dc_csv.get_reids_validity_list(all_br, "br")
         redis_validity_values_ra = dc_csv.get_reids_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
@@ -448,12 +472,30 @@ def pathoo(path:str) -> None:
 
 def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
     try:
-        with open(json_path, 'r') as json_object:
-            chunk = json.load(json_object)
-            data = chunk.get('data')
+        with open(json_path, 'r', encoding='utf-8') as json_object:
+            content = json_object.read()
+
+        try:
+            # try JSONL first
+            lines = [l.strip() for l in content.splitlines() if l.strip()]
+            json.loads(lines[0])  # if first line parses as complete JSON, it's JSONL
+            if len(lines) > 1:
+                data = [json.loads(line) for line in lines]
+                return data
+        except JSONDecodeError:
+            pass  # not JSONL, fall through to single JSON parsing
+
+        # single JSON object
+        chunk = json.loads(content)
+        data = chunk.get('data')
+        if isinstance(data, list):
             return data
+        elif isinstance(data, dict):
+            return [data]
+        else:
+            return [chunk]
+
     except JSONDecodeError as e:
-        # File-level preview
         try:
             preview = Path(json_path).read_text(encoding='utf-8', errors='ignore')[:preview_chars]
             preview = preview.rstrip().replace('\n', '\\n')
@@ -463,12 +505,11 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
 
         print(f"[JSON ERROR] file={json_path}: {e}\n  preview: {preview}")
 
-        # Dump full bad file
         if bad_dir:
             os.makedirs(bad_dir, exist_ok=True)
             bad_fp = os.path.join(bad_dir, Path(json_path).name + '.bad.json')
             try:
-                Path(json_path).replace(bad_fp)  # Atomic move if possible
+                Path(json_path).replace(bad_fp)
             except Exception:
                 with open(bad_fp, 'wb') as bf:
                     bf.write(Path(json_path).read_bytes())
@@ -500,6 +541,12 @@ if __name__ == '__main__':
                                  'instance of a FakeRedis class is created and deleted by the end of the process.')
     arg_parser.add_argument('-m', '--max_workers', dest='max_workers', required=False, default=1, type=int,
                             help='Workers number')
+    arg_parser.add_argument('-s', '--storage_path', dest='storage_path', required=False, type=str,
+                            help='Path for ID validation storage. Use .db extension for SQLite or .json for '
+                                 'in-memory JSON storage. If not specified, uses Redis (default). '
+                                 'Note: SQLite and JSON storage are single-threaded (--max_workers is ignored).')
+    arg_parser.add_argument("-r", '--redis_storage_manager', dest='redis_storage_manager', action='store_true',
+                            required=False, help='Use Redis as a storage manager for processing')
     arg_parser.add_argument('--no-orcid-api', dest='no_orcid_api', action='store_true', required=False,
                             help='Disable ORCID API validation (use only DOI→ORCID index and caches)')
     arg_parser.add_argument('--no-ror-api', dest='no_ror_api', action='store_true', required=False,
@@ -530,14 +577,21 @@ if __name__ == '__main__':
     verbose = settings['verbose'] if settings else args.verbose
     testing = settings['testing'] if settings else args.testing
     max_workers = settings['max_workers'] if settings else args.max_workers
+    storage_path = settings['storage_path'] if settings else args.storage_path
+    wanted_doi_filepath = ""
     no_orcid_api = settings.get('disable_orcid_api', False) if settings else args.no_orcid_api
     no_ror_api = settings.get('disable_ror_api', False) if settings else args.no_ror_api
     no_viaf_api = settings.get('disable_viaf_api', False) if settings else args.no_viaf_api
     no_wikidata_api = settings.get('disable_wikidata_api', False) if settings else args.no_wikidata_api
+    redis_storage_manager = settings.get('redis_storage_manager', True) if settings else args.redis_storage_manager
     use_orcid_api = not no_orcid_api
     use_ror_api = not no_ror_api
     use_viaf_api =  not no_viaf_api
     use_wikidata_api = not no_wikidata_api
+    use_redis_storage_manager = redis_storage_manager
+    if storage_path and max_workers > 1:
+        print('[Warning] SQLite/JSON storage requires single-threaded mode. Setting max_workers=1')
+        max_workers = 1
 
     preprocess(datacite_json_dir=datacite_json_dir, publishers_filepath=publishers_filepath, orcid_doi_filepath=orcid_doi_filepath, csv_dir=csv_dir, wanted_doi_filepath=wanted_doi_filepath, cache=cache, verbose=verbose, storage_path=storage_path, testing=testing,
-               redis_storage_manager=redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api, use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
+               redis_storage_manager=use_redis_storage_manager, max_workers=max_workers, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api, use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
