@@ -62,7 +62,7 @@ class DataciteProcessing(RaProcessor):
                  testing: bool = True, storage_manager: Optional[StorageManager] = None,
                  use_orcid_api: bool = True, use_ror_api: bool = True, use_viaf_api:bool = True, use_wikidata_api:bool = True,
                  exclude_existing: bool = False):
-        super(DataciteProcessing, self).__init__(orcid_index, doi_csv)
+        super(DataciteProcessing, self).__init__(orcid_index)
         # self.preprocessor = DatacitePreProcessing(inp_dir, out_dir, interval, filter)
         if storage_manager is None:
             self.storage_manager = RedisStorageManager(testing=testing)
