@@ -475,22 +475,25 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
         with open(json_path, 'r', encoding='utf-8') as json_object:
             content = json_object.read()
 
-        # try JSONL first (one JSON object per line)
-        lines = [l.strip() for l in content.splitlines() if l.strip()]
-        if len(lines) > 1:
-            data = [json.loads(line) for line in lines]
-            return data
+        try:
+            # try JSONL first
+            lines = [l.strip() for l in content.splitlines() if l.strip()]
+            json.loads(lines[0])  # if first line parses as complete JSON, it's JSONL
+            if len(lines) > 1:
+                data = [json.loads(line) for line in lines]
+                return data
+        except JSONDecodeError:
+            pass  # not JSONL, fall through to single JSON parsing
 
         # single JSON object
         chunk = json.loads(content)
         data = chunk.get('data')
-
         if isinstance(data, list):
             return data
         elif isinstance(data, dict):
             return [data]
         else:
-            return [chunk]  # no 'data' key, return the whole object as a list
+            return [chunk]
 
     except JSONDecodeError as e:
         try:
