@@ -72,7 +72,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
     all_input_json = []
     for entry in os.listdir(datacite_json_dir):
         fp = os.path.join(datacite_json_dir, entry)
-        if os.path.isfile(fp) and fp.endswith(".jsonl"):
+        if os.path.isfile(fp) and (fp.endswith(".jsonl") or fp.endswith(".json")):
             all_input_json.append(fp)
 
     # dedup e ordine stabile
