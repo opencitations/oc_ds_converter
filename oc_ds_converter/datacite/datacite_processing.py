@@ -1020,3 +1020,10 @@ class DataciteProcessing(RaProcessor):
             return [ids[i] for i, v in enumerate(validity) if v]
         else:
             raise ValueError("redis_db must be either 'ra' or 'br'")
+        
+    def prefetch_doi_orcid_index(self, dois: list[str]) -> None:
+        keys = [
+            norm for doi in dois
+            if (norm := self.doi_m.normalise(doi, include_prefix=True))
+        ]
+        self._doi_orcid_cache = self.orcid_index.get_values_batch(keys)

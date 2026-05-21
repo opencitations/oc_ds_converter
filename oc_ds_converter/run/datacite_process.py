@@ -19,6 +19,11 @@ import yaml
 from filelock import FileLock
 from tqdm import tqdm
 
+from oc_ds_converter.datasource.orcid_index import (
+    OrcidIndexRedis,
+    load_orcid_index_to_redis,
+)
+
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
@@ -50,6 +55,16 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
                 what.append('DOI-ORCID index')
             log = '[INFO: datacite_process] Processing: ' + '; '.join(what)
             print(log)
+
+    if redis_storage_manager:
+        orcid_index_redis = OrcidIndexRedis(testing=testing)
+        if orcid_doi_filepath:
+            print('Updating DOI-ORCID index in Redis...')
+            orcid_index_redis.clear()
+            load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
+            print('DOI-ORCID index updated in Redis')
+        else:
+            print('Using existing DOI-ORCID index from Redis')
 
     if verbose:
         print(f'[INFO: datacite_process] Getting all files from {datacite_json_dir}')
@@ -226,7 +241,14 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
         (istanza della classe DataciteProcessing)"""
         all_br = []
         all_ra = []
+        all_dois_for_orcid_index = []
+        
         for entity in sli_da:
+            if entity:
+                if entity.get("type") == "dois":
+                    doi_id = entity.get("id")
+                    if doi_id:
+                        all_dois_for_orcid_index.append(doi_id)
             if entity and "attributes" in entity:
                 attributes = entity["attributes"]
                 rel_ids = attributes.get("relatedIdentifiers")
@@ -249,6 +271,7 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
 
+        dc_csv.prefetch_doi_orcid_index(all_dois_for_orcid_index)
         redis_validity_values_br = dc_csv.get_reids_validity_list(all_br, "br")
         redis_validity_values_ra = dc_csv.get_reids_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
