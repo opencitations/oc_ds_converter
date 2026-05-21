@@ -472,21 +472,27 @@ def pathoo(path:str) -> None:
 
 def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
     try:
-        data = []
         with open(json_path, 'r', encoding='utf-8') as json_object:
             content = json_object.read()
-            for line in content.splitlines():
-                line = line.strip()
-                if line:
-                    try:
-                        data.append(json.loads(line))
-                    except JSONDecodeError:
-                        # not JSONL, try as a single JSON object
-                        data = [json.loads(content)]
-                        break
-        return data
+
+        # try JSONL first (one JSON object per line)
+        lines = [l.strip() for l in content.splitlines() if l.strip()]
+        if len(lines) > 1:
+            data = [json.loads(line) for line in lines]
+            return data
+
+        # single JSON object
+        chunk = json.loads(content)
+        data = chunk.get('data')
+
+        if isinstance(data, list):
+            return data
+        elif isinstance(data, dict):
+            return [data]
+        else:
+            return [chunk]  # no 'data' key, return the whole object as a list
+
     except JSONDecodeError as e:
-        # File-level preview
         try:
             preview = Path(json_path).read_text(encoding='utf-8', errors='ignore')[:preview_chars]
             preview = preview.rstrip().replace('\n', '\\n')
@@ -496,12 +502,11 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
 
         print(f"[JSON ERROR] file={json_path}: {e}\n  preview: {preview}")
 
-        # Dump full bad file
         if bad_dir:
             os.makedirs(bad_dir, exist_ok=True)
             bad_fp = os.path.join(bad_dir, Path(json_path).name + '.bad.json')
             try:
-                Path(json_path).replace(bad_fp)  # Atomic move if possible
+                Path(json_path).replace(bad_fp)
             except Exception:
                 with open(bad_fp, 'wb') as bf:
                     bf.write(Path(json_path).read_bytes())
