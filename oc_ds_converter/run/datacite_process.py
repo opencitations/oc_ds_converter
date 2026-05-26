@@ -477,8 +477,10 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
 
         try:
             # try JSONL first
+            print(f"JSON/JSONL file: {json_path}")
             lines = [l.strip() for l in content.splitlines() if l.strip()]
-            json.loads(lines[0])  # if first line parses as complete JSON, it's JSONL
+            if lines > 0:
+                json.loads(lines[0])  # if first line parses as complete JSON, it's JSONL
             if len(lines) > 1:
                 data = [json.loads(line) for line in lines]
                 return data
