@@ -278,7 +278,7 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
 
-        # dc_csv.prefetch_doi_orcid_index(all_dois_for_orcid_index)
+        dc_csv.prefetch_doi_orcid_index(all_dois_for_orcid_index)
         redis_validity_values_br = dc_csv.get_reids_validity_list(all_br, "br")
         redis_validity_values_ra = dc_csv.get_reids_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
