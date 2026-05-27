@@ -474,6 +474,9 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
     try:
         with open(json_path, 'r', encoding='utf-8') as json_object:
             content = json_object.read()
+        
+        if not content.strip():
+            return None
 
         try:
             # try JSONL first
