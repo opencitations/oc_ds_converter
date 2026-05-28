@@ -25,12 +25,14 @@ from oc_ds_converter.datasource.orcid_index import (
 )
 
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
+from oc_ds_converter.lib.console import advance_progress, console, create_progress
+from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
-from oc_ds_converter.lib.console import advance_progress, console, create_progress
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
 
 
 def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_filepath:str|None,
@@ -57,15 +59,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
             log = '[INFO: datacite_process] Processing: ' + '; '.join(what)
             print(log)
 
-    if redis_storage_manager:
-        orcid_index_redis = OrcidIndexRedis(testing=testing)
-        if orcid_doi_filepath:
-            console.print('[cyan]Updating DOI-ORCID index in Redis...[/cyan]')
-            orcid_index_redis.clear()
-            load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
-            console.print('[green]DOI-ORCID index updated in Redis[/green]')
-        else:
-            console.print('[cyan]Using existing DOI-ORCID index from Redis[/cyan]')
+    orcid_doi_filepath = CSVManager(orcid_doi_filepath)
 
     if verbose:
         console.print(f'[cyan]Getting all files from {datacite_json_dir}[/cyan]')
@@ -170,7 +164,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
 
 
 def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citations_dir: str, csv_dir: str,
-                               orcid_index: str,
+                               orcid_index: str | CSVManager,
                                doi_csv: str, publishers_filepath: str, storage_path: str,
                                redis_storage_manager: bool,
                                testing: bool, cache: str, is_first_iteration:bool, use_orcid_api: bool, use_ror_api: bool,
@@ -278,7 +272,6 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
 
-        dc_csv.prefetch_doi_orcid_index(all_dois_for_orcid_index)
         redis_validity_values_br = dc_csv.get_reids_validity_list(all_br, "br")
         redis_validity_values_ra = dc_csv.get_reids_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
@@ -484,10 +477,10 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
 
         try:
             # try JSONL first
+            print(f"JSON/JSONL file: {json_path}")
             lines = [l.strip() for l in content.splitlines() if l.strip()]
             if len(lines) > 0:
                 json.loads(lines[0])  # if first line parses as complete JSON, it's JSONL
-            if len(lines) > 1:
                 data = [json.loads(line) for line in lines]
                 return data
             else:
