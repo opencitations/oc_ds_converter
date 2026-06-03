@@ -74,6 +74,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
     all_input_json = sorted(list(dict.fromkeys(all_input_json)))
 
     if not redis_storage_manager or max_workers == 1:
+        bad_list = []
         with create_progress() as progress:
             task = progress.add_task(f"[green]First iteration (citing entities)", total=len(all_input_json))
             for json_file in all_input_json:
@@ -86,19 +87,23 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
                                         use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
                     advance_progress(progress, task, processed=was_processed)
                 else:
+                    bad_list.append(json_file)
                     advance_progress(progress, task, processed=False)
 
         with create_progress() as progress:
             task = progress.add_task(f"[green]Second iteration (cited entities)", total=len(all_input_json))
             for json_file in all_input_json:
-                chunk = read_json(json_file, bad_dir)
-                if chunk:
-                    was_processed = get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                       wanted_doi_filepath, publishers_filepath, storage_path,
-                                       redis_storage_manager,
-                                       testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
-                                        use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
-                    advance_progress(progress, task, processed=was_processed)
+                if json_file not in bad_list:
+                    chunk = read_json(json_file, bad_dir)
+                    if chunk:
+                        was_processed = get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+                                        wanted_doi_filepath, publishers_filepath, storage_path,
+                                        redis_storage_manager,
+                                        testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
+                                            use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
+                        advance_progress(progress, task, processed=was_processed)
+                    else:
+                        advance_progress(progress, task, processed=False)
                 else:
                     advance_progress(progress, task, processed=False)
 
