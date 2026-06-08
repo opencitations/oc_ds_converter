@@ -25,11 +25,14 @@ from oc_ds_converter.datasource.orcid_index import (
 )
 
 from oc_ds_converter.datacite.datacite_processing import DataciteProcessing
+from oc_ds_converter.lib.console import advance_progress, console, create_progress
+from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.file_manager import normalize_path
 from oc_ds_converter.lib.jsonmanager import get_all_files_by_type
 from oc_ds_converter.oc_idmanager.oc_data_storage.in_memory_manager import InMemoryStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.redis_manager import RedisStorageManager
 from oc_ds_converter.oc_idmanager.oc_data_storage.sqlite_manager import SqliteStorageManager
+
 
 
 def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_filepath:str|None,
@@ -56,18 +59,10 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
             log = '[INFO: datacite_process] Processing: ' + '; '.join(what)
             print(log)
 
-    if redis_storage_manager:
-        orcid_index_redis = OrcidIndexRedis(testing=testing)
-        if orcid_doi_filepath:
-            print('Updating DOI-ORCID index in Redis...')
-            orcid_index_redis.clear()
-            load_orcid_index_to_redis(orcid_doi_filepath, orcid_index_redis)
-            print('DOI-ORCID index updated in Redis')
-        else:
-            print('Using existing DOI-ORCID index from Redis')
+    orcid_doi_filepath = CSVManager(orcid_doi_filepath)
 
     if verbose:
-        print(f'[INFO: datacite_process] Getting all files from {datacite_json_dir}')
+        console.print(f'[cyan]Getting all files from {datacite_json_dir}[/cyan]')
 
     all_input_json = []
     for entry in os.listdir(datacite_json_dir):
@@ -79,27 +74,38 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
     all_input_json = sorted(list(dict.fromkeys(all_input_json)))
 
     if not redis_storage_manager or max_workers == 1:
-        for json_file in tqdm(all_input_json):
-            chunk = read_json(json_file, bad_dir)
-            if chunk:
-                get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+        bad_list = []
+        with create_progress() as progress:
+            task = progress.add_task(f"[green]First iteration (citing entities)", total=len(all_input_json))
+            for json_file in all_input_json:
+                chunk = read_json(json_file, bad_dir)
+                if chunk:
+                    was_processed = get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
                                        wanted_doi_filepath, publishers_filepath, storage_path,
                                        redis_storage_manager,
                                        testing, cache, is_first_iteration=True, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
                                         use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
-            else:
-                continue
+                    advance_progress(progress, task, processed=was_processed)
+                else:
+                    bad_list.append(json_file)
+                    advance_progress(progress, task, processed=False)
 
-        for json_file in tqdm(all_input_json):
-            chunk = read_json(json_file, bad_dir)
-            if chunk:
-                get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
-                                           wanted_doi_filepath, publishers_filepath, storage_path,
-                                           redis_storage_manager,
-                                           testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
-                                           use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
-            else:
-                continue
+        with create_progress() as progress:
+            task = progress.add_task(f"[green]Second iteration (cited entities)", total=len(all_input_json))
+            for json_file in all_input_json:
+                if json_file not in bad_list:
+                    chunk = read_json(json_file, bad_dir)
+                    if chunk:
+                        was_processed = get_citations_and_metadata(json_file, chunk, preprocessed_citations_dir, csv_dir, orcid_doi_filepath,
+                                        wanted_doi_filepath, publishers_filepath, storage_path,
+                                        redis_storage_manager,
+                                        testing, cache, is_first_iteration=False, use_orcid_api=use_orcid_api, use_ror_api=use_ror_api,
+                                            use_viaf_api=use_viaf_api, use_wikidata_api=use_wikidata_api)
+                        advance_progress(progress, task, processed=was_processed)
+                    else:
+                        advance_progress(progress, task, processed=False)
+                else:
+                    advance_progress(progress, task, processed=False)
 
     elif redis_storage_manager or max_workers > 1:
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=get_context('spawn')) as executor:
@@ -163,7 +169,7 @@ def preprocess(datacite_json_dir:str, publishers_filepath:str|None, orcid_doi_fi
 
 
 def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citations_dir: str, csv_dir: str,
-                               orcid_index: str,
+                               orcid_index: str | CSVManager,
                                doi_csv: str, publishers_filepath: str, storage_path: str,
                                redis_storage_manager: bool,
                                testing: bool, cache: str, is_first_iteration:bool, use_orcid_api: bool, use_ror_api: bool,
@@ -271,7 +277,6 @@ def get_citations_and_metadata(json_file:str, chunk: list, preprocessed_citation
                         all_br.extend(ent_all_br)
                         all_ra.extend(ent_all_ra)
 
-        dc_csv.prefetch_doi_orcid_index(all_dois_for_orcid_index)
         redis_validity_values_br = dc_csv.get_reids_validity_list(all_br, "br")
         redis_validity_values_ra = dc_csv.get_reids_validity_list(all_ra, "ra")
         dc_csv.update_redis_values(redis_validity_values_br, redis_validity_values_ra)
@@ -477,11 +482,14 @@ def read_json(json_path, bad_dir: str = None, preview_chars: int = 100):
 
         try:
             # try JSONL first
+            print(f"JSON/JSONL file: {json_path}")
             lines = [l.strip() for l in content.splitlines() if l.strip()]
-            json.loads(lines[0])  # if first line parses as complete JSON, it's JSONL
-            if len(lines) > 1:
+            if len(lines) > 0:
+                json.loads(lines[0])  # if first line parses as complete JSON, it's JSONL
                 data = [json.loads(line) for line in lines]
                 return data
+            else:
+                return None
         except JSONDecodeError:
             pass  # not JSONL, fall through to single JSON parsing
 

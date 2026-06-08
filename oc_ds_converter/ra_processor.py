@@ -21,7 +21,7 @@ from oc_ds_converter.lib.master_of_regex import orcid_pattern
 class RaProcessor(object):
     def __init__(
         self,
-        orcid_index: str | OrcidIndexInterface | None = None,
+        orcid_index: str | OrcidIndexInterface | CSVManager | None = None,
         publishers_filepath: str | None = None,
         citing_entities: str | None = None,
     ):
