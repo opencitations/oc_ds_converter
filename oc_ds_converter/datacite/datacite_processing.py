@@ -1001,9 +1001,10 @@ class DataciteProcessing(RaProcessor):
                         relationType = str(ref["relationType"]).lower()
                         if relatedIdentifierType == "doi":
                             if relationType in self.filter:
-                                rel_id = self.doi_m.normalise(ref["relatedIdentifier"], include_prefix=True)
-                                if rel_id:
-                                    all_br.add(rel_id)
+                                if ref["relatedIdentifier"] is not None:
+                                    rel_id = self.doi_m.normalise(ref["relatedIdentifier"], include_prefix=True)
+                                    if rel_id:
+                                        all_br.add(rel_id)
             all_br = [x for x in all_br if x is not None]
             all_ra = [y for y in all_ra if y is not None]
             return all_br, all_ra
