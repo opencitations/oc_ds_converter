@@ -57,12 +57,6 @@ class DOIManager(IdentifierManager):
         self._isbnm = ISBNManager()
         self._om = ORCIDManager()
 
-        # ISC License (ISC)
-        # ==================================
-
-
-        prefix_dx = r"HTTP:\/\/DX\.D[0|O]I\.[0|O]RG\/"
-        prefix_doi = r"HTTPS:\/\/D[0|O]I\.[0|O]RG\/"
         suffix_dcsupplemental = r"\/-\/DCSUPPLEMENTAL"
         suffix_suppinfo = r"SUPPINF[0|O](\.)?"
         suffix_pmid1 = r"[\.|\(|,|;]?PMID:\d+.*?"
@@ -84,8 +78,6 @@ class DOIManager(IdentifierManager):
                             suffix_published_online, suffix_http, suffix_subcontent, suffix_accessed, suffix_sagepub,
                             suffix_dotted_line, suffix_delimiters, suffix_doi_mark, suffix_year,
                             suffix_query, suffix_hash]
-        self.prefix_regex_lst = [prefix_dx, prefix_doi]
-        self.prefix_regex = r"(.*?)(?:\.)?(?:" + "|".join(self.prefix_regex_lst) + r")(.*)"
         self.suffix_regex = r"(.*?)(?:" + "|".join(self.suffix_regex_lst) + r")$"
 
     def validated_as_id(self, id_string: str) -> bool | None:
@@ -127,34 +119,24 @@ class DOIManager(IdentifierManager):
         self.storage_manager.set_value(doi, validity_check)
         return validity_check
 
-    def base_normalise(self, id_string: str) -> str | None:
+    def normalise(self, id_string: str, include_prefix: bool = False) -> str | None:
         if "10." not in id_string:
             return None
-        id_string = sub(
+        doi = sub(
             r"\0+", "", sub(r"\s+", "", unquote(id_string[id_string.index("10.") :]))
         )
-        return id_string.lower().strip() if id_string else None
-
-    def normalise(self, id_string: str, include_prefix: bool = False) -> str | None:
-        normalized = self.base_normalise(id_string)
-        if not normalized:
+        if not doi:
             return None
-        tmp_doi = normalized.replace(" ", "")
-        prefix_match = re.search(self.prefix_regex, tmp_doi, re.IGNORECASE)
-        if prefix_match:
-            tmp_doi = prefix_match.group(1)
-        suffix_match = re.search(self.suffix_regex, tmp_doi, re.IGNORECASE)
-        if suffix_match:
-            tmp_doi = suffix_match.group(1)
-        return "%s%s" % (
-            self._p if include_prefix else "",
-            tmp_doi.lower().strip(),
-        )
+        doi = doi.lower().strip()
+        return f"{self._p}{doi}" if include_prefix else doi
 
     def attempt_repair(self, doi: str) -> str | None:
         if not self._use_api_service:
             return None
         tmp_doi = doi
+        suffix_match = re.search(self.suffix_regex, tmp_doi, re.IGNORECASE)
+        if suffix_match:
+            tmp_doi = suffix_match.group(1)
         tmp_doi = re.sub("\\\\", "", tmp_doi)
         tmp_doi = re.sub("__", "_", tmp_doi)
         tmp_doi = re.sub("\\.\\.", ".", tmp_doi)

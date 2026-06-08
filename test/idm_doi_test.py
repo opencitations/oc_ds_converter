@@ -254,18 +254,23 @@ class DOIIdentifierManagerTest(unittest.TestCase):
         doi_with_prefix = "http://dx.doi.org/10.1108/jd-12-2013-0166"
         self.assertEqual(dm.normalise(doi_with_prefix), "10.1108/jd-12-2013-0166")
 
-    def test_normalise_removes_suffix_pmid(self):
+    def test_normalise_preserves_suffix(self):
         dm = DOIManager()
         doi_with_suffix = "10.1108/jd-12-2013-0166.PMID:12345"
-        self.assertEqual(dm.normalise(doi_with_suffix), "10.1108/jd-12-2013-0166")
+        self.assertEqual(dm.normalise(doi_with_suffix), "10.1108/jd-12-2013-0166.pmid:12345")
+
+    def test_normalise_preserves_hash(self):
+        dm = DOIManager()
+        self.assertEqual(dm.normalise("10.1234/abc#1"), "10.1234/abc#1")
+
+    def test_attempt_repair_strips_suffix(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10.1108/jd-12-2013-0166.pmid:12345")
+        self.assertEqual(repaired, "10.1108/jd-12-2013-0166")
 
     def test_normalise_invalid_string_returns_none(self):
         dm = DOIManager()
         self.assertIsNone(dm.normalise("not a doi"))
-
-    def test_base_normalise_invalid_string_returns_none(self):
-        dm = DOIManager()
-        self.assertIsNone(dm.base_normalise("not a doi"))
 
     def test_is_valid_normalise_returns_none(self):
         dm = DOIManager()
@@ -275,7 +280,14 @@ class DOIIdentifierManagerTest(unittest.TestCase):
         dm = DOIManager()
         self.assertTrue(dm.syntax_ok("10.1108/jd-12-2013-0166"))
 
-    def test_normalise_removes_embedded_url_prefix(self):
+    def test_normalise_preserves_embedded_url(self):
         dm = DOIManager()
-        doi_with_embedded_url = "10.1108http://dx.doi.org/jd-12-2013-0166"
-        self.assertEqual(dm.normalise(doi_with_embedded_url), "10.1108")
+        self.assertEqual(
+            dm.normalise("10.1108http://dx.doi.org/jd-12-2013-0166"),
+            "10.1108http://dx.doi.org/jd-12-2013-0166",
+        )
+
+    def test_attempt_repair_strips_embedded_url(self):
+        dm = DOIManager(use_api_service=True)
+        repaired = dm.attempt_repair("10.1108/jd-12-2013-0166http://example.com")
+        self.assertEqual(repaired, "10.1108/jd-12-2013-0166")

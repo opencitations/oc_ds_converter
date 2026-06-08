@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/opencitations/oc_ds_converter/compare/v2.0.1...v2.0.2) (2026-05-29)
+
+
+### Bug Fixes
+
+* **doi:** stop normalise from destructively stripping DOI content ([fbc4f2e](https://github.com/opencitations/oc_ds_converter/commit/fbc4f2e6879cc4baa2ca63d9993443d6678416f0))
+
 ## [2.0.1](https://github.com/opencitations/oc_ds_converter/compare/v2.0.0...v2.0.1) (2026-04-24)
 
 
