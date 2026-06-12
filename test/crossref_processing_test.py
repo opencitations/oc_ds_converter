@@ -715,6 +715,25 @@ class TestCrossrefProcessing(unittest.TestCase):
         expected_editors_list = ['Malek, Sri Nurestri Abdul [orcid:0000-0001-6278-8559]']
         self.assertEqual((authors_strings_list, editors_strings_list), (expected_authors_list, expected_editors_list))
 
+    def test_get_agents_strings_list_short_surname_substring(self):
+        # A short index surname ("Li") must not contaminate longer surnames that
+        # merely contain it as a substring ("Gladilin", "Poggioli"). Only the
+        # genuine "Li" author may receive the ORCID.
+        authors_list = [
+            {"given": "L. K.", "family": "Gladilin", "affiliation": [], "role": "author"},
+            {"given": "L.", "family": "Poggioli", "affiliation": [], "role": "author"},
+            {"given": "L.", "family": "Li", "affiliation": [], "role": "author"},
+        ]
+        crossref_processor = CrossrefProcessing(None)
+        csv_manager = CSVManager()
+        csv_manager.data = {'doi:10.9799/ksfan.2012.25.1.105': {'Li, Liang [0000-0001-6411-6107]'}}
+        crossref_processor.orcid_index = csv_manager
+        crossref_processor.prefetch_doi_orcid_index(['10.9799/ksfan.2012.25.1.105'])
+        authors_strings_list, _ = crossref_processor.get_agents_strings_list('10.9799/ksfan.2012.25.1.105',
+                                                                             authors_list)
+        expected_authors_list = ['Gladilin, L. K.', 'Poggioli, L.', 'Li, L. [orcid:0000-0001-6411-6107]']
+        self.assertEqual(authors_strings_list, expected_authors_list)
+
     def test_id_worker(self):
         field_issn = 'ISSN 1050-124X'
         field_isbn = ['978-1-56619-909-4']

@@ -21,7 +21,7 @@ from oc_ds_converter.oc_idmanager.orcid import ORCIDManager
 from oc_ds_converter.oc_idmanager.pmid import PMIDManager
 from oc_ds_converter.pubmed.finder_nih import NIHResourceFinder
 from oc_ds_converter.pubmed.get_publishers import ExtractPublisherDOI
-from oc_ds_converter.ra_processor import RaProcessor
+from oc_ds_converter.ra_processor import RaProcessor, families_match
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -388,7 +388,7 @@ class PubmedProcessing(RaProcessor):
                 else:
                     orcid = str(agent['ORCID'])
             if orcid:
-                orcid_manager = ORCIDManager(data=dict(), use_api_service=False)
+                orcid_manager = ORCIDManager(use_api_service=False)
                 orcid = orcid_manager.normalise(orcid, include_prefix=False)
                 orcid = orcid if orcid_manager.check_digit(orcid) else None
 
@@ -397,12 +397,11 @@ class PubmedProcessing(RaProcessor):
                     orc_n: List[str] = dict_orcid[ori].split(', ')
                     orc_f = orc_n[0].lower()
                     orc_g = orc_n[1] if len(orc_n) == 2 else None
-                    if f_name.lower() in orc_f.lower() or orc_f.lower() in f_name.lower():
+                    if families_match(f_name, orc_f):
                         if g_name and orc_g:
                             # If there are several authors with the same surname
                             if len([person for person in agents_list if 'family' in person if person['family'] if
-                                    person['family'].lower() in orc_f.lower() or orc_f.lower() in person[
-                                        'family'].lower()]) > 1:
+                                    families_match(person['family'], orc_f)]) > 1:
                                 # If there are several authors with the same surname and the same given names' initials
                                 if len([person for person in agents_list if 'given' in person if person['given'] if
                                         person['given'][0].lower() == orc_g[0].lower()]) > 1:
