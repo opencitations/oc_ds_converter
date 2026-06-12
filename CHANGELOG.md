@@ -1,3 +1,11 @@
+## [2.0.3](https://github.com/opencitations/oc_ds_converter/compare/v2.0.2...v2.0.3) (2026-06-12)
+
+
+### Bug Fixes
+
+* **orcid:** replace substring surname matching with token-based matcher ([6dd9bfb](https://github.com/opencitations/oc_ds_converter/commit/6dd9bfb27cb5b15ed01a4168ceb45d3dc372932e))
+* **pypi:** add python version classifiers for shields.io badge ([7d762f7](https://github.com/opencitations/oc_ds_converter/commit/7d762f7ec2311f00e1281f436dd89a409e69e30c))
+
 ## [2.0.2](https://github.com/opencitations/oc_ds_converter/compare/v2.0.1...v2.0.2) (2026-05-29)
 
 
