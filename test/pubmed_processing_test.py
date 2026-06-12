@@ -301,6 +301,17 @@ class TestPubmedProcessing(unittest.TestCase):
         ag = pubmed_processor.get_agents_strings_list("10.3000/1000000001", agents_list)
         self.assertEqual(ag[0], ['Moretti, Arianna [orcid:0000-0001-5486-7070]', 'Peroni, Silvio [orcid:0000-0003-0530-4305]', 'Di Giambattista, Chiara [orcid:0000-0001-8665-095X]'] )
 
+    def test_get_agents_strings_list_orcid_in_agent(self):
+        # Agents carrying an 'orcid' key (possibly None) must not crash and must
+        # keep the valid ORCID without overwriting it.
+        pubmed_processor = PubmedProcessing(orcid_index=None)
+        agents_list = [
+            {'role': 'author', 'family': 'Peroni', 'given': 'Silvio', 'orcid': '0000-0003-0530-4305'},
+            {'role': 'author', 'family': 'Moretti', 'given': 'Arianna', 'orcid': None},
+        ]
+        ag = pubmed_processor.get_agents_strings_list("10.0000/none", agents_list)
+        self.assertEqual(ag[0], ['Peroni, Silvio [orcid:0000-0003-0530-4305]', 'Moretti, Arianna'])
+
     def test_get_venue_name_with_extended_map(self):
         item = {
              "journal": "Biochim Biophys Acta"}

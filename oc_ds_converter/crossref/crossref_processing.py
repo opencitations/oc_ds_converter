@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple
 from oc_ds_converter.lib.cleaner import Cleaner
 from oc_ds_converter.lib.crossref_style_processing import CrossrefStyleProcessing
 from oc_ds_converter.lib.master_of_regex import ids_inside_square_brackets, pages_separator
+from oc_ds_converter.ra_processor import families_match
 from oc_ds_converter.oc_idmanager.oc_data_storage.storage_manager import StorageManager
 
 
@@ -334,10 +335,10 @@ class CrossrefProcessing(CrossrefStyleProcessing):
             giv_n = _norm(giv) if giv else ""
             init = _initial_from_given(giv)
 
-            # filtra candidati indice per family (tollerando containment)
+            # filtra candidati indice per family (token-subset: gestisce i cognomi
+            # composti senza che frammenti brevi come "li" matchino "gladilin")
             def fam_ok(cf: str) -> bool:
-                cf_n = _norm(cf)
-                return cf_n == fam_n or cf_n in fam_n or fam_n in cf_n
+                return families_match(cf, fam_n)
 
             cands = [(cf, cg, oc) for (cf, cg, oc) in candidates if fam_ok(cf)]
             if not cands:

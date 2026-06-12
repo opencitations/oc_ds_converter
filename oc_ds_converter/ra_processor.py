@@ -18,6 +18,14 @@ from oc_ds_converter.lib.csvmanager import CSVManager
 from oc_ds_converter.lib.master_of_regex import orcid_pattern
 
 
+def families_match(a: str, b: str) -> bool:
+    tokens_a = {t for t in re.split(r"\s+", (a or "").strip().lower()) if t}
+    tokens_b = {t for t in re.split(r"\s+", (b or "").strip().lower()) if t}
+    if not tokens_a or not tokens_b:
+        return False
+    return tokens_a <= tokens_b or tokens_b <= tokens_a
+
+
 class RaProcessor(object):
     def __init__(
         self,
@@ -93,12 +101,11 @@ class RaProcessor(object):
                     orc_n: List[str] = dict_orcid[ori].split(', ')
                     orc_f = orc_n[0].lower()
                     orc_g = orc_n[1] if len(orc_n) == 2 else None
-                    if f_name.lower() in orc_f.lower() or orc_f.lower() in f_name.lower():
+                    if families_match(f_name, orc_f):
                         if g_name and orc_g:
                             # If there are several authors with the same surname
                             if len([person for person in agents_list if 'family' in person if person['family'] if
-                                    person['family'].lower() in orc_f.lower() or orc_f.lower() in person[
-                                        'family'].lower()]) > 1:
+                                    families_match(person['family'], orc_f)]) > 1:
                                 # If there are several authors with the same surname and the same given names' initials
                                 if len([person for person in agents_list if 'given' in person if person['given'] if
                                         person['given'][0].lower() == orc_g[0].lower()]) > 1:
